@@ -52,6 +52,14 @@ function VerifyEmail() {
     codeInputRefs.current[nextFocusIndex]?.focus()
   }
 
+  function handleContinue() {
+    const isCodeComplete = codeValues.every((codeValue) => codeValue !== '')
+
+    if (isCodeComplete) {
+      navigate('/admin/dashboard')
+    }
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
       <section className="relative flex min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16">
@@ -121,7 +129,7 @@ function VerifyEmail() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/select-role')}
+              onClick={handleContinue}
               className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13"
             >
               Continue
