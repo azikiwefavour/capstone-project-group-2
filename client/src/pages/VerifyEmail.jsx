@@ -1,15 +1,55 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
 
 function VerifyEmail() {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
+  const codeInputRefs = useRef([])
   const navigate = useNavigate()
 
   function handleCodeChange(index, value) {
+    const digits = value.replace(/\D/g, '')
+    if (digits.length > 1) {
+      handleCodePaste(index, digits)
+      return
+    }
+
     const nextCodeValues = [...codeValues]
-    nextCodeValues[index] = value.slice(-1)
+    nextCodeValues[index] = digits
     setCodeValues(nextCodeValues)
+
+    if (digits && index < codeValues.length - 1) {
+      codeInputRefs.current[index + 1]?.focus()
+    }
+  }
+
+  function handleCodeKeyDown(index, event) {
+    if (event.key === 'Backspace' && codeValues[index] === '' && index > 0) {
+      codeInputRefs.current[index - 1]?.focus()
+    }
+  }
+
+  function handleCodePaste(index, value) {
+    const pastedDigits = value.replace(/\D/g, '').slice(0, codeValues.length)
+    if (!pastedDigits) {
+      return
+    }
+
+    const nextCodeValues = [...codeValues]
+    pastedDigits.split('').forEach((digit, digitIndex) => {
+      const nextIndex = index + digitIndex
+      if (nextIndex < nextCodeValues.length) {
+        nextCodeValues[nextIndex] = digit
+      }
+    })
+
+    setCodeValues(nextCodeValues)
+
+    const nextFocusIndex = Math.min(
+      index + pastedDigits.length,
+      codeValues.length - 1,
+    )
+    codeInputRefs.current[nextFocusIndex]?.focus()
   }
 
   return (
@@ -50,6 +90,9 @@ function VerifyEmail() {
             {codeValues.map((codeValue, index) => (
               <input
                 key={index}
+                ref={(element) => {
+                  codeInputRefs.current[index] = element
+                }}
                 type="text"
                 inputMode="numeric"
                 maxLength="1"
@@ -58,6 +101,11 @@ function VerifyEmail() {
                 onChange={(event) =>
                   handleCodeChange(index, event.target.value)
                 }
+                onKeyDown={(event) => handleCodeKeyDown(index, event)}
+                onPaste={(event) => {
+                  event.preventDefault()
+                  handleCodePaste(index, event.clipboardData.getData('text'))
+                }}
                 className="aspect-square w-full rounded-xl border border-[#D8DCE5] bg-white text-center text-xl font-semibold text-[#111827] outline-none transition focus:border-[#475AA2] focus:ring-4 focus:ring-[#475AA2]/15"
               />
             ))}
