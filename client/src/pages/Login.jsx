@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
 
 function FieldError({ id, message }) {
@@ -96,7 +96,9 @@ function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
+  const location = useLocation()
   const navigate = useNavigate()
+  const selectedRole = location.state?.selectedRole
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
     continueClicked &&
@@ -117,6 +119,12 @@ function Login() {
 
   function handleContinue() {
     setContinueClicked(true)
+
+    if (email.trim() !== '' && isEmailValid && password.trim() !== '') {
+      if (selectedRole === 'Admin') {
+        navigate('/admin/dashboard')
+      }
+    }
   }
 
   return (
