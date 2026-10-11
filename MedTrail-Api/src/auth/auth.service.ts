@@ -91,7 +91,7 @@ export class AuthService {
       throw new BadRequestException('Verification code has expired. Please request a new one.');
     }
 
-    await this.usersService.updateById(String(user._id), {
+    await this.usersService.updateById(String(user.id), {
       isEmailVerified: true,
       emailOtp: null,
       emailOtpExpiry: null,
@@ -111,7 +111,7 @@ export class AuthService {
 
     const otp = this.generateOtp();
     const expiry = this.otpExpiry();
-    await this.usersService.updateById(String(user._id), {
+    await this.usersService.updateById(String(user.id), {
       emailOtp: otp,
       emailOtpExpiry: expiry,
     });
@@ -142,11 +142,11 @@ export class AuthService {
 
     // Persist the role if it changed or was not set yet
     if (user.role !== dto.role) {
-      await this.usersService.updateById(String(user._id), { role: dto.role });
+      await this.usersService.updateById(String(user.id), { role: dto.role });
     }
 
     const token = this.signToken({
-      sub: String(user._id),
+      sub: String(user.id),
       email: user.email,
       role: dto.role,
     });
@@ -155,7 +155,7 @@ export class AuthService {
       message: 'Login successful',
       accessToken: token,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: dto.role,
@@ -176,7 +176,7 @@ export class AuthService {
 
     const otp = this.generateOtp();
     const expiry = this.otpExpiry();
-    await this.usersService.updateById(String(user._id), {
+    await this.usersService.updateById(String(user.id), {
       resetPasswordOtp: otp,
       resetPasswordOtpExpiry: expiry,
     });
@@ -218,7 +218,7 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
-    await this.usersService.updateById(String(user._id), {
+    await this.usersService.updateById(String(user.id), {
       password: hashedPassword,
       resetPasswordOtp: null,
       resetPasswordOtpExpiry: null,

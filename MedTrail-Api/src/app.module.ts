@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -8,22 +8,35 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
+import { User } from './users/entities/user.entity';
 
 @Module({
   imports: [
     // Load .env globally
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // MongoDB connection
-    MongooseModule.forRootAsync({
+    // Neon PostgreSQL connection with TypeORM
+    TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI'),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const dbUrl = configService.get<string>('DATABASE_URL');
+        const isNeonOrSsl =
+          dbUrl?.includes('neon.tech') ||
+          configService.get<string>('DB_SSL') === 'true';
+
+        return {
+          type: 'postgres',
+          url: dbUrl,
+          entities: [User],
+          autoLoadEntities: true,
+          synchronize: configService.get<string>('NODE_ENV') !== 'production',
+          ssl: isNeonOrSsl ? { rejectUnauthorized: false } : false,
+        };
+      },
       inject: [ConfigService],
     }),
 
-    // Global JWT (modules can import JwtModule.register({}) individually too)
+    // Global JWT
     JwtModule.registerAsync({
       global: true,
       imports: [ConfigModule],
