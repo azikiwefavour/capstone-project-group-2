@@ -162,6 +162,14 @@ const roles = [
 function RoleSelection() {
   const navigate = useNavigate()
 
+  function handleRoleSelect(roleName) {
+    navigate('/login', {
+      state: {
+        selectedRole: roleName,
+      },
+    })
+  }
+
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
       <section className="relative flex min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16">
@@ -198,7 +206,7 @@ function RoleSelection() {
               <button
                 key={role.name}
                 type="button"
-                onClick={() => navigate('/login')}
+                onClick={() => handleRoleSelect(role.name)}
                 className="flex h-[148px] flex-col items-start justify-between rounded-xl border border-[#E2E5ED] bg-white p-5 text-left transition hover:border-[#475AA2] hover:bg-[#FAFBFF] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-[160px]"
               >
                 <span

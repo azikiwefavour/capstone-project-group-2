@@ -217,6 +217,7 @@ function CreateAccount() {
       isPasswordValid
 
     if (allFieldsValid) {
+      sessionStorage.setItem('medtrailDemoAdminName', yourName.trim())
       navigate('/verify-email')
     }
   }
