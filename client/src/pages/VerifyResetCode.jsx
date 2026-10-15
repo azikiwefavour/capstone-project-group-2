@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 function FieldError({ id, message }) {
   return (
@@ -33,9 +35,13 @@ function FieldError({ id, message }) {
 function VerifyResetCode() {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
   const [continueClicked, setContinueClicked] = useState(false)
-  const [backendError] = useState('')
+  const [backendError, setBackendError] = useState('')
+  const [isVerifying, setIsVerifying] = useState(false)
+  const verificationInFlight = useRef(false)
   const codeInputRefs = useRef([])
   const navigate = useNavigate()
+  const { state } = useLocation()
+  const email = typeof state?.email === 'string' ? state.email.trim() : ''
   const enteredCode = codeValues.join('')
   const codeError =
     continueClicked &&
@@ -57,6 +63,7 @@ function VerifyResetCode() {
     nextCodeValues[index] = digits
     setCodeValues(nextCodeValues)
     setContinueClicked(false)
+    setBackendError('')
 
     if (digits && index < codeValues.length - 1) {
       codeInputRefs.current[index + 1]?.focus()
@@ -85,6 +92,7 @@ function VerifyResetCode() {
 
     setCodeValues(nextCodeValues)
     setContinueClicked(false)
+    setBackendError('')
 
     const nextFocusIndex = Math.min(
       index + pastedDigits.length,
@@ -93,11 +101,50 @@ function VerifyResetCode() {
     codeInputRefs.current[nextFocusIndex]?.focus()
   }
 
-  function handleContinue() {
-    setContinueClicked(true)
+  async function handleContinue(event) {
+    event.preventDefault()
+    if (verificationInFlight.current) return
 
-    if (enteredCode.length === codeValues.length) {
-      navigate('/new-password')
+    setContinueClicked(true)
+    setBackendError('')
+
+    if (!email) {
+      setBackendError('Your reset email is missing. Please go back and request a new code.')
+      return
+    }
+
+    if (!/^\d{6}$/.test(enteredCode)) return
+
+    verificationInFlight.current = true
+    setIsVerifying(true)
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/verify-reset-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: enteredCode }),
+      })
+
+      if (response.status !== 200) {
+        const data = await response.json().catch(() => null)
+        const message = Array.isArray(data?.message)
+          ? data.message.filter((value) => typeof value === 'string').join(' ')
+          : typeof data?.message === 'string' ? data.message : ''
+
+        if (response.status === 400 || response.status === 404) {
+          setBackendError(message || 'The reset code is incorrect or expired. Please request a new code.')
+        } else {
+          setBackendError('Unable to verify your reset code. Please try again.')
+        }
+        return
+      }
+
+      navigate('/new-password', { state: { email, otp: enteredCode } })
+    } catch {
+      setBackendError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      verificationInFlight.current = false
+      setIsVerifying(false)
     }
   }
 
@@ -125,6 +172,8 @@ function VerifyResetCode() {
         <form
           className="w-full max-w-[440px]"
           aria-label="Verify reset code form"
+          onSubmit={handleContinue}
+          aria-busy={isVerifying}
         >
           <div className="text-center">
             <h2 className="text-xl font-semibold tracking-normal text-[#111827] sm:text-xl lg:text-2xl">
@@ -146,6 +195,7 @@ function VerifyResetCode() {
                   type="text"
                   inputMode="numeric"
                   maxLength="1"
+                  disabled={isVerifying}
                   aria-label={`Reset code digit ${index + 1}`}
                   value={codeValue}
                   onChange={(event) =>
@@ -169,24 +219,27 @@ function VerifyResetCode() {
               ))}
             </div>
             {visibleCodeError && (
-              <FieldError id="reset-code-error" message={visibleCodeError} />
+              <div role="alert">
+                <FieldError id="reset-code-error" message={visibleCodeError} />
+              </div>
             )}
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
+              disabled={isVerifying}
               onClick={() => navigate('/forgot-password')}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
             </button>
             <button
-              type="button"
-              onClick={handleContinue}
-              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13"
+              type="submit"
+              disabled={isVerifying}
+              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
-              Continue
+              {isVerifying ? 'Verifying...' : 'Continue'}
             </button>
           </div>
         </form>

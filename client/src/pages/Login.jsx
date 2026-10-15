@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { setAccessToken } from '../auth/session'
 import medicationImage from '../assets/medication-image.png'
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
+const backendRoles = { Admin: 'admin', Doctor: 'doctor', Pharmacist: 'pharmacist', Patient: 'patient' }
 
 function FieldError({ id, message }) {
   return (
@@ -96,9 +100,14 @@ function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [loginNotice, setLoginNotice] = useState('')
+  const loginInFlight = useRef(false)
   const location = useLocation()
   const navigate = useNavigate()
   const selectedRole = location.state?.selectedRole
+  const role = Object.hasOwn(backendRoles, selectedRole) ? backendRoles[selectedRole] : null
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
     continueClicked &&
@@ -117,13 +126,67 @@ function Login() {
         : 'border-[#D8DCE5] focus:border-[#475AA2] focus:ring-[#475AA2]/15'
     }`
 
-  function handleContinue() {
-    setContinueClicked(true)
+  async function handleContinue(event) {
+    event.preventDefault()
+    if (loginInFlight.current) return
 
-    if (email.trim() !== '' && isEmailValid && password.trim() !== '') {
-      if (selectedRole === 'Admin') {
-        navigate('/admin/dashboard')
+    setContinueClicked(true)
+    setLoginError('')
+    setLoginNotice('')
+
+    if (email.trim() === '' || !isEmailValid || password.trim() === '') return
+    if (!role) {
+      setLoginError('Please select your role before logging in.')
+      return
+    }
+
+    loginInFlight.current = true
+    setIsLoggingIn(true)
+    setAccessToken(null)
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, role }),
+      })
+      const data = await response.json().catch(() => null)
+
+      if (response.status !== 200) {
+        const message = Array.isArray(data?.message)
+          ? data.message.filter((value) => typeof value === 'string').join(' ')
+          : typeof data?.message === 'string' ? data.message : ''
+        if (response.status === 401) {
+          setLoginError(message || 'Invalid email or password. Please check your details and verify your email.')
+        } else if (response.status === 400) {
+          setLoginError(message || 'Please check your email, password, and selected role.')
+        } else {
+          setLoginError('Login could not be completed. Please try again.')
+        }
+        return
       }
+
+      if (typeof data?.accessToken !== 'string' || !data.accessToken.trim() ||
+        !Object.values(backendRoles).includes(data?.user?.role)) {
+        setLoginError('Login returned an unexpected response. Please try again.')
+        return
+      }
+
+      setAccessToken(data.accessToken)
+      setPassword('')
+      setContinueClicked(false)
+      if (data.user.role === 'admin') {
+        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : '')
+        navigate('/admin/dashboard', { replace: true })
+      } else {
+        setLoginNotice('Login successful. The dashboard for your role is not available yet.')
+      }
+    } catch {
+      setAccessToken(null)
+      setLoginError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      loginInFlight.current = false
+      setIsLoggingIn(false)
     }
   }
 
@@ -148,7 +211,7 @@ function Login() {
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="Login form">
+        <form className="w-full max-w-[440px]" aria-label="Login form" onSubmit={handleContinue} noValidate aria-busy={isLoggingIn}>
           <div className="mb-5 [@media(min-height:850px)]:lg:mb-9">
             <h2 className="text-3xl font-semibold tracking-normal text-[#111827] sm:text-[2.5rem] lg:text-4xl [@media(min-height:850px)]:lg:text-[2.5rem]">
               Welcome back
@@ -234,12 +297,26 @@ function Login() {
             </button>
           </div>
 
+          {loginError && (
+            <div role="alert" className="mt-3">
+              <FieldError id="login-error" message={loginError} />
+              {!role && (
+                <button type="button" onClick={() => navigate('/select-role')} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
+                  Select role
+                </button>
+              )}
+            </div>
+          )}
+          {loginNotice && (
+            <p role="status" className="mt-3 text-sm font-medium text-[#2F7D59]">{loginNotice}</p>
+          )}
+
           <button
-            type="button"
-            onClick={handleContinue}
-            className="mt-5 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:mt-8 [@media(min-height:850px)]:lg:h-13"
+            type="submit"
+            disabled={isLoggingIn}
+            className="mt-5 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:mt-8 [@media(min-height:850px)]:lg:h-13"
           >
-            Continue
+            {isLoggingIn ? 'Logging in...' : 'Continue'}
           </button>
 
           <p className="mt-4 text-center text-sm text-[#7A8190] [@media(min-height:850px)]:lg:mt-6">
