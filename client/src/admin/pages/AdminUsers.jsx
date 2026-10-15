@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import AddUserModal from '../components/AddUserModal'
 import AdminHeader from '../components/AdminHeader'
+import AdminPagination from '../components/AdminPagination'
 
 const roleStyles = {
   Doctor: {
@@ -180,33 +181,7 @@ function CloseIcon() {
   )
 }
 
-function ArrowLeftIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-      <path
-        d="M12.5 5L7.5 10L12.5 15"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
-function ArrowRightIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-      <path
-        d="M7.5 5L12.5 10L7.5 15"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
 
 function formatPhoneNumber(phone) {
   const digits = phone.replace(/\D/g, '')
@@ -228,6 +203,31 @@ function RoleBadge({ role }) {
   )
 }
 
+function StatusBadge({ status }) {
+  const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : ''
+  if (normalizedStatus !== 'pending' && normalizedStatus !== 'active') {
+    return <span className="text-[#7A8190]" aria-label="Status unavailable">-</span>
+  }
+
+  const isActive = normalizedStatus === 'active'
+
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#E2E5ED] bg-white px-2.5 py-1 text-xs font-medium text-[#111827]">
+      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-white ${isActive ? 'bg-[#2F9E44]' : 'bg-[#F59E0B]'}`}>
+        {isActive ? (
+          <CheckIcon />
+        ) : (
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="h-3 w-3">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M8 4.5V8L10.5 9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      {isActive ? 'Active' : 'Pending'}
+    </span>
+  )
+}
+
 function AdminUsers() {
   const { adminName } = useOutletContext()
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
@@ -237,7 +237,7 @@ function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('All')
   const [sortBy, setSortBy] = useState('Newest')
-  const [rowsPerPage, setRowsPerPage] = useState(5)
+  const rowsPerPage = 5
   const [currentPage, setCurrentPage] = useState(1)
   const adminContentScrollTopRef = useRef(0)
 
@@ -313,11 +313,12 @@ function AdminUsers() {
 
       if (existingUser) {
         return currentUsers.map((user) =>
-          user.id === savedUser.id ? savedUser : user,
+          user.id === savedUser.id ? { ...savedUser, status: user.status } : user,
         )
       }
 
-      return [savedUser, ...currentUsers]
+      // Local creation does not confirm registration, verification, or email delivery.
+      return [{ ...savedUser, status: 'pending' }, ...currentUsers]
     })
 
     setEditingUser(null)
@@ -472,6 +473,7 @@ function AdminUsers() {
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -498,6 +500,9 @@ function AdminUsers() {
                       {formatPhoneNumber(user.phone)}
                     </td>
                     <td className="px-4 py-3">
+                      <StatusBadge status={user.status} />
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-2 text-[#52556C]">
                         <button
                           type="button"
@@ -521,7 +526,7 @@ function AdminUsers() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-5 py-0">
+                  <td colSpan="7" className="px-5 py-0">
                     <div className="flex min-h-[220px] flex-col items-center justify-center text-center lg:min-h-[calc(100vh-430px)]">
                       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59]">
                         <UserIcon />
@@ -537,68 +542,12 @@ function AdminUsers() {
           </table>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-3 border-t border-[#E2E5ED] px-4 py-3 text-sm text-[#52556C] sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-            <span>Rows per page</span>
-            <select
-              value={rowsPerPage}
-              onChange={(event) => {
-                setRowsPerPage(Number(event.target.value))
-                setCurrentPage(1)
-              }}
-              className="h-9 rounded-lg border border-[#D8DCE5] bg-white px-2 text-sm outline-none focus:border-[#475AA2] focus:ring-4 focus:ring-[#475AA2]/15"
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="15">15</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={safeCurrentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#D8DCE5] bg-white transition hover:bg-[#F7F8FB] disabled:cursor-not-allowed disabled:opacity-45"
-              aria-label="Previous page"
-            >
-              <ArrowLeftIcon />
-            </button>
-
-            {Array.from({ length: totalPages }, (_, index) => index + 1).map(
-              (pageNumber) => (
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() => setCurrentPage(pageNumber)}
-                  className={`h-9 min-w-9 rounded-lg px-3 text-sm font-medium transition ${
-                    safeCurrentPage === pageNumber
-                      ? 'bg-[#475AA2] text-white'
-                      : 'border border-[#D8DCE5] bg-white text-[#52556C] hover:bg-[#F7F8FB]'
-                  }`}
-                >
-                  {pageNumber}
-                </button>
-              ),
-            )}
-
-            <button
-              type="button"
-              disabled={safeCurrentPage === totalPages}
-              onClick={() =>
-                setCurrentPage((page) => Math.min(totalPages, page + 1))
-              }
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#D8DCE5] bg-white transition hover:bg-[#F7F8FB] disabled:cursor-not-allowed disabled:opacity-45"
-              aria-label="Next page"
-            >
-              <ArrowRightIcon />
-            </button>
-
-            <span className="ml-1 whitespace-nowrap">
-              Page {safeCurrentPage} of {totalPages}
-            </span>
-          </div>
-        </div>
+        <AdminPagination
+          totalItems={visibleUsers.length}
+          currentPage={safeCurrentPage}
+          rowsPerPage={rowsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <AddUserModal

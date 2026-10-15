@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 function FieldError({ id, message }) {
   return (
@@ -126,6 +128,9 @@ function CreateAccount() {
   const [password, setPassword] = useState('')
   const [touchedFields, setTouchedFields] = useState({})
   const [continueClicked, setContinueClicked] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [registrationError, setRegistrationError] = useState('')
+  const registrationInFlight = useRef(false)
   const navigate = useNavigate()
 
   const shouldShowError = (fieldName) =>
@@ -203,8 +208,12 @@ function CreateAccount() {
     }))
   }
 
-  function handleContinue() {
+  async function handleContinue(event) {
+    event.preventDefault()
+    if (registrationInFlight.current) return
+
     setContinueClicked(true)
+    setRegistrationError('')
 
     const allFieldsValid =
       email.trim() !== '' &&
@@ -216,9 +225,48 @@ function CreateAccount() {
       password.trim() !== '' &&
       isPasswordValid
 
-    if (allFieldsValid) {
+    if (!allFieldsValid) return
+
+    registrationInFlight.current = true
+    setIsRegistering(true)
+
+    try {
+      const registeredEmail = email.trim().toLowerCase()
+      const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: yourName.trim(),
+          email: registeredEmail,
+          phone: `+234${phoneDigits.replace(/^0/, '')}`,
+          hospitalName: hospitalName.trim(),
+          password,
+        }),
+      })
+
+      if (response.status !== 201) {
+        const data = await response.json().catch(() => null)
+
+        if (response.status === 409) {
+          setRegistrationError('An account with this email already exists. Please use another email or log in.')
+        } else if (response.status === 400) {
+          const messages = Array.isArray(data?.message)
+            ? data.message.filter((message) => typeof message === 'string').join(' ')
+            : typeof data?.message === 'string' ? data.message : ''
+          setRegistrationError(messages || 'Please check your details and try again.')
+        } else {
+          setRegistrationError('Registration could not be completed. Please try again.')
+        }
+        return
+      }
+
       sessionStorage.setItem('medtrailDemoAdminName', yourName.trim())
-      navigate('/verify-email')
+      navigate('/verify-email', { state: { email: registeredEmail } })
+    } catch {
+      setRegistrationError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      registrationInFlight.current = false
+      setIsRegistering(false)
     }
   }
 
@@ -243,7 +291,7 @@ function CreateAccount() {
       </section>
 
       <section className="flex w-full items-start justify-center overflow-y-visible bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:overflow-y-auto lg:rounded-l-[24px] lg:px-14 lg:py-4 [@media(min-height:860px)]:lg:py-6 [@media(min-height:950px)]:lg:items-center [@media(min-height:950px)]:lg:py-8">
-        <form className="w-full max-w-[440px]" aria-label="Create account form">
+        <form className="w-full max-w-[440px]" aria-label="Create account form" onSubmit={handleContinue} noValidate aria-busy={isRegistering}>
           <div className="mb-4 [@media(min-height:900px)]:lg:mb-7">
             <h2 className="text-3xl font-semibold tracking-normal text-[#111827] sm:text-[2.5rem] lg:text-3xl [@media(min-height:900px)]:lg:text-4xl [@media(min-height:1000px)]:lg:text-[2.5rem]">
               Let&rsquo;s get started
@@ -467,12 +515,18 @@ function CreateAccount() {
             </div>
           </div>
 
+          {registrationError && (
+            <div role="alert" className="mt-3">
+              <FieldError id="registration-error" message={registrationError} />
+            </div>
+          )}
+
           <button
-            type="button"
-            onClick={handleContinue}
-            className="mt-3 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(max-height:820px)]:lg:h-10 [@media(min-height:900px)]:lg:mt-6 [@media(min-height:900px)]:lg:h-12"
+            type="submit"
+            disabled={isRegistering}
+            className="mt-3 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(max-height:820px)]:lg:h-10 [@media(min-height:900px)]:lg:mt-6 [@media(min-height:900px)]:lg:h-12"
           >
-            Continue
+            {isRegistering ? 'Creating account...' : 'Continue'}
           </button>
 
           <p className="mt-2 text-center text-sm text-[#7A8190] [@media(min-height:900px)]:lg:mt-4">

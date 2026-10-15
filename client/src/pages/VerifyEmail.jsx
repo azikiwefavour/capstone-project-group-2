@@ -1,11 +1,18 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 function VerifyEmail() {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verificationError, setVerificationError] = useState('')
+  const verificationInFlight = useRef(false)
   const codeInputRefs = useRef([])
   const navigate = useNavigate()
+  const { state } = useLocation()
+  const email = typeof state?.email === 'string' ? state.email.trim() : ''
 
   function handleCodeChange(index, value) {
     const digits = value.replace(/\D/g, '')
@@ -52,11 +59,55 @@ function VerifyEmail() {
     codeInputRefs.current[nextFocusIndex]?.focus()
   }
 
-  function handleContinue() {
-    const isCodeComplete = codeValues.every((codeValue) => codeValue !== '')
+  async function handleContinue(event) {
+    event.preventDefault()
+    if (verificationInFlight.current) return
 
-    if (isCodeComplete) {
+    setVerificationError('')
+
+    if (!email) {
+      setVerificationError('Your registration email is missing. Please go back and create your account.')
+      return
+    }
+
+    const otp = codeValues.join('')
+    if (!/^\d{6}$/.test(otp)) {
+      setVerificationError('Please enter the complete 6-digit verification code.')
+      return
+    }
+
+    verificationInFlight.current = true
+    setIsVerifying(true)
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      })
+
+      if (response.status !== 200) {
+        const data = await response.json().catch(() => null)
+        const message = Array.isArray(data?.message)
+          ? data.message.filter((value) => typeof value === 'string').join(' ')
+          : typeof data?.message === 'string' ? data.message : ''
+
+        if (response.status === 400) {
+          setVerificationError(message || 'The verification code is incorrect or expired. Please try again.')
+        } else if (response.status === 404) {
+          setVerificationError(message || 'No account found with this email. Please go back and create your account.')
+        } else {
+          setVerificationError('Email verification could not be completed. Please try again.')
+        }
+        return
+      }
+
       navigate('/admin/dashboard')
+    } catch {
+      setVerificationError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      verificationInFlight.current = false
+      setIsVerifying(false)
     }
   }
 
@@ -81,7 +132,7 @@ function VerifyEmail() {
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="Verify email form">
+        <form className="w-full max-w-[440px]" aria-label="Verify email form" onSubmit={handleContinue} aria-busy={isVerifying}>
           <div className="text-center">
             <h2 className="text-3xl font-semibold tracking-normal text-[#111827] sm:text-[2.5rem] lg:text-4xl [@media(min-height:850px)]:lg:text-[2.5rem]">
               Verify email
@@ -90,7 +141,7 @@ function VerifyEmail() {
               Enter the code sent to
             </p>
             <p className="mt-2 text-base font-medium text-[#111827]">
-              johndoe@email.com
+              {email || 'your email address'}
             </p>
           </div>
 
@@ -104,7 +155,9 @@ function VerifyEmail() {
                 type="text"
                 inputMode="numeric"
                 maxLength="1"
+                disabled={isVerifying}
                 aria-label={`Verification code digit ${index + 1}`}
+                aria-describedby={verificationError ? 'verification-error' : undefined}
                 value={codeValue}
                 onChange={(event) =>
                   handleCodeChange(index, event.target.value)
@@ -119,20 +172,27 @@ function VerifyEmail() {
             ))}
           </div>
 
+          {verificationError && (
+            <p id="verification-error" role="alert" className="mt-3 text-sm font-medium text-[#E5484D]">
+              {verificationError}
+            </p>
+          )}
+
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
+              disabled={isVerifying}
               onClick={() => navigate('/create-account')}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
             </button>
             <button
-              type="button"
-              onClick={handleContinue}
-              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13"
+              type="submit"
+              disabled={isVerifying}
+              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
-              Continue
+              {isVerifying ? 'Verifying...' : 'Continue'}
             </button>
           </div>
         </form>

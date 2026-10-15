@@ -39,6 +39,8 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   const [email, setEmail] = useState(initialUser?.email || '')
   const [phone, setPhone] = useState(initialUser?.phone || '')
   const [role, setRole] = useState(initialUser?.role || '')
+  const [gender, setGender] = useState(initialUser?.role === 'Patient' ? initialUser.gender || '' : '')
+  const [age, setAge] = useState(initialUser?.role === 'Patient' ? String(initialUser.age ?? '') : '')
   const [touchedFields, setTouchedFields] = useState({})
   const [submitClicked, setSubmitClicked] = useState(false)
   const isEditing = Boolean(initialUser)
@@ -73,6 +75,22 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
         : '')
   const roleError =
     shouldShowError('role') && role === '' ? 'This field is required.' : ''
+  const isPatient = role === 'Patient'
+  const isGenderValid = gender === 'Male' || gender === 'Female'
+  const numericAge = Number(age)
+  const isAgeValid = /^\d+$/.test(age) && Number.isSafeInteger(numericAge) && numericAge >= 0
+  const genderError =
+    isPatient && shouldShowError('gender') && !isGenderValid
+      ? 'This field is required.'
+      : ''
+  const ageError =
+    isPatient && shouldShowError('age')
+      ? age.trim() === ''
+        ? 'This field is required.'
+        : !isAgeValid
+          ? 'Enter a valid age in whole years.'
+          : ''
+      : ''
 
   const isFormValid =
     name.trim() !== '' &&
@@ -80,7 +98,8 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     isEmailValid &&
     phone.trim() !== '' &&
     isPhoneValid &&
-    role !== ''
+    role !== '' &&
+    (!isPatient || (isGenderValid && isAgeValid))
 
   const inputClassName = (hasError) =>
     `h-11 w-full rounded-xl border bg-white px-4 text-base text-[#111827] outline-none transition placeholder:text-[#A6ADBA] focus:ring-4 ${
@@ -101,8 +120,23 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setEmail('')
     setPhone('')
     setRole('')
+    setGender('')
+    setAge('')
     setTouchedFields({})
     setSubmitClicked(false)
+  }
+
+  function handleRoleChange(nextRole) {
+    setRole(nextRole)
+    if (nextRole !== 'Patient') {
+      setGender('')
+      setAge('')
+      setTouchedFields((currentFields) => ({
+        ...currentFields,
+        gender: false,
+        age: false,
+      }))
+    }
   }
 
   function handleClose() {
@@ -121,6 +155,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
         email: email.trim(),
         phone: phone.trim(),
         role,
+        ...(isPatient ? { gender, age: numericAge } : {}),
       }
 
       resetForm()
@@ -136,7 +171,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       onClick={handleClose}
     >
       <form
-        className="w-full max-w-[520px] rounded-3xl bg-white p-6 shadow-xl shadow-[#111827]/10 sm:p-8"
+        className="max-h-[calc(100dvh-3rem)] w-full max-w-[520px] overflow-y-auto rounded-3xl bg-white p-6 shadow-xl shadow-[#111827]/10 sm:p-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-user-title"
@@ -261,7 +296,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
             <select
               id="new-user-role"
               value={role}
-              onChange={(event) => setRole(event.target.value)}
+              onChange={(event) => handleRoleChange(event.target.value)}
               onBlur={() => markFieldAsTouched('role')}
               aria-invalid={Boolean(roleError)}
               aria-describedby={roleError ? 'new-user-role-error' : undefined}
@@ -276,6 +311,55 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
             </select>
             <FieldError id="new-user-role-error" message={roleError} />
           </div>
+
+          {isPatient && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="new-user-gender" className="mb-2 block text-sm font-medium text-[#111827]">
+                  Gender
+                </label>
+                <select
+                  id="new-user-gender"
+                  value={gender}
+                  required
+                  onChange={(event) => setGender(event.target.value)}
+                  onBlur={() => markFieldAsTouched('gender')}
+                  aria-invalid={Boolean(genderError)}
+                  aria-describedby={genderError ? 'new-user-gender-error' : undefined}
+                  className={inputClassName(Boolean(genderError))}
+                >
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+                <FieldError id="new-user-gender-error" message={genderError} />
+              </div>
+
+              <div>
+                <label htmlFor="new-user-age" className="mb-2 block text-sm font-medium text-[#111827]">
+                  Age
+                </label>
+                <input
+                  id="new-user-age"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]+"
+                  required
+                  placeholder="Enter age..."
+                  value={age}
+                  onChange={(event) => {
+                    const nextAge = event.target.value
+                    if (/^\d*$/.test(nextAge)) setAge(nextAge)
+                  }}
+                  onBlur={() => markFieldAsTouched('age')}
+                  aria-invalid={Boolean(ageError)}
+                  aria-describedby={ageError ? 'new-user-age-error' : undefined}
+                  className={inputClassName(Boolean(ageError))}
+                />
+                <FieldError id="new-user-age-error" message={ageError} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 flex justify-start">

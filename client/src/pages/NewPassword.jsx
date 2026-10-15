@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 function FieldError({ id, message }) {
   return (
@@ -123,7 +125,14 @@ function NewPassword() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const resetInFlight = useRef(false)
+  const { state } = useLocation()
   const navigate = useNavigate()
+  const email = typeof state?.email === 'string' ? state.email.trim() : ''
+  const otp = typeof state?.otp === 'string' ? state.otp : ''
+  const hasVerificationInfo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && /^\d{6}$/.test(otp)
   const passwordRequirements = [
     {
       label: 'At least 1 uppercase letter',
@@ -161,17 +170,67 @@ function NewPassword() {
         ? 'Passwords do not match.'
         : '')
 
-  function handleContinue() {
+  async function handleContinue(event) {
+    event.preventDefault()
+    if (resetInFlight.current) return
+
     setContinueClicked(true)
+    setResetError('')
+
+    if (!hasVerificationInfo) {
+      navigate('/forgot-password', { replace: true, state: null })
+      return
+    }
 
     if (
-      password.trim() !== '' &&
-      isPasswordValid &&
-      confirmPassword.trim() !== '' &&
-      confirmPassword === password
+      password.trim() === '' ||
+      !isPasswordValid ||
+      confirmPassword.trim() === '' ||
+      confirmPassword !== password
     ) {
-      navigate('/login')
+      return
     }
+
+    resetInFlight.current = true
+    setIsResetting(true)
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword: password }),
+      })
+
+      if (response.status !== 200) {
+        const data = await response.json().catch(() => null)
+        const message = Array.isArray(data?.message)
+          ? data.message.filter((value) => typeof value === 'string').join(' ')
+          : typeof data?.message === 'string' ? data.message : ''
+
+        if (response.status === 400 || response.status === 404) {
+          setResetError(message || 'Your reset information is invalid or expired. Please request a new code.')
+        } else if (response.status === 429) {
+          setResetError('Too many requests. Please wait a moment and try again.')
+        } else {
+          setResetError('Unable to reset your password. Please try again.')
+        }
+        return
+      }
+
+      setPassword('')
+      setConfirmPassword('')
+      setContinueClicked(false)
+      navigate('/login', { replace: true, state: null })
+    } catch {
+      setResetError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      resetInFlight.current = false
+      setIsResetting(false)
+    }
+  }
+
+  if (!hasVerificationInfo) {
+    return <Navigate to="/forgot-password" replace state={null} />
   }
 
   return (
@@ -195,7 +254,7 @@ function NewPassword() {
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="New password form">
+        <form className="w-full max-w-[440px]" aria-label="New password form" onSubmit={handleContinue} noValidate aria-busy={isResetting}>
           <div className="mb-5 text-center [@media(min-height:850px)]:lg:mb-9">
             <h2 className="text-xl font-semibold tracking-normal text-[#111827] sm:text-xl lg:text-2xl">
               New password
@@ -226,6 +285,8 @@ function NewPassword() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••••"
                   value={password}
+                  disabled={isResetting}
+                  autoComplete="new-password"
                   onChange={(event) => setPassword(event.target.value)}
                   aria-invalid={Boolean(passwordError)}
                   aria-describedby={
@@ -306,6 +367,8 @@ function NewPassword() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="••••••••••"
                   value={confirmPassword}
+                  disabled={isResetting}
+                  autoComplete="new-password"
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   aria-invalid={Boolean(confirmPasswordError)}
                   aria-describedby={
@@ -339,20 +402,30 @@ function NewPassword() {
             </div>
           </div>
 
+          {resetError && (
+            <div role="alert" className="mt-3">
+              <FieldError id="reset-password-error" message={resetError} />
+              <button type="button" disabled={isResetting} onClick={() => navigate('/forgot-password', { replace: true, state: null })} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
+                Request a new code
+              </button>
+            </div>
+          )}
+
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
-              onClick={() => navigate('/verify-reset-code')}
+              disabled={isResetting}
+              onClick={() => navigate('/verify-reset-code', { replace: true, state: { email } })}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
             </button>
             <button
-              type="button"
-              onClick={handleContinue}
-              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13"
+              type="submit"
+              disabled={isResetting}
+              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
-              Continue
+              {isResetting ? 'Resetting password...' : 'Continue'}
             </button>
           </div>
         </form>

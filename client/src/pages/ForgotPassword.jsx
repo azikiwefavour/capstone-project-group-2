@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 function FieldError({ id, message }) {
   return (
@@ -33,6 +35,9 @@ function FieldError({ id, message }) {
 function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [requestError, setRequestError] = useState('')
+  const requestInFlight = useRef(false)
   const navigate = useNavigate()
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
@@ -43,11 +48,48 @@ function ForgotPassword() {
         ? 'Invalid email address.'
         : '')
 
-  function handleContinue() {
-    setContinueClicked(true)
+  async function handleContinue(event) {
+    event.preventDefault()
+    if (requestInFlight.current) return
 
-    if (email.trim() !== '' && isEmailValid) {
-      navigate('/verify-reset-code')
+    setContinueClicked(true)
+    setRequestError('')
+
+    if (email.trim() === '' || !isEmailValid) return
+
+    requestInFlight.current = true
+    setIsSubmitting(true)
+
+    try {
+      const resetEmail = email.trim().toLowerCase()
+      const response = await fetch(`${apiBaseUrl}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      })
+
+      if (response.status !== 200) {
+        const data = await response.json().catch(() => null)
+        const message = Array.isArray(data?.message)
+          ? data.message.filter((value) => typeof value === 'string').join(' ')
+          : typeof data?.message === 'string' ? data.message : ''
+
+        if (response.status === 400) {
+          setRequestError(message || 'Please check your email address and try again.')
+        } else if (response.status === 429) {
+          setRequestError('Too many requests. Please wait a moment and try again.')
+        } else {
+          setRequestError('Unable to request a password reset code. Please try again.')
+        }
+        return
+      }
+
+      navigate('/verify-reset-code', { state: { email: resetEmail } })
+    } catch {
+      setRequestError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      requestInFlight.current = false
+      setIsSubmitting(false)
     }
   }
 
@@ -72,7 +114,7 @@ function ForgotPassword() {
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="Reset password form">
+        <form className="w-full max-w-[440px]" aria-label="Reset password form" onSubmit={handleContinue} noValidate aria-busy={isSubmitting}>
           <div className="mb-5 text-center [@media(min-height:850px)]:lg:mb-9">
             <h2 className="text-xl font-semibold tracking-normal text-[#111827] sm:text-xl lg:text-2xl">
               Reset password
@@ -95,6 +137,7 @@ function ForgotPassword() {
               type="email"
               placeholder="e.g johndoe@email.com"
               value={email}
+              disabled={isSubmitting}
               onChange={(event) => setEmail(event.target.value)}
               aria-invalid={Boolean(emailError)}
               aria-describedby={emailError ? 'reset-email-error' : undefined}
@@ -109,20 +152,27 @@ function ForgotPassword() {
             )}
           </div>
 
+          {requestError && (
+            <div role="alert" className="mt-3">
+              <FieldError id="reset-request-error" message={requestError} />
+            </div>
+          )}
+
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => navigate('/login')}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
             </button>
             <button
-              type="button"
-              onClick={handleContinue}
-              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13"
+              type="submit"
+              disabled={isSubmitting}
+              className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
-              Continue
+              {isSubmitting ? 'Sending code...' : 'Continue'}
             </button>
           </div>
         </form>
