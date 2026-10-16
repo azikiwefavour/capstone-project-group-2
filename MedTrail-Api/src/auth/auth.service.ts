@@ -64,6 +64,7 @@ export class AuthService {
       phone: dto.phone,
       hospitalName: dto.hospitalName,
       password: hashedPassword,
+      role: UserRole.ADMIN,
       emailOtp: otp,
       emailOtpExpiry: expiry,
       isEmailVerified: false,

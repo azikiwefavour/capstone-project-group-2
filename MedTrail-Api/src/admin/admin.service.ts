@@ -20,10 +20,33 @@ export class AdminService {
     private configService: ConfigService,
   ) {}
 
+  private getFrontendUrl(): string {
+    const configured = this.configService.get<string>('FRONTEND_URL');
+    if (configured && configured.trim() !== '') {
+      return configured.replace(/\/+$/, '');
+    }
+    return process.env.NODE_ENV === 'production'
+      ? 'https://medtrail-client.onrender.com'
+      : 'http://localhost:5173';
+  }
+
   // ─── Dashboard Stats ──────────────────────────────────────────────────────
 
-  async getDashboardStats() {
-    const users = await this.usersService.findAll();
+  async getDashboardStats(adminId?: string) {
+    let users = await this.usersService.findAll();
+    if (adminId) {
+      const admin = await this.usersService.findById(adminId);
+      if (admin?.hospitalName) {
+        const hospitalLower = admin.hospitalName.trim().toLowerCase();
+        users = users.filter(
+          (u) =>
+            (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
+            u.id === adminId ||
+            (u.invitedBy && u.invitedBy.includes(adminId)),
+        );
+      }
+    }
+
     const total = users.length;
     const byRole = users.reduce(
       (acc, u) => {
@@ -48,14 +71,38 @@ export class AdminService {
 
   // ─── Get All Users ────────────────────────────────────────────────────────
 
-  async getAllUsers() {
-    return this.usersService.findAll();
+  async getAllUsers(adminId?: string) {
+    let users = await this.usersService.findAll();
+    if (adminId) {
+      const admin = await this.usersService.findById(adminId);
+      if (admin?.hospitalName) {
+        const hospitalLower = admin.hospitalName.trim().toLowerCase();
+        users = users.filter(
+          (u) =>
+            (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
+            u.id === adminId ||
+            (u.invitedBy && u.invitedBy.includes(adminId)),
+        );
+      }
+    }
+    return users;
   }
 
   // ─── Get Invited Users (admin pending list) ───────────────────────────────
 
-  async getInvitedUsers() {
-    const users = await this.usersService.findAllInvited();
+  async getInvitedUsers(adminId?: string) {
+    let users = await this.usersService.findAllInvited();
+    if (adminId) {
+      const admin = await this.usersService.findById(adminId);
+      if (admin?.hospitalName) {
+        const hospitalLower = admin.hospitalName.trim().toLowerCase();
+        users = users.filter(
+          (u) =>
+            (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
+            (u.invitedBy && u.invitedBy.includes(adminId)),
+        );
+      }
+    }
     return users.map((u) => ({
       id: u.id,
       name: u.name,
@@ -80,6 +127,10 @@ export class AdminService {
       );
     }
 
+    // Resolve hospital name from DTO or the logged-in admin's hospital
+    const adminUser = adminId ? await this.usersService.findById(adminId) : null;
+    const resolvedHospital = dto.hospitalName || adminUser?.hospitalName || null;
+
     // 2. Generate a secure invitation token (UUID) and set 48h expiry
     const token = randomUUID();
     const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
@@ -89,7 +140,7 @@ export class AdminService {
       name: dto.name,
       email: dto.email.toLowerCase(),
       phone: dto.phone ?? null,
-      hospitalName: dto.hospitalName ?? null,
+      hospitalName: resolvedHospital,
       gender: dto.gender ?? null,
       age: dto.age ?? null,
       password: null,           // No password until they complete registration
@@ -106,8 +157,7 @@ export class AdminService {
     // 4. Build the invitation links
     const port = process.env.PORT ?? 3000;
     const browserDirectUrl = `http://localhost:${port}/api/auth/accept-invite?token=${token}`;
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+    const frontendUrl = this.getFrontendUrl();
     const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
 
     // 5. Send the invitation email with the frontend link
@@ -164,8 +214,7 @@ export class AdminService {
 
     const port = process.env.PORT ?? 3000;
     const browserDirectUrl = `http://localhost:${port}/api/auth/accept-invite?token=${token}`;
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+    const frontendUrl = this.getFrontendUrl();
     const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
 
     await this.mailService.sendInvitationEmail(
