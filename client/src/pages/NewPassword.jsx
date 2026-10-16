@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+import { completeDoctorPreviewReset, hasVerifiedDoctorPreviewReset } from '../doctor/previewAuth'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
@@ -119,7 +120,7 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
-function NewPassword() {
+function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [password, setPassword] = useState('')
@@ -132,7 +133,8 @@ function NewPassword() {
   const navigate = useNavigate()
   const email = typeof state?.email === 'string' ? state.email.trim() : ''
   const otp = typeof state?.otp === 'string' ? state.otp : ''
-  const hasVerificationInfo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && /^\d{6}$/.test(otp)
+  const [previewResetVerified] = useState(() => frontendOnly && hasVerifiedDoctorPreviewReset(email, otp))
+  const hasVerificationInfo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && /^\d{6}$/.test(otp) && (!frontendOnly || previewResetVerified)
   const passwordRequirements = [
     {
       label: 'At least 1 uppercase letter',
@@ -178,7 +180,7 @@ function NewPassword() {
     setResetError('')
 
     if (!hasVerificationInfo) {
-      navigate('/forgot-password', { replace: true, state: null })
+      navigate(`${recoveryBasePath}/forgot-password`, { replace: true, state: null })
       return
     }
 
@@ -188,6 +190,17 @@ function NewPassword() {
       confirmPassword.trim() === '' ||
       confirmPassword !== password
     ) {
+      return
+    }
+
+    if (frontendOnly) {
+      if (!hasVerifiedDoctorPreviewReset(email, otp)) {
+        navigate(`${recoveryBasePath}/forgot-password`, { replace: true, state: null })
+        return
+      }
+      // Keep the completed UI step stable while clearing preview state and leaving this form.
+      completeDoctorPreviewReset()
+      navigate(`${recoveryBasePath}/login`, { replace: true, state: null })
       return
     }
 
@@ -220,7 +233,7 @@ function NewPassword() {
       setPassword('')
       setConfirmPassword('')
       setContinueClicked(false)
-      navigate('/login', { replace: true, state: null })
+      navigate(`${recoveryBasePath}/login`, { replace: true, state: null })
     } catch {
       setResetError('Unable to connect. Please check your connection and try again.')
     } finally {
@@ -230,7 +243,7 @@ function NewPassword() {
   }
 
   if (!hasVerificationInfo) {
-    return <Navigate to="/forgot-password" replace state={null} />
+    return <Navigate to={`${recoveryBasePath}/forgot-password`} replace state={null} />
   }
 
   return (
@@ -405,7 +418,7 @@ function NewPassword() {
           {resetError && (
             <div role="alert" className="mt-3">
               <FieldError id="reset-password-error" message={resetError} />
-              <button type="button" disabled={isResetting} onClick={() => navigate('/forgot-password', { replace: true, state: null })} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
+              <button type="button" disabled={isResetting} onClick={() => navigate(`${recoveryBasePath}/forgot-password`, { replace: true, state: null })} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
                 Request a new code
               </button>
             </div>
@@ -415,7 +428,7 @@ function NewPassword() {
             <button
               type="button"
               disabled={isResetting}
-              onClick={() => navigate('/verify-reset-code', { replace: true, state: { email } })}
+              onClick={() => navigate(`${recoveryBasePath}/verify-reset-code`, { replace: true, state: { email } })}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back

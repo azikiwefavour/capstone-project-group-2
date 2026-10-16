@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+import { verifyDoctorPreviewResetCode } from '../doctor/previewAuth'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
@@ -32,7 +33,7 @@ function FieldError({ id, message }) {
   )
 }
 
-function VerifyResetCode() {
+function VerifyResetCode({ recoveryBasePath = '', frontendOnly = false }) {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
   const [continueClicked, setContinueClicked] = useState(false)
   const [backendError, setBackendError] = useState('')
@@ -109,11 +110,22 @@ function VerifyResetCode() {
     setBackendError('')
 
     if (!email) {
+      if (frontendOnly) {
+        navigate(`${recoveryBasePath}/forgot-password`, { replace: true })
+        return
+      }
       setBackendError('Your reset email is missing. Please go back and request a new code.')
       return
     }
 
     if (!/^\d{6}$/.test(enteredCode)) return
+
+    if (frontendOnly) {
+      // Temporary doctor-only bypass: any six numeric digits allow frontend navigation, with no API request.
+      verifyDoctorPreviewResetCode(email, enteredCode)
+      navigate(`${recoveryBasePath}/new-password`, { state: { email, otp: enteredCode } })
+      return
+    }
 
     verificationInFlight.current = true
     setIsVerifying(true)
@@ -139,7 +151,7 @@ function VerifyResetCode() {
         return
       }
 
-      navigate('/new-password', { state: { email, otp: enteredCode } })
+      navigate(`${recoveryBasePath}/new-password`, { state: { email, otp: enteredCode } })
     } catch {
       setBackendError('Unable to connect. Please check your connection and try again.')
     } finally {
@@ -229,7 +241,7 @@ function VerifyResetCode() {
             <button
               type="button"
               disabled={isVerifying}
-              onClick={() => navigate('/forgot-password')}
+              onClick={() => navigate(`${recoveryBasePath}/forgot-password`)}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back

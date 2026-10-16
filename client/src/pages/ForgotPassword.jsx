@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import medicationImage from '../assets/medication-image.png'
+import { beginDoctorPreviewReset } from '../doctor/previewAuth'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
@@ -32,7 +33,7 @@ function FieldError({ id, message }) {
   )
 }
 
-function ForgotPassword() {
+function ForgotPassword({ recoveryBasePath = '', frontendOnly = false }) {
   const [email, setEmail] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -56,6 +57,13 @@ function ForgotPassword() {
     setRequestError('')
 
     if (email.trim() === '' || !isEmailValid) return
+
+    if (frontendOnly) {
+      const resetEmail = email.trim().toLowerCase()
+      beginDoctorPreviewReset(resetEmail)
+      navigate(`${recoveryBasePath}/verify-reset-code`, { state: { email: resetEmail } })
+      return
+    }
 
     requestInFlight.current = true
     setIsSubmitting(true)
@@ -84,7 +92,7 @@ function ForgotPassword() {
         return
       }
 
-      navigate('/verify-reset-code', { state: { email: resetEmail } })
+      navigate(`${recoveryBasePath}/verify-reset-code`, { state: { email: resetEmail } })
     } catch {
       setRequestError('Unable to connect. Please check your connection and try again.')
     } finally {
@@ -162,7 +170,7 @@ function ForgotPassword() {
             <button
               type="button"
               disabled={isSubmitting}
-              onClick={() => navigate('/login')}
+              onClick={() => navigate(`${recoveryBasePath}/login`)}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
