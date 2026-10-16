@@ -155,7 +155,19 @@ export class AuthService {
       );
     }
 
-    // Role check: Ensure user logs into their assigned role (e.g. doctor, pharmacist, admin, patient)
+    // Strict Role Enforcement
+    if (user.role === UserRole.ADMIN && dto.role !== UserRole.ADMIN) {
+      throw new UnauthorizedException(
+        'Administrator accounts can only log in as Admin. You cannot log in as a doctor, pharmacist, or patient.',
+      );
+    }
+
+    if (user.role && user.role !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
+      throw new UnauthorizedException(
+        `Access denied. Your account is registered as a ${user.role}, not an administrator.`,
+      );
+    }
+
     if (user.role && user.role !== dto.role) {
       throw new UnauthorizedException(
         `Your account is registered as a ${user.role}. Please select the ${user.role} role to log in.`,
@@ -163,7 +175,13 @@ export class AuthService {
     }
 
     if (!user.role) {
+      if (dto.role === UserRole.ADMIN) {
+        throw new UnauthorizedException(
+          'Access denied. This account does not have administrator privileges.',
+        );
+      }
       await this.usersService.updateById(String(user.id), { role: dto.role });
+      user.role = dto.role;
     }
 
     const token = this.signToken({
