@@ -48,4 +48,69 @@ export class MailService {
       this.logger.error('Failed to send password reset email', error);
     }
   }
+
+  /**
+   * Send invitation email to a doctor or pharmacist added by an admin.
+   * The link embeds a secure token that the user clicks to complete their registration.
+   */
+  async sendInvitationEmail(
+    to: string,
+    name: string,
+    role: string,
+    invitationLink: string,
+  ): Promise<void> {
+    this.logger.log(`📨 [DEV/TEST] Invitation Link for ${to} (${role}):\n👉 ${invitationLink}`);
+
+    const roleLabel = role === 'doctor' ? 'Dr.' : 'Pharm.';
+    const roleFull = role === 'doctor' ? 'Doctor' : 'Pharmacist';
+    const accentColor = role === 'doctor' ? '#475AA2' : '#E05252';
+
+    try {
+      await this.mailerService.sendMail({
+        to,
+        subject: `MedTrail – You've been invited as a ${roleFull}`,
+        html: `
+          <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:auto;background:#ffffff;border:1px solid #e2e5ed;border-radius:16px;overflow:hidden;">
+            <!-- Header -->
+            <div style="background:${accentColor};padding:32px 24px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;letter-spacing:-0.5px;">med<span style="opacity:0.8;">trail</span></h1>
+              <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:13px;">One medication record, from prescription to patient</p>
+            </div>
+
+            <!-- Body -->
+            <div style="padding:36px 32px;">
+              <h2 style="color:#111827;font-size:20px;margin:0 0 8px;">Welcome to MedTrail, ${roleLabel} ${name}!</h2>
+              <p style="color:#6B7280;line-height:1.6;margin:0 0 24px;">
+                You've been invited by your administrator to join MedTrail as a <strong style="color:${accentColor};">${roleFull}</strong>.
+                Click the button below to complete your account setup and create your password.
+              </p>
+
+              <!-- CTA Button -->
+              <div style="text-align:center;margin:32px 0;">
+                <a href="${invitationLink}"
+                   style="display:inline-block;background:${accentColor};color:#ffffff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:600;letter-spacing:0.3px;">
+                  Complete Registration
+                </a>
+              </div>
+
+              <p style="color:#9CA3AF;font-size:13px;line-height:1.5;margin:0 0 8px;">
+                This invitation link expires in <strong>48 hours</strong>. If you did not expect this email, you can safely ignore it.
+              </p>
+              <p style="color:#9CA3AF;font-size:12px;word-break:break-all;">
+                Or copy this link: <a href="${invitationLink}" style="color:${accentColor};">${invitationLink}</a>
+              </p>
+            </div>
+
+            <!-- Footer -->
+            <div style="background:#F9FAFB;padding:20px 32px;border-top:1px solid #e5e7eb;text-align:center;">
+              <p style="color:#9CA3AF;font-size:12px;margin:0;">© ${new Date().getFullYear()} MedTrail. All rights reserved.</p>
+            </div>
+          </div>
+        `,
+      });
+      this.logger.log(`✅ Invitation email sent to ${to}`);
+    } catch (error) {
+      this.logger.error(`❌ Failed to send invitation email to ${to}`, error);
+    }
+  }
 }

@@ -3,15 +3,22 @@ import {
   Post,
   Get,
   Body,
+  Query,
+  Req,
+  Res,
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -20,6 +27,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { renderAcceptInviteHtml, renderInvalidInviteHtml } from './templates/accept-invite.template';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -28,7 +37,10 @@ import { CurrentUser } from './decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
   // ── POST /api/auth/register ─────────────────────────────────────────────
   @Public()
@@ -135,6 +147,110 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  // ── GET /api/auth/accept-invite ───────────────────────────────────────────
+  @Public()
+  @Get('accept-invite')
+  @ApiOperation({
+    summary: 'Validate an invitation token or render the invitation acceptance screen',
+    description:
+      'If accessed in a web browser (Accept: text/html), renders the interactive "Welcome Dr. [Name]" page where the user can enter and confirm their new password. ' +
+      'If accessed by an API client (JSON), returns { valid, name, email, role } to be rendered by the frontend.',
+  })
+  @ApiQuery({
+    name: 'token',
+    required: true,
+    description: 'The invitation token embedded in the email link',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Token valid – returns HTML for browsers or JSON for API clients',
+  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired invitation token' })
+  async acceptInvite(
+    @Query('token') token: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const isHtml = req.headers.accept?.includes('text/html');
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+
+    try {
+      if (!token) {
+        throw new BadRequestException('Invitation token is required.');
+      }
+      const data = await this.authService.validateInvitationToken(token);
+
+      if (isHtml) {
+        const html = renderAcceptInviteHtml({
+          token,
+          name: data.name,
+          role: data.role ?? 'doctor',
+          email: data.email,
+          frontendUrl,
+        });
+        return res.type('html').send(html);
+      }
+
+      return res.status(HttpStatus.OK).json(data);
+    } catch (err: any) {
+      if (isHtml) {
+        const errorHtml = renderInvalidInviteHtml({
+          message: err?.message || 'Invalid or expired invitation link.',
+          frontendUrl,
+        });
+        return res.status(HttpStatus.BAD_REQUEST).type('html').send(errorHtml);
+      }
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: err?.message || 'Invalid or expired invitation token',
+        error: 'Bad Request',
+      });
+    }
+  }
+
+  // ── GET /api/auth/validate-invitation (JSON Alias) ─────────────────────────
+  @Public()
+  @Get('validate-invitation')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Validate invitation token (returns JSON)',
+  })
+  validateInvitationToken(@Query('token') token: string) {
+    return this.authService.validateInvitationToken(token);
+  }
+
+  // ── POST /api/auth/complete-registration ──────────────────────────────────
+  @Public()
+  @Post('complete-registration')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Complete registration for an invited user (set password)',
+    description:
+      'Invited doctors/pharmacists submit their new password here. ' +
+      'Activates the account, marks email as verified, and returns a JWT for immediate access.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Registration complete – returns accessToken + user object',
+    schema: {
+      example: {
+        message: 'Registration complete! Welcome to MedTrail.',
+        accessToken: '<jwt>',
+        user: {
+          id: 'uuid',
+          name: 'Dr. Adewale Okafor',
+          email: 'adewale@hospital.com',
+          role: 'doctor',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid/expired token or passwords do not match' })
+  completeRegistration(@Body() dto: CompleteRegistrationDto) {
+    return this.authService.completeRegistration(dto);
   }
 
   // ── GET /api/auth/profile ─────────────────────────────────────────────────
