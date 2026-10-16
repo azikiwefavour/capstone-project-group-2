@@ -23,6 +23,7 @@ export class MailService {
           </div>
         `,
       });
+      this.logger.log(`✅ Verification email sent to ${to}`);
     } catch (error) {
       this.logger.error('Failed to send verification email', error);
     }
