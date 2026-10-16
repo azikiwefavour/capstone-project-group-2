@@ -211,7 +211,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
     }
   }
 
-  if (!frontendOnly && role === 'doctor') {
+  if (!frontendOnly && !authenticationRole && role === 'doctor') {
     return <Navigate to="/doctor/login" replace />
   }
 
