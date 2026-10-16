@@ -9,6 +9,7 @@ import DoctorDashboardPlaceholder from './doctor/pages/DoctorDashboardPlaceholde
 import CreateAccount from './pages/CreateAccount'
 import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
+import LandingPage from './pages/LandingPage'
 import NewPassword from './pages/NewPassword'
 import RoleSelection from './pages/RoleSelection'
 import VerifyEmail from './pages/VerifyEmail'
@@ -18,7 +19,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/create-account" replace />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/create-account" element={<CreateAccount />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/select-role" element={<RoleSelection />} />
