@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import AddUserModal from '../components/AddUserModal'
 import AdminHeader from '../components/AdminHeader'
 import AdminPagination from '../components/AdminPagination'
+import { adminRequest, getAdminUsers } from '../api'
 
 const roleStyles = {
   Doctor: {
@@ -184,14 +185,12 @@ function CloseIcon() {
 
 
 function formatPhoneNumber(phone) {
-  const digits = phone.replace(/\D/g, '')
-  const localNumber = digits.startsWith('0') ? digits.slice(1) : digits
-
-  return `+234 ${localNumber}`
+  return phone || '-'
 }
 
 function RoleBadge({ role }) {
-  const roleStyle = roleStyles[role] || roleStyles.Patient
+  const roleStyle = roleStyles[role]
+  if (!roleStyle) return <span>{role || '-'}</span>
 
   return (
     <span
@@ -232,7 +231,14 @@ function AdminUsers() {
   const { adminName } = useOutletContext()
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
-  const [demoUsers, setDemoUsers] = useState([])
+  const [users, setUsers] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+  const [busyUserId, setBusyUserId] = useState(null)
+  const actionInFlight = useRef(false)
   const [editingUser, setEditingUser] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('All')
@@ -240,6 +246,24 @@ function AdminUsers() {
   const rowsPerPage = 5
   const [currentPage, setCurrentPage] = useState(1)
   const adminContentScrollTopRef = useRef(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    async function loadUsers() {
+      setIsLoading(true)
+      setLoadError('')
+      try {
+        const data = await getAdminUsers(controller.signal)
+        if (!controller.signal.aborted) setUsers(data)
+      } catch (error) {
+        if (!controller.signal.aborted) setLoadError(error.message)
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false)
+      }
+    }
+    loadUsers()
+    return () => controller.abort()
+  }, [reloadKey])
 
   useEffect(() => {
     if (!showSuccessToast) {
@@ -256,7 +280,7 @@ function AdminUsers() {
   const visibleUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
-    return [...demoUsers]
+    return [...users]
       .filter((user) => roleFilter === 'All' || user.role === roleFilter)
       .filter((user) => {
         if (!normalizedQuery) {
@@ -276,9 +300,9 @@ function AdminUsers() {
           return firstUser.role.localeCompare(secondUser.role)
         }
 
-        return 0
+        return (Date.parse(secondUser.createdAt) || 0) - (Date.parse(firstUser.createdAt) || 0)
       })
-  }, [demoUsers, roleFilter, searchQuery, sortBy])
+  }, [users, roleFilter, searchQuery, sortBy])
 
   const totalPages = Math.max(1, Math.ceil(visibleUsers.length / rowsPerPage))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -305,44 +329,35 @@ function AdminUsers() {
     })
   }
 
-  function handleDemoUserSaved(savedUser) {
+  function handleUserSaved(message) {
     rememberScrollPosition()
-
-    setDemoUsers((currentUsers) => {
-      const existingUser = currentUsers.find((user) => user.id === savedUser.id)
-
-      if (existingUser) {
-        return currentUsers.map((user) =>
-          user.id === savedUser.id ? { ...savedUser, status: user.status } : user,
-        )
-      }
-
-      // Local creation does not confirm registration, verification, or email delivery.
-      return [{ ...savedUser, status: 'pending' }, ...currentUsers]
-    })
-
+    setReloadKey((key) => key + 1)
     setEditingUser(null)
+    setActionError('')
+    setSuccessMessage(message)
     setShowSuccessToast(true)
     restoreScrollPosition()
   }
 
-  function handleDeleteUser(userId) {
-    const shouldDelete = window.confirm(
-      'Remove this user from the frontend demo table?',
-    )
-
-    if (shouldDelete) {
-      rememberScrollPosition()
-      setDemoUsers((currentUsers) =>
-        currentUsers.filter((user) => user.id !== userId),
-      )
-      restoreScrollPosition()
+  async function handleUserAction(userId, resend = false) {
+    if (actionInFlight.current) return
+    if (!resend && !window.confirm('Delete this user? This action cannot be undone.')) return
+    actionInFlight.current = true
+    setBusyUserId(userId)
+    setActionError('')
+    try {
+      const id = encodeURIComponent(userId)
+      const data = await adminRequest(resend ? `resend-invitation/${id}` : `users/${id}`, {
+        method: resend ? 'POST' : 'DELETE',
+      })
+      if (!resend) setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
+      handleUserSaved(resend ? 'Invitation resend requested.' : data?.message || 'User deleted successfully.')
+    } catch (error) {
+      setActionError(error.message)
+    } finally {
+      actionInFlight.current = false
+      setBusyUserId(null)
     }
-  }
-
-  function handleEditUser(user) {
-    setEditingUser(user)
-    setIsAddUserModalOpen(true)
   }
 
   function handleCloseModal() {
@@ -357,7 +372,7 @@ function AdminUsers() {
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59]">
             <CheckIcon />
           </span>
-          New user successfully added!
+          {successMessage}
           <button
             type="button"
             aria-label="Close success notification"
@@ -456,7 +471,8 @@ function AdminUsers() {
         </div>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-[#E2E5ED] bg-white shadow-sm shadow-[#111827]/[0.03] lg:flex lg:h-[clamp(360px,calc(100vh-286px),520px)] lg:flex-col">
+      {actionError && <p role="alert" className="mt-3 text-sm text-[#E5484D]">{actionError}</p>}
+      <div className="mt-5 overflow-hidden rounded-2xl border border-[#E2E5ED] bg-white shadow-sm shadow-[#111827]/[0.03] lg:flex lg:h-[clamp(360px,calc(100vh-286px),520px)] lg:flex-col" aria-busy={isLoading}>
         <div className="overflow-x-auto lg:flex-1 lg:overflow-y-auto">
           <table className="w-full min-w-[820px] border-collapse">
             <thead>
@@ -478,7 +494,14 @@ function AdminUsers() {
               </tr>
             </thead>
             <tbody>
-              {paginatedUsers.length > 0 ? (
+              {isLoading || loadError ? (
+                <tr><td colSpan="7" className="px-5 py-10 text-center text-sm text-[#7A8190]">
+                  {isLoading ? <span role="status">Loading users...</span> : <div role="alert">
+                    <p className="text-[#E5484D]">{loadError}</p>
+                    <button type="button" className="mt-3 font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button>
+                  </div>}
+                </td></tr>
+              ) : paginatedUsers.length > 0 ? (
                 paginatedUsers.map((user) => (
                   <tr
                     key={user.id}
@@ -504,10 +527,16 @@ function AdminUsers() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2 text-[#52556C]">
+                        {user.invitationStatus === 'pending' && (
+                          <button type="button" aria-label={`Resend invitation to ${user.name}`} title="Resend invitation" disabled={busyUserId !== null} onClick={() => handleUserAction(user.id, true)} className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:opacity-45">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4"><path d="M20 8V4L16 8H20ZM20 8A8 8 0 1 0 20 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Delete ${user.name}`}
-                          onClick={() => handleDeleteUser(user.id)}
+                          onClick={() => handleUserAction(user.id)}
+                          disabled={busyUserId !== null}
                           className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#E5484D] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
                         >
                           <TrashIcon />
@@ -515,7 +544,8 @@ function AdminUsers() {
                         <button
                           type="button"
                           aria-label={`Edit ${user.name}`}
-                          onClick={() => handleEditUser(user)}
+                          disabled
+                          title="Editing users is not supported by the current admin API"
                           className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
                         >
                           <EditIcon />
@@ -543,7 +573,7 @@ function AdminUsers() {
         </div>
 
         <AdminPagination
-          totalItems={visibleUsers.length}
+          totalItems={isLoading || loadError ? 0 : visibleUsers.length}
           currentPage={safeCurrentPage}
           rowsPerPage={rowsPerPage}
           onPageChange={setCurrentPage}
@@ -554,7 +584,7 @@ function AdminUsers() {
         key={editingUser?.id || 'new-user'}
         isOpen={isAddUserModalOpen}
         onClose={handleCloseModal}
-        onSuccess={handleDemoUserSaved}
+        onSuccess={handleUserSaved}
         initialUser={editingUser}
       />
     </section>

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { adminRequest } from '../api'
 
 const roleOptions = ['Doctor', 'Pharmacist', 'Patient']
 
@@ -43,6 +44,9 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   const [age, setAge] = useState(initialUser?.role === 'Patient' ? String(initialUser.age ?? '') : '')
   const [touchedFields, setTouchedFields] = useState({})
   const [submitClicked, setSubmitClicked] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const submissionInFlight = useRef(false)
   const isEditing = Boolean(initialUser)
 
   if (!isOpen) {
@@ -140,27 +144,48 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   }
 
   function handleClose() {
+    if (submissionInFlight.current) return
     resetForm()
     onClose()
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
+    if (submissionInFlight.current) return
     setSubmitClicked(true)
+    setSubmitError('')
 
-    if (isFormValid) {
-      const newDemoUser = {
-        id: initialUser?.id || window.crypto?.randomUUID?.() || `${Date.now()}`,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        role,
-        ...(isPatient ? { gender, age: numericAge } : {}),
-      }
+    if (!isFormValid) return
+    if (isEditing) {
+      setSubmitError('Editing users is not supported by the current admin API.')
+      return
+    }
+    if (isPatient) {
+      setSubmitError('The current admin API supports invitations for Doctors and Pharmacists only. Patient creation is not available yet.')
+      return
+    }
 
+    submissionInFlight.current = true
+    setIsSubmitting(true)
+    try {
+      await adminRequest('invite-user', {
+        method: 'POST',
+        body: {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: `+234${phoneDigits.replace(/^0/, '')}`,
+          role: role.toLowerCase(),
+        },
+      })
       resetForm()
-      onSuccess(newDemoUser)
+      // The current API does not report mail delivery failures.
+      onSuccess('Invitation created successfully.')
       onClose()
+    } catch (error) {
+      setSubmitError(error.message)
+    } finally {
+      submissionInFlight.current = false
+      setIsSubmitting(false)
     }
   }
 
@@ -170,7 +195,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       role="presentation"
       onClick={handleClose}
     >
-      <form
+      <form aria-busy={isSubmitting}
         className="max-h-[calc(100dvh-3rem)] w-full max-w-[520px] overflow-y-auto rounded-3xl bg-white p-6 shadow-xl shadow-[#111827]/10 sm:p-8"
         role="dialog"
         aria-modal="true"
@@ -362,17 +387,18 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
           )}
         </div>
 
+        {submitError && <div role="alert" className="mt-3"><FieldError id="new-user-submit-error" message={submitError} /></div>}
         <div className="mt-8 flex justify-start">
           <button
             type="submit"
-            disabled={!isFormValid}
+            disabled={!isFormValid || isSubmitting}
             className={`h-11 rounded-xl px-6 text-base font-semibold text-white transition focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 ${
               isFormValid
                 ? 'bg-[#475AA2] hover:bg-[#3D4F91]'
                 : 'cursor-not-allowed bg-[#475AA2]/45'
             }`}
           >
-            {isEditing ? 'Save changes' : 'Create user'}
+            {isSubmitting ? 'Sending invitation...' : isEditing ? 'Save changes' : 'Create user'}
           </button>
         </div>
       </form>
