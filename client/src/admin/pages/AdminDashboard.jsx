@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import AdminHeader from '../components/AdminHeader'
+import { adminRequest, normalizeUser } from '../api'
 
 function DoctorIcon() {
   return (
@@ -69,22 +71,25 @@ function ListIcon() {
 const summaryCards = [
   {
     label: 'Doctors',
+    role: 'doctor',
     icon: <DoctorIcon />,
     iconClassName: 'bg-[#DEE2FF] text-[#475AA2]',
   },
   {
     label: 'Pharmacists',
+    role: 'pharmacist',
     icon: <PharmacyIcon />,
     iconClassName: 'bg-[#F8D6DD] text-[#B83F5C]',
   },
   {
     label: 'Patients',
+    role: 'patient',
     icon: <PersonIcon />,
     iconClassName: 'bg-[#D0E7DC] text-[#2F7D59]',
   },
 ]
 
-function EmptyPanel({ title, linkTo, linkLabel, icon, message }) {
+function EmptyPanel({ title, linkTo, linkLabel, icon, message, children }) {
   return (
     <section className="flex min-h-[240px] flex-col rounded-2xl border border-[#E2E5ED] bg-white p-5 shadow-sm shadow-[#111827]/[0.03] lg:h-[clamp(320px,calc(100vh-331px),455px)] lg:min-h-0">
       <div className="flex items-center justify-between gap-4">
@@ -97,20 +102,47 @@ function EmptyPanel({ title, linkTo, linkLabel, icon, message }) {
         </Link>
       </div>
 
-      <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center text-center lg:min-h-0 lg:justify-start lg:pt-[clamp(56px,12vh,108px)]">
+      {children || <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center text-center lg:min-h-0 lg:justify-start lg:pt-[clamp(56px,12vh,108px)]">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59] lg:h-20 lg:w-20">
           {icon}
         </div>
         <p className="mt-3 text-sm font-medium text-[#7A8190] lg:mt-4">
           {message}
         </p>
-      </div>
+      </div>}
     </section>
   )
 }
 
 function AdminDashboard() {
   const { adminName } = useOutletContext()
+  const [dashboard, setDashboard] = useState({ stats: null, users: [], loading: true, statsError: '', usersError: '' })
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    async function loadDashboard() {
+      setDashboard((current) => ({ ...current, loading: true, statsError: '', usersError: '' }))
+      const [statsResult, usersResult] = await Promise.allSettled([
+        adminRequest('dashboard', { signal: controller.signal }),
+        adminRequest('users', { signal: controller.signal }),
+      ])
+      if (controller.signal.aborted) return
+      const stats = statsResult.status === 'fulfilled' ? statsResult.value : null
+      const validStats = stats?.byRole && typeof stats.byRole === 'object' && !Array.isArray(stats.byRole)
+        && Object.values(stats.byRole).every((count) => Number.isInteger(count) && count >= 0)
+      const users = usersResult.status === 'fulfilled' ? usersResult.value : null
+      setDashboard({
+        stats: validStats ? stats : null,
+        users: Array.isArray(users) ? users.map(normalizeUser).filter((user) => user.status === 'active') : [],
+        loading: false,
+        statsError: statsResult.status === 'rejected' ? statsResult.reason.message : validStats ? '' : 'The server returned unexpected dashboard statistics.',
+        usersError: usersResult.status === 'rejected' ? usersResult.reason.message : Array.isArray(users) ? '' : 'The server returned an unexpected user list.',
+      })
+    }
+    loadDashboard()
+    return () => controller.abort()
+  }, [reloadKey])
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -125,7 +157,8 @@ function AdminDashboard() {
         </p>
       </section>
 
-      <section className="mt-[22px] grid gap-4 lg:grid-cols-3 lg:gap-[22px]">
+      {dashboard.statsError && <div role="alert" className="mt-3 text-sm text-[#E5484D]">{dashboard.statsError} <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button></div>}
+      <section className="mt-[22px] grid gap-4 lg:grid-cols-3 lg:gap-[22px]" aria-busy={dashboard.loading}>
         {summaryCards.map((card) => (
           <article
             key={card.label}
@@ -133,7 +166,7 @@ function AdminDashboard() {
           >
             <div>
               <p className="text-3xl font-semibold tracking-normal text-[#111827]">
-                0
+                {dashboard.loading ? '...' : dashboard.stats ? dashboard.stats.byRole[card.role] ?? 0 : '-'}
               </p>
               <p className="mt-1.5 text-sm font-medium text-[#7A8190]">
                 {card.label}
@@ -155,7 +188,13 @@ function AdminDashboard() {
           linkLabel="view all"
           icon={<PersonIcon />}
           message="No user records"
-        />
+        >
+          {dashboard.loading ? <p role="status" className="my-auto py-8 text-center text-sm text-[#7A8190]">Loading users...</p>
+            : dashboard.usersError ? <div role="alert" className="my-auto py-8 text-center text-sm text-[#E5484D]">{dashboard.usersError} <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button></div>
+            : dashboard.users.length > 0 ? <ul className="mt-4 min-h-0 flex-1 overflow-y-auto divide-y divide-[#E2E5ED]">
+              {dashboard.users.map((user) => <li key={user.id} className="flex items-center justify-between gap-4 py-3 text-sm"><span className="min-w-0 break-words font-medium text-[#111827]">{user.name}</span><span className="text-xs text-[#7A8190]">{user.role || '-'}</span></li>)}
+            </ul> : null}
+        </EmptyPanel>
         <EmptyPanel
           title="Audit log"
           linkTo="/admin/audit-log"
