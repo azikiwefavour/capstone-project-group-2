@@ -1,9 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { UserRole } from '../../users/entities/user.entity';
 
 export class LoginDto {
   @ApiProperty({ example: 'john@example.com' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   @IsEmail()
   email: string;
 
@@ -17,6 +19,7 @@ export class LoginDto {
     example: UserRole.DOCTOR,
     description: 'Role selected on the role selection screen',
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   @IsEnum(UserRole)
   role: UserRole;
 }

@@ -1,10 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // Suppress default Nest logger during bootstrap — Winston takes over after init
+    bufferLogs: true,
+  });
+
+  // Hand all NestJS internal logs over to Winston (saves them to file too)
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   // Global prefix
   app.setGlobalPrefix('api');
@@ -55,8 +62,10 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  console.log(`🚀 MedTrail API running at http://localhost:${port}/api`);
-  console.log(`📚 Swagger docs at   http://localhost:${port}/api/docs`);
+
+  const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  logger.log(`🚀 MedTrail API running at http://localhost:${port}/api`, 'Bootstrap');
+  logger.log(`📚 Swagger docs at   http://localhost:${port}/api/docs`, 'Bootstrap');
 }
 
 bootstrap();

@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -16,10 +17,13 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole } from '../users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -63,9 +67,11 @@ export class AuthService {
       emailOtp: otp,
       emailOtpExpiry: expiry,
       isEmailVerified: false,
+      isInvited: false,
     });
 
     await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp);
+    this.logger.log(`New account registered: ${user.email}`);
 
     return {
       message: 'Account created. A 6-digit verification code has been sent to your email.',
@@ -97,6 +103,7 @@ export class AuthService {
       emailOtpExpiry: null,
     });
 
+    this.logger.log(`Email verified: ${user.email}`);
     return { message: 'Email verified successfully. You can now log in.' };
   }
 
@@ -129,6 +136,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Invited users who haven't completed registration have no password yet
+    if (!user.password || user.invitationStatus === 'pending') {
+      throw new UnauthorizedException(
+        'Please complete your registration first by clicking the invitation link sent to your email.',
+      );
+    }
+
     const passwordMatch = await bcrypt.compare(dto.password, user.password);
     if (!passwordMatch) {
       throw new UnauthorizedException('Invalid email or password');
@@ -140,8 +154,14 @@ export class AuthService {
       );
     }
 
-    // Persist the role if it changed or was not set yet
-    if (user.role !== dto.role) {
+    // Role check: Ensure user logs into their assigned role (e.g. doctor, pharmacist, admin, patient)
+    if (user.role && user.role !== dto.role) {
+      throw new UnauthorizedException(
+        `Your account is registered as a ${user.role}. Please select the ${user.role} role to log in.`,
+      );
+    }
+
+    if (!user.role) {
       await this.usersService.updateById(String(user.id), { role: dto.role });
     }
 
@@ -150,6 +170,8 @@ export class AuthService {
       email: user.email,
       role: dto.role,
     });
+
+    this.logger.log(`Login success: ${user.email} as ${dto.role}`);
 
     return {
       message: 'Login successful',
@@ -182,6 +204,7 @@ export class AuthService {
     });
 
     await this.mailService.sendPasswordResetOtp(user.email, user.name, otp);
+    this.logger.log(`Password reset OTP sent to: ${user.email}`);
 
     return { message: 'If an account exists with this email, a reset code has been sent.' };
   }
@@ -224,7 +247,109 @@ export class AuthService {
       resetPasswordOtpExpiry: null,
     });
 
+    this.logger.log(`Password reset successfully for: ${user.email}`);
     return { message: 'Password reset successfully. You can now log in with your new password.' };
+  }
+
+  // ─── Accept Invite – Validate Token ───────────────────────────────────────
+
+  /**
+   * Called when the invited user clicks their email link.
+   * Validates the token and returns the user's name + role
+   * so the frontend can display the personalised welcome screen.
+   */
+  async validateInvitationToken(token: string) {
+    const user = await this.usersService.findByInvitationToken(token);
+
+    if (!user) {
+      throw new BadRequestException('Invalid invitation link. Please contact your administrator.');
+    }
+
+    if (!user.invitationTokenExpiry || new Date() > user.invitationTokenExpiry) {
+      throw new BadRequestException(
+        'This invitation link has expired. Please ask your administrator to send a new one.',
+      );
+    }
+
+    if (user.invitationStatus === 'accepted') {
+      throw new BadRequestException(
+        'This invitation has already been used. Please log in instead.',
+      );
+    }
+
+    this.logger.log(`Invitation token validated for: ${user.email}`);
+
+    return {
+      valid: true,
+      name: user.name,
+      email: user.email,
+      role: user.invitedRole,
+    };
+  }
+
+  // ─── Complete Registration (Set Password) ─────────────────────────────────
+
+  /**
+   * Called when the invited user submits their chosen password.
+   * Activates the account, clears the token, marks email as verified,
+   * and returns a JWT so the user lands directly in their dashboard.
+   */
+  async completeRegistration(dto: CompleteRegistrationDto) {
+    if (dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match. Please try again.');
+    }
+
+    const user = await this.usersService.findByInvitationToken(dto.token);
+
+    if (!user) {
+      throw new BadRequestException('Invalid invitation link. Please contact your administrator.');
+    }
+
+    if (!user.invitationTokenExpiry || new Date() > user.invitationTokenExpiry) {
+      throw new BadRequestException(
+        'This invitation link has expired. Please ask your administrator to send a new one.',
+      );
+    }
+
+    if (user.invitationStatus === 'accepted') {
+      throw new BadRequestException(
+        'Registration already completed. Please log in with your credentials.',
+      );
+    }
+
+    // Hash password and activate the account
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
+
+    await this.usersService.updateById(String(user.id), {
+      password: hashedPassword,
+      isEmailVerified: true,        // Invitation confirms email ownership
+      invitationStatus: 'accepted',
+      invitationToken: null,        // Invalidate the token after use
+      invitationTokenExpiry: null,
+      role: user.invitedRole,       // Apply the role set by admin
+    });
+
+    // Issue a JWT so the user goes straight to their dashboard
+    const accessToken = this.signToken({
+      sub: String(user.id),
+      email: user.email,
+      role: user.invitedRole,
+    });
+
+    this.logger.log(`Invited user completed registration: ${user.email} as ${user.invitedRole}`);
+
+    return {
+      message: 'Registration complete! Welcome to MedTrail.',
+      accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.invitedRole,
+        hospitalName: user.hospitalName,
+        phone: user.phone,
+      },
+    };
   }
 
   // ─── Get Profile ──────────────────────────────────────────────────────────

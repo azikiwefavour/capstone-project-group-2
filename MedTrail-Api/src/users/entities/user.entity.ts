@@ -29,15 +29,15 @@ export class User {
   email: string;
 
   @ApiProperty({ example: '+2348123456789' })
-  @Column({ type: 'varchar', length: 50 })
-  phone: string;
+  @Column({ type: 'varchar', length: 50, nullable: true, default: null })
+  phone: string | null;
 
   @ApiProperty({ example: 'General Hospital Lagos' })
-  @Column({ type: 'varchar', length: 255 })
-  hospitalName: string;
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  hospitalName: string | null;
 
-  @Column({ type: 'varchar', length: 255, select: false })
-  password: string;
+  @Column({ type: 'varchar', length: 255, nullable: true, select: false, default: null })
+  password: string | null;
 
   @ApiProperty({ enum: UserRole, example: UserRole.DOCTOR, required: false, nullable: true })
   @Column({
@@ -63,6 +63,39 @@ export class User {
 
   @Column({ type: 'timestamp with time zone', nullable: true, select: false, default: null })
   resetPasswordOtpExpiry: Date | null;
+
+  // ─── Admin Invitation Fields ──────────────────────────────────────────────
+
+  @ApiProperty({ example: false, description: 'True when this account was created via admin invitation' })
+  @Column({ type: 'boolean', default: false })
+  isInvited: boolean;
+
+  @ApiProperty({ example: 'pending', enum: ['pending', 'accepted'], nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true, default: null })
+  invitationStatus: 'pending' | 'accepted' | null;
+
+  /** Secure random UUID token embedded in the invitation link – excluded from SELECT by default */
+  @Column({ type: 'varchar', length: 512, nullable: true, select: false, default: null })
+  invitationToken: string | null;
+
+  @Column({ type: 'timestamp with time zone', nullable: true, select: false, default: null })
+  invitationTokenExpiry: Date | null;
+
+  @ApiProperty({ example: 'doctor', nullable: true, description: 'Role the admin assigned during invitation' })
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    nullable: true,
+    default: null,
+    name: 'invited_role',
+  })
+  invitedRole: UserRole | null;
+
+  @ApiProperty({ example: 'admin-uuid-here', nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  invitedBy: string | null;
+
+  // ─── Timestamps ───────────────────────────────────────────────────────────
 
   @CreateDateColumn({ type: 'timestamp with time zone' })
   createdAt: Date;
