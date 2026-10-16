@@ -1,22 +1,5 @@
-import { useState } from 'react'
-import { getAccessToken, setAccessToken } from '../../auth/session'
-
-const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-
-async function getAdminAuthHeader() {
-  let token = getAccessToken()
-  if (!token) {
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/auth/dev-admin-token`, { method: 'POST' })
-      if (res.ok) {
-        const data = await res.json()
-        setAccessToken(data.accessToken)
-        token = data.accessToken
-      }
-    } catch (_) {}
-  }
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { useRef, useState } from 'react'
+import { adminRequest } from '../api'
 
 const roleOptions = ['Doctor', 'Pharmacist', 'Patient']
 
@@ -61,8 +44,9 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   const [age, setAge] = useState(initialUser?.role === 'Patient' ? String(initialUser.age ?? '') : '')
   const [touchedFields, setTouchedFields] = useState({})
   const [submitClicked, setSubmitClicked] = useState(false)
-  const [apiError, setApiError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const submissionInFlight = useRef(false)
   const isEditing = Boolean(initialUser)
 
   if (!isOpen) {
@@ -144,7 +128,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setAge('')
     setTouchedFields({})
     setSubmitClicked(false)
-    setApiError('')
+    setSubmitError('')
     setIsSubmitting(false)
   }
 
@@ -162,68 +146,53 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   }
 
   function handleClose() {
+    if (submissionInFlight.current) return
     resetForm()
     onClose()
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (submissionInFlight.current) return
     setSubmitClicked(true)
-    setApiError('')
+    setSubmitError('')
 
     if (!isFormValid || isSubmitting) {
       return
     }
 
+    if (isEditing) {
+      const updated = {
+        id: initialUser?.id,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role,
+        ...(isPatient ? { gender, age: numericAge } : {}),
+      }
+      resetForm()
+      onSuccess(updated)
+      onClose()
+      return
+    }
+
+    submissionInFlight.current = true
     setIsSubmitting(true)
 
     try {
-      if (isEditing) {
-        const updated = {
-          id: initialUser?.id,
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          role,
-          ...(isPatient ? { gender, age: numericAge } : {}),
-        }
-        resetForm()
-        onSuccess(updated)
-        onClose()
-        return
-      }
-
-      const authHeader = await getAdminAuthHeader()
-      const payload = {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phoneDigits ? `+234${phoneDigits}` : undefined,
-        role: role.toLowerCase(),
-        ...(isPatient ? { gender, age: numericAge } : {}),
-      }
-
-      const response = await fetch(`${apiBaseUrl}/api/admin/invite-user`, {
+      const result = await adminRequest('invite-user', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeader,
+        body: {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: `+234${phoneDigits.replace(/^0/, '')}`,
+          role: role.toLowerCase(),
+          ...(isPatient ? { gender, age: numericAge } : {}),
         },
-        body: JSON.stringify(payload),
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        const msg = Array.isArray(data?.message)
-          ? data.message.join(' ')
-          : data?.message || 'Failed to send invitation. Please try again.'
-        setApiError(msg)
-        setIsSubmitting(false)
-        return
-      }
-
       const createdUser = {
-        id: data?.user?.id || window.crypto?.randomUUID?.() || `${Date.now()}`,
+        id: result?.user?.id || window.crypto?.randomUUID?.() || `${Date.now()}`,
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -235,9 +204,10 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       resetForm()
       onSuccess(createdUser)
       onClose()
-    } catch {
-      setApiError('Unable to connect to server. Please check your connection and try again.')
+    } catch (error) {
+      setSubmitError(error.message || 'Unable to invite user. Please try again.')
     } finally {
+      submissionInFlight.current = false
       setIsSubmitting(false)
     }
   }
@@ -249,6 +219,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       onClick={handleClose}
     >
       <form
+        aria-busy={isSubmitting}
         className="max-h-[calc(100dvh-3rem)] w-full max-w-[520px] overflow-y-auto rounded-3xl bg-white p-6 shadow-xl shadow-[#111827]/10 sm:p-8"
         role="dialog"
         aria-modal="true"
@@ -293,12 +264,12 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
           </button>
         </div>
 
-        {apiError && (
+        {submitError && (
           <div role="alert" className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-[#E5484D]">
             <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 shrink-0">
               <path fillRule="evenodd" d="M8 15A7 7 0 108 1a7 7 0 000 14zm.75-10.25a.75.75 0 00-1.5 0v4.5a.75.75 0 001.5 0v-4.5zm-.75 7.5a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
             </svg>
-            <span>{apiError}</span>
+            <span>{submitError}</span>
           </div>
         )}
 

@@ -4,7 +4,7 @@ import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
-function VerifyEmail() {
+function VerifyEmail({ frontendOnly = false }) {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationError, setVerificationError] = useState('')
@@ -65,14 +65,20 @@ function VerifyEmail() {
 
     setVerificationError('')
 
-    if (!email) {
-      setVerificationError('Your registration email is missing. Please go back and create your account.')
-      return
-    }
-
     const otp = codeValues.join('')
     if (!/^\d{6}$/.test(otp)) {
       setVerificationError('Please enter the complete 6-digit verification code.')
+      return
+    }
+
+    if (frontendOnly) {
+      // Temporary doctor-only bypass: replace with invitation verification when the backend is ready.
+      navigate('/doctor/create-password', { state: { email } })
+      return
+    }
+
+    if (!email) {
+      setVerificationError('Your registration email is missing. Please go back and create your account.')
       return
     }
 
@@ -182,7 +188,7 @@ function VerifyEmail() {
             <button
               type="button"
               disabled={isVerifying}
-              onClick={() => navigate('/create-account')}
+              onClick={() => navigate(frontendOnly ? '/doctor/login' : '/create-account')}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
