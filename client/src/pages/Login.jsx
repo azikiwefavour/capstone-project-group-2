@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
+import { isValidPreviewPassword, startDoctorPreviewSession } from '../doctor/previewAuth'
 import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
@@ -95,7 +96,7 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
-function Login() {
+function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false }) {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -106,7 +107,7 @@ function Login() {
   const loginInFlight = useRef(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const selectedRole = location.state?.selectedRole
+  const selectedRole = authenticationRole || location.state?.selectedRole
   const role = Object.hasOwn(backendRoles, selectedRole) ? backendRoles[selectedRole] : null
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
@@ -116,8 +117,13 @@ function Login() {
       : !isEmailValid
         ? 'Invalid email address.'
         : '')
-  const passwordError =
-    continueClicked && password.trim() === '' ? 'This field is required.' : ''
+  const passwordError = continueClicked
+    ? password.trim() === ''
+      ? 'This field is required.'
+      : frontendOnly && !isValidPreviewPassword(password)
+        ? 'Use at least 8 characters, an uppercase letter, a number, and a special character.'
+        : ''
+    : ''
 
   const inputClassName = (hasError) =>
     `h-11 w-full rounded-xl border bg-white px-4 text-base text-[#111827] outline-none transition placeholder:text-[#A6ADBA] focus:ring-4 [@media(min-height:850px)]:lg:h-13 ${
@@ -137,6 +143,14 @@ function Login() {
     if (email.trim() === '' || !isEmailValid || password.trim() === '') return
     if (!role) {
       setLoginError('Please select your role before logging in.')
+      return
+    }
+
+    if (frontendOnly) {
+      if (role !== 'doctor' || !isValidPreviewPassword(password)) return
+      startDoctorPreviewSession()
+      setPassword('')
+      navigate('/doctor/dashboard', { replace: true })
       return
     }
 
@@ -172,12 +186,19 @@ function Login() {
         return
       }
 
-      setAccessToken(data.accessToken)
+      if (authenticationRole && data.user.role !== role) {
+        setLoginError('This account cannot access the doctor workspace.')
+        return
+      }
+
+      setAccessToken(data.accessToken, data.user.role)
       setPassword('')
       setContinueClicked(false)
       if (data.user.role === 'admin') {
         sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : '')
         navigate('/admin/dashboard', { replace: true })
+      } else if (data.user.role === 'doctor') {
+        navigate('/doctor/dashboard', { replace: true })
       } else {
         setLoginNotice('Login successful. The dashboard for your role is not available yet.')
       }
@@ -188,6 +209,10 @@ function Login() {
       loginInFlight.current = false
       setIsLoggingIn(false)
     }
+  }
+
+  if (!frontendOnly && role === 'doctor') {
+    return <Navigate to="/doctor/login" replace />
   }
 
   return (
@@ -290,7 +315,7 @@ function Login() {
           <div className="mt-3 text-left [@media(min-height:850px)]:lg:mt-4">
             <button
               type="button"
-              onClick={() => navigate('/forgot-password')}
+              onClick={() => navigate(`${recoveryBasePath}/forgot-password`)}
               className="text-sm font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
             >
               Forgot password?
@@ -323,7 +348,7 @@ function Login() {
             Don&rsquo;t have an account?{' '}
             <button
               type="button"
-              onClick={() => navigate('/create-account')}
+              onClick={() => navigate(authenticationRole === 'Doctor' ? '/doctor/create-password' : '/create-account')}
               className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
             >
               Create one
