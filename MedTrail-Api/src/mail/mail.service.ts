@@ -45,6 +45,7 @@ export class MailService {
           </div>
         `,
       });
+      this.logger.log(`✅ Password reset email sent to ${to}`);
     } catch (error) {
       this.logger.error('Failed to send password reset email', error);
     }
