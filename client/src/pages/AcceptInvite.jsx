@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
 
-const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
 function EyeIcon({ isVisible }) {
   if (isVisible) {
