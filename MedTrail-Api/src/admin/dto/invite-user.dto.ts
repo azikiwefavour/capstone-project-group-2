@@ -23,15 +23,15 @@ export class InviteUserDto {
   email: string;
 
   @ApiProperty({
-    enum: [UserRole.DOCTOR, UserRole.PHARMACIST],
+    enum: [UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT],
     example: UserRole.DOCTOR,
-    description: 'Role to assign – only doctor or pharmacist can be invited by admin',
+    description: 'Role to assign – doctor, pharmacist, or patient',
   })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
-  @IsEnum([UserRole.DOCTOR, UserRole.PHARMACIST], {
-    message: 'Role must be either "doctor" or "pharmacist"',
+  @IsEnum([UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT], {
+    message: 'Role must be either "doctor", "pharmacist", or "patient"',
   })
-  role: UserRole.DOCTOR | UserRole.PHARMACIST;
+  role: UserRole.DOCTOR | UserRole.PHARMACIST | UserRole.PATIENT;
 
   @ApiProperty({ example: 'Lagos General Hospital', description: 'Hospital or pharmacy name', required: false })
   @IsString()
@@ -43,4 +43,13 @@ export class InviteUserDto {
   @IsOptional()
   @Matches(/^\+?[0-9\s\-()]{7,20}$/, { message: 'Please provide a valid phone number' })
   phone?: string;
+
+  @ApiProperty({ example: 'Female', description: 'Gender for patient (Male or Female)', required: false })
+  @IsString()
+  @IsOptional()
+  gender?: string;
+
+  @ApiProperty({ example: 34, description: 'Age in years for patient', required: false })
+  @IsOptional()
+  age?: number;
 }

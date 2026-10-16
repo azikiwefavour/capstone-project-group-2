@@ -359,4 +359,35 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
+
+  // ─── Dev Admin Token (for testing/development) ─────────────────────────────
+
+  async getDevAdminToken() {
+    let admin = await this.usersService.findByEmail('admin@medtrail.com');
+    if (!admin) {
+      admin = await this.usersService.create({
+        name: 'Amos',
+        email: 'admin@medtrail.com',
+        role: UserRole.ADMIN,
+        isEmailVerified: true,
+        isInvited: false,
+      });
+    }
+
+    const token = this.signToken({
+      sub: String(admin.id),
+      email: admin.email,
+      role: UserRole.ADMIN,
+    });
+
+    return {
+      accessToken: token,
+      user: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: UserRole.ADMIN,
+      },
+    };
+  }
 }

@@ -90,6 +90,8 @@ export class AdminService {
       email: dto.email.toLowerCase(),
       phone: dto.phone ?? null,
       hospitalName: dto.hospitalName ?? null,
+      gender: dto.gender ?? null,
+      age: dto.age ?? null,
       password: null,           // No password until they complete registration
       role: dto.role,
       invitedRole: dto.role,
@@ -108,18 +110,19 @@ export class AdminService {
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
     const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
 
-    // 5. Send the invitation email with the browser-ready link
+    // 5. Send the invitation email with the frontend link
     await this.mailService.sendInvitationEmail(
       user.email,
       user.name,
       dto.role,
-      browserDirectUrl,
+      frontendInviteUrl,
     );
 
     this.logger.log(
       `\n═══════════════════════════════════════════════════════════════════════════════\n` +
       `📧 [INVITATION CREATED] Role: ${dto.role} | Email: ${user.email}\n` +
-      `👉 Chrome Browser Direct Link:\n   ${browserDirectUrl}\n` +
+      `👉 Frontend Invite Link:\n   ${frontendInviteUrl}\n` +
+      `👉 Browser Direct Link:\n   ${browserDirectUrl}\n` +
       `═══════════════════════════════════════════════════════════════════════════════`,
     );
 
@@ -169,13 +172,14 @@ export class AdminService {
       user.email,
       user.name,
       user.invitedRole ?? 'doctor',
-      browserDirectUrl,
+      frontendInviteUrl,
     );
 
     this.logger.log(
       `\n═══════════════════════════════════════════════════════════════════════════════\n` +
       `📧 [INVITATION RESENT] By Admin: ${adminName} to ${user.email}\n` +
-      `👉 Chrome Browser Direct Link:\n   ${browserDirectUrl}\n` +
+      `👉 Frontend Invite Link:\n   ${frontendInviteUrl}\n` +
+      `👉 Browser Direct Link:\n   ${browserDirectUrl}\n` +
       `═══════════════════════════════════════════════════════════════════════════════`,
     );
 

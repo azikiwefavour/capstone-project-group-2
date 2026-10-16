@@ -1,8 +1,9 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import AdminSidebar from './components/AdminSidebar'
+import { setAccessToken } from '../auth/session'
 
 function getDemoAdminName() {
-  return sessionStorage.getItem('medtrailDemoAdminName') || ''
+  return sessionStorage.getItem('medtrailDemoAdminName') || 'Amos'
 }
 
 function AdminLayout() {
@@ -11,7 +12,8 @@ function AdminLayout() {
 
   function handleLogout() {
     sessionStorage.removeItem('medtrailDemoAdminName')
-    navigate('/create-account')
+    setAccessToken(null)
+    navigate('/login')
   }
 
   return (

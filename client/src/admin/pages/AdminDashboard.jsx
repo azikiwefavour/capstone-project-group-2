@@ -1,5 +1,24 @@
+import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import AdminHeader from '../components/AdminHeader'
+import { getAccessToken, setAccessToken } from '../../auth/session'
+
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+
+async function getAdminAuthHeader() {
+  let token = getAccessToken()
+  if (!token) {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/auth/dev-admin-token`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setAccessToken(data.accessToken)
+        token = data.accessToken
+      }
+    } catch (_) {}
+  }
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 function DoctorIcon() {
   return (
@@ -111,6 +130,41 @@ function EmptyPanel({ title, linkTo, linkLabel, icon, message }) {
 
 function AdminDashboard() {
   const { adminName } = useOutletContext()
+  const [stats, setStats] = useState({
+    doctors: 0,
+    pharmacists: 0,
+    patients: 0,
+    totalUsers: 0,
+  })
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const authHeader = await getAdminAuthHeader()
+        const res = await fetch(`${apiBaseUrl}/api/admin/dashboard`, {
+          headers: { ...authHeader },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setStats({
+            doctors: data.byRole?.doctor ?? 0,
+            pharmacists: data.byRole?.pharmacist ?? 0,
+            patients: data.byRole?.patient ?? 0,
+            totalUsers: data.totalUsers ?? 0,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load dashboard stats:', err)
+      }
+    }
+    loadStats()
+  }, [])
+
+  const countByLabel = {
+    Doctors: stats.doctors,
+    Pharmacists: stats.pharmacists,
+    Patients: stats.patients,
+  }
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -133,7 +187,7 @@ function AdminDashboard() {
           >
             <div>
               <p className="text-3xl font-semibold tracking-normal text-[#111827]">
-                0
+                {countByLabel[card.label] ?? 0}
               </p>
               <p className="mt-1.5 text-sm font-medium text-[#7A8190]">
                 {card.label}

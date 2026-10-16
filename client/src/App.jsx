@@ -3,10 +3,12 @@ import AdminLayout from './admin/AdminLayout'
 import AdminAuditLog from './admin/pages/AdminAuditLog'
 import AdminDashboard from './admin/pages/AdminDashboard'
 import AdminUsers from './admin/pages/AdminUsers'
+import AcceptInvite from './pages/AcceptInvite'
 import CreateAccount from './pages/CreateAccount'
 import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
 import NewPassword from './pages/NewPassword'
+import RoleDashboard from './pages/RoleDashboard'
 import RoleSelection from './pages/RoleSelection'
 import VerifyEmail from './pages/VerifyEmail'
 import VerifyResetCode from './pages/VerifyResetCode'
@@ -23,6 +25,8 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-reset-code" element={<VerifyResetCode />} />
         <Route path="/new-password" element={<NewPassword />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/:role/dashboard" element={<RoleDashboard />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />

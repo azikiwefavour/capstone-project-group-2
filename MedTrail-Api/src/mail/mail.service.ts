@@ -61,14 +61,36 @@ export class MailService {
   ): Promise<void> {
     this.logger.log(`📨 [DEV/TEST] Invitation Link for ${to} (${role}):\n👉 ${invitationLink}`);
 
-    const roleLabel = role === 'doctor' ? 'Dr.' : 'Pharm.';
-    const roleFull = role === 'doctor' ? 'Doctor' : 'Pharmacist';
-    const accentColor = role === 'doctor' ? '#475AA2' : '#E05252';
+    const roleLower = (role || '').toLowerCase();
+    const cleanName = name.replace(/^(dr\.?|pharm\.?)\s+/i, '');
+    const roleLabel =
+      roleLower === 'doctor' ? 'Dr.' : roleLower === 'pharmacist' ? 'Pharm.' : '';
+    const roleFull =
+      roleLower === 'doctor'
+        ? 'Doctor'
+        : roleLower === 'pharmacist'
+        ? 'Pharmacist'
+        : 'Patient';
+    const accentColor =
+      roleLower === 'doctor'
+        ? '#475AA2'
+        : roleLower === 'pharmacist'
+        ? '#B83F5C'
+        : '#2F7D59';
+
+    const greetingName = roleLabel ? `${roleLabel} ${cleanName}` : cleanName;
+    const invitationIntro =
+      roleLower === 'patient'
+        ? `You've been registered by your healthcare administrator to join MedTrail as a <strong style="color:${accentColor};">Patient</strong>.`
+        : `You've been invited by your administrator to join MedTrail as a <strong style="color:${accentColor};">${roleFull}</strong>.`;
 
     try {
       await this.mailerService.sendMail({
         to,
-        subject: `MedTrail – You've been invited as a ${roleFull}`,
+        subject:
+          roleLower === 'patient'
+            ? 'MedTrail – Complete Your Patient Registration'
+            : `MedTrail – You've been invited as a ${roleFull}`,
         html: `
           <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:520px;margin:auto;background:#ffffff;border:1px solid #e2e5ed;border-radius:16px;overflow:hidden;">
             <!-- Header -->
@@ -79,9 +101,9 @@ export class MailService {
 
             <!-- Body -->
             <div style="padding:36px 32px;">
-              <h2 style="color:#111827;font-size:20px;margin:0 0 8px;">Welcome to MedTrail, ${roleLabel} ${name}!</h2>
+              <h2 style="color:#111827;font-size:20px;margin:0 0 8px;">Welcome to MedTrail, ${greetingName}!</h2>
               <p style="color:#6B7280;line-height:1.6;margin:0 0 24px;">
-                You've been invited by your administrator to join MedTrail as a <strong style="color:${accentColor};">${roleFull}</strong>.
+                ${invitationIntro}
                 Click the button below to complete your account setup and create your password.
               </p>
 

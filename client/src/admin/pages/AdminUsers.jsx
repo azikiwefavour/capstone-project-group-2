@@ -228,11 +228,39 @@ function StatusBadge({ status }) {
   )
 }
 
+import { getAccessToken, setAccessToken } from '../../auth/session'
+
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+
+async function getAdminAuthHeader() {
+  let token = getAccessToken()
+  if (!token) {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/auth/dev-admin-token`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setAccessToken(data.accessToken)
+        token = data.accessToken
+      }
+    } catch (_) {}
+  }
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function normalizeRole(role) {
+  if (!role) return 'Patient'
+  const lower = String(role).toLowerCase()
+  if (lower === 'doctor') return 'Doctor'
+  if (lower === 'pharmacist') return 'Pharmacist'
+  return 'Patient'
+}
+
 function AdminUsers() {
   const { adminName } = useOutletContext()
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
-  const [demoUsers, setDemoUsers] = useState([])
+  const [usersList, setUsersList] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [editingUser, setEditingUser] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('All')
@@ -240,6 +268,39 @@ function AdminUsers() {
   const rowsPerPage = 5
   const [currentPage, setCurrentPage] = useState(1)
   const adminContentScrollTopRef = useRef(0)
+
+  async function fetchUsers() {
+    try {
+      setIsLoading(true)
+      const authHeader = await getAdminAuthHeader()
+      const res = await fetch(`${apiBaseUrl}/api/admin/users`, {
+        headers: { ...authHeader },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const formatted = (Array.isArray(data) ? data : []).map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone || '08123456789',
+          role: normalizeRole(u.role || u.invitedRole),
+          gender: u.gender,
+          age: u.age,
+          status: u.invitationStatus === 'pending' ? 'pending' : (u.isEmailVerified || u.invitationStatus === 'accepted') ? 'active' : 'pending',
+          createdAt: u.createdAt,
+        }))
+        setUsersList(formatted)
+      }
+    } catch (err) {
+      console.error('Failed to load users:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchUsers()
+  }, [])
 
   useEffect(() => {
     if (!showSuccessToast) {
@@ -256,7 +317,7 @@ function AdminUsers() {
   const visibleUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
-    return [...demoUsers]
+    return [...usersList]
       .filter((user) => roleFilter === 'All' || user.role === roleFilter)
       .filter((user) => {
         if (!normalizedQuery) {
@@ -278,7 +339,7 @@ function AdminUsers() {
 
         return 0
       })
-  }, [demoUsers, roleFilter, searchQuery, sortBy])
+  }, [usersList, roleFilter, searchQuery, sortBy])
 
   const totalPages = Math.max(1, Math.ceil(visibleUsers.length / rowsPerPage))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -305,10 +366,10 @@ function AdminUsers() {
     })
   }
 
-  function handleDemoUserSaved(savedUser) {
+  function handleUserSaved(savedUser) {
     rememberScrollPosition()
 
-    setDemoUsers((currentUsers) => {
+    setUsersList((currentUsers) => {
       const existingUser = currentUsers.find((user) => user.id === savedUser.id)
 
       if (existingUser) {
@@ -317,7 +378,6 @@ function AdminUsers() {
         )
       }
 
-      // Local creation does not confirm registration, verification, or email delivery.
       return [{ ...savedUser, status: 'pending' }, ...currentUsers]
     })
 
@@ -326,14 +386,23 @@ function AdminUsers() {
     restoreScrollPosition()
   }
 
-  function handleDeleteUser(userId) {
+  async function handleDeleteUser(userId) {
     const shouldDelete = window.confirm(
-      'Remove this user from the frontend demo table?',
+      'Are you sure you want to delete this user?',
     )
 
     if (shouldDelete) {
       rememberScrollPosition()
-      setDemoUsers((currentUsers) =>
+      try {
+        const authHeader = await getAdminAuthHeader()
+        await fetch(`${apiBaseUrl}/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: { ...authHeader },
+        })
+      } catch (err) {
+        console.error('Delete user error:', err)
+      }
+      setUsersList((currentUsers) =>
         currentUsers.filter((user) => user.id !== userId),
       )
       restoreScrollPosition()
@@ -554,7 +623,7 @@ function AdminUsers() {
         key={editingUser?.id || 'new-user'}
         isOpen={isAddUserModalOpen}
         onClose={handleCloseModal}
-        onSuccess={handleDemoUserSaved}
+        onSuccess={handleUserSaved}
         initialUser={editingUser}
       />
     </section>

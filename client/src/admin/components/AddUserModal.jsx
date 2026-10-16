@@ -1,4 +1,22 @@
 import { useState } from 'react'
+import { getAccessToken, setAccessToken } from '../../auth/session'
+
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+
+async function getAdminAuthHeader() {
+  let token = getAccessToken()
+  if (!token) {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/auth/dev-admin-token`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setAccessToken(data.accessToken)
+        token = data.accessToken
+      }
+    } catch (_) {}
+  }
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 const roleOptions = ['Doctor', 'Pharmacist', 'Patient']
 
@@ -43,6 +61,8 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   const [age, setAge] = useState(initialUser?.role === 'Patient' ? String(initialUser.age ?? '') : '')
   const [touchedFields, setTouchedFields] = useState({})
   const [submitClicked, setSubmitClicked] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const isEditing = Boolean(initialUser)
 
   if (!isOpen) {
@@ -124,6 +144,8 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setAge('')
     setTouchedFields({})
     setSubmitClicked(false)
+    setApiError('')
+    setIsSubmitting(false)
   }
 
   function handleRoleChange(nextRole) {
@@ -144,23 +166,79 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     onClose()
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
     setSubmitClicked(true)
+    setApiError('')
 
-    if (isFormValid) {
-      const newDemoUser = {
-        id: initialUser?.id || window.crypto?.randomUUID?.() || `${Date.now()}`,
+    if (!isFormValid || isSubmitting) {
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      if (isEditing) {
+        const updated = {
+          id: initialUser?.id,
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          role,
+          ...(isPatient ? { gender, age: numericAge } : {}),
+        }
+        resetForm()
+        onSuccess(updated)
+        onClose()
+        return
+      }
+
+      const authHeader = await getAdminAuthHeader()
+      const payload = {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phoneDigits ? `+234${phoneDigits}` : undefined,
+        role: role.toLowerCase(),
+        ...(isPatient ? { gender, age: numericAge } : {}),
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/admin/invite-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeader,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        const msg = Array.isArray(data?.message)
+          ? data.message.join(' ')
+          : data?.message || 'Failed to send invitation. Please try again.'
+        setApiError(msg)
+        setIsSubmitting(false)
+        return
+      }
+
+      const createdUser = {
+        id: data?.user?.id || window.crypto?.randomUUID?.() || `${Date.now()}`,
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
         role,
+        status: 'pending',
         ...(isPatient ? { gender, age: numericAge } : {}),
       }
 
       resetForm()
-      onSuccess(newDemoUser)
+      onSuccess(createdUser)
       onClose()
+    } catch {
+      setApiError('Unable to connect to server. Please check your connection and try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -214,6 +292,15 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
             </svg>
           </button>
         </div>
+
+        {apiError && (
+          <div role="alert" className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-[#E5484D]">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 shrink-0">
+              <path fillRule="evenodd" d="M8 15A7 7 0 108 1a7 7 0 000 14zm.75-10.25a.75.75 0 00-1.5 0v4.5a.75.75 0 001.5 0v-4.5zm-.75 7.5a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+            </svg>
+            <span>{apiError}</span>
+          </div>
+        )}
 
         <div className="mt-7 space-y-4">
           <div>
@@ -365,14 +452,14 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
         <div className="mt-8 flex justify-start">
           <button
             type="submit"
-            disabled={!isFormValid}
+            disabled={!isFormValid || isSubmitting}
             className={`h-11 rounded-xl px-6 text-base font-semibold text-white transition focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 ${
-              isFormValid
+              isFormValid && !isSubmitting
                 ? 'bg-[#475AA2] hover:bg-[#3D4F91]'
                 : 'cursor-not-allowed bg-[#475AA2]/45'
             }`}
           >
-            {isEditing ? 'Save changes' : 'Create user'}
+            {isSubmitting ? 'Sending invitation...' : isEditing ? 'Save changes' : 'Create user'}
           </button>
         </div>
       </form>

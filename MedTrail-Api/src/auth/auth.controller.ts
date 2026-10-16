@@ -184,24 +184,17 @@ export class AuthController {
       const data = await this.authService.validateInvitationToken(token);
 
       if (isHtml) {
-        const html = renderAcceptInviteHtml({
-          token,
-          name: data.name,
-          role: data.role ?? 'doctor',
-          email: data.email,
-          frontendUrl,
-        });
-        return res.type('html').send(html);
+        return res.redirect(`${frontendUrl}/accept-invite?token=${encodeURIComponent(token)}`);
       }
 
       return res.status(HttpStatus.OK).json(data);
     } catch (err: any) {
       if (isHtml) {
-        const errorHtml = renderInvalidInviteHtml({
-          message: err?.message || 'Invalid or expired invitation link.',
-          frontendUrl,
-        });
-        return res.status(HttpStatus.BAD_REQUEST).type('html').send(errorHtml);
+        return res.redirect(
+          `${frontendUrl}/accept-invite?token=${encodeURIComponent(token || '')}&error=${encodeURIComponent(
+            err?.message || 'Invalid or expired invitation link',
+          )}`,
+        );
       }
       return res.status(HttpStatus.BAD_REQUEST).json({
         statusCode: HttpStatus.BAD_REQUEST,
@@ -264,5 +257,14 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@CurrentUser() user: { sub: string }) {
     return this.authService.getProfile(user.sub);
+  }
+
+  // ── POST /api/auth/dev-admin-token ─────────────────────────────────────────
+  @Public()
+  @Post('dev-admin-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Obtain dev admin access token for local development' })
+  devAdminToken() {
+    return this.authService.getDevAdminToken();
   }
 }

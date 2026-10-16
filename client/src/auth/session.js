@@ -1,10 +1,24 @@
-// Keep the JWT out of persistent browser storage and navigation state.
-let accessToken = null
+let memoryToken = null
 
 export function setAccessToken(token) {
-  accessToken = token
+  memoryToken = token
+  if (token) {
+    try {
+      sessionStorage.setItem('medtrailAuthToken', token)
+    } catch (_) {}
+  } else {
+    try {
+      sessionStorage.removeItem('medtrailAuthToken')
+    } catch (_) {}
+  }
 }
 
 export function getAccessToken() {
-  return accessToken
+  if (memoryToken) return memoryToken
+  try {
+    return sessionStorage.getItem('medtrailAuthToken')
+  } catch (_) {
+    return null
+  }
 }
+
