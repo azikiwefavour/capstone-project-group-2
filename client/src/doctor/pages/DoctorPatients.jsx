@@ -4,17 +4,19 @@ import DoctorLayout from '../components/DoctorLayout'
 import DoctorIcon from '../components/DoctorIcon'
 import AdminPagination from '../../admin/components/AdminPagination'
 import { filterAndSortPatients, getMedicationCount } from '../patients'
+import { getDoctorPatients } from '../api'
+import useDoctorRecords from '../useDoctorRecords'
 
 const controlClassName = 'relative inline-flex h-10 max-w-full items-center gap-2 rounded-xl border border-[#D8DCE5] bg-white px-3 text-sm font-medium text-[#52556C] focus-within:ring-4 focus-within:ring-[#475AA2]/15'
 
-function DoctorPatients({ doctor = null, patients = [], isLoading = false, error = '', onRetry, Layout = DoctorLayout, basePath = '/doctor' }) {
+function PatientsContent({ doctor = null, patients: suppliedPatients = [], isLoading: suppliedLoading = false, error: suppliedError = '', onRetry: suppliedRetry, live, controls, basePath = '/doctor' }) {
+  const loaded = useDoctorRecords(getDoctorPatients, live)
+  const patients = live ? loaded.records : suppliedPatients
+  const isLoading = live ? loaded.isLoading : suppliedLoading
+  const error = live ? loaded.error : suppliedError
+  const onRetry = live ? loaded.onRetry : suppliedRetry
   const patientContext = useOutletContext()
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState('all')
-  const [sort, setSort] = useState('name-asc')
-  const [page, setPage] = useState(1)
-  const [rowsPerPage, setRowsPerPage] = useState(7)
-  const [selectedIds, setSelectedIds] = useState(new Set())
+  const { query, setQuery, filter, setFilter, sort, setSort, page, setPage, rowsPerPage, setRowsPerPage, selectedIds, setSelectedIds } = controls
   const visiblePatients = useMemo(() => filterAndSortPatients(patients, query, filter, sort), [patients, query, filter, sort])
   const unavailable = isLoading || Boolean(error)
   const currentPage = Math.min(page, Math.max(1, Math.ceil(visiblePatients.length / rowsPerPage)))
@@ -37,7 +39,7 @@ function DoctorPatients({ doctor = null, patients = [], isLoading = false, error
   }
 
   return (
-    <Layout doctor={doctor} view="patients">
+    <>
       <section className="mt-4">
         <h1 className="text-2xl font-semibold tracking-normal text-[#111827]">Patients</h1>
         <p className="mt-2 text-base leading-relaxed text-[#7A8190]">Search by name</p>
@@ -108,8 +110,20 @@ function DoctorPatients({ doctor = null, patients = [], isLoading = false, error
           </select>
         </div>
       </div>
-    </Layout>
+    </>
   )
 }
 
-export default DoctorPatients
+export default function DoctorPatients({ doctor = null, Layout = DoctorLayout, ...props }) {
+  // Keep controls stable while DoctorLayout rechecks the session on window focus.
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [sort, setSort] = useState('name-asc')
+  const [page, setPage] = useState(1)
+  const [rowsPerPage, setRowsPerPage] = useState(7)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const controls = { query, setQuery, filter, setFilter, sort, setSort, page, setPage, rowsPerPage, setRowsPerPage, selectedIds, setSelectedIds }
+  return <Layout doctor={doctor} view="patients">
+    <PatientsContent {...props} doctor={doctor} live={Layout === DoctorLayout} controls={controls} />
+  </Layout>
+}

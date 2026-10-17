@@ -37,24 +37,30 @@ export class AdminController {
   @ApiOperation({ summary: 'Get dashboard stats (admin only)' })
   @ApiResponse({ status: 200, description: 'Returns user counts by role, invite stats, etc.' })
   @ApiResponse({ status: 403, description: 'Forbidden – admin only' })
-  getDashboard() {
-    return this.adminService.getDashboardStats();
+  getDashboard(
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.getDashboardStats(admin?.sub);
   }
 
   // ── GET /api/admin/users ─────────────────────────────────────────────────
   @Get('users')
   @ApiOperation({ summary: 'List all users (admin only)' })
   @ApiResponse({ status: 200, description: 'Array of all users' })
-  getAllUsers() {
-    return this.adminService.getAllUsers();
+  getAllUsers(
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.getAllUsers(admin?.sub);
   }
 
   // ── GET /api/admin/invited-users ─────────────────────────────────────────
   @Get('invited-users')
   @ApiOperation({ summary: 'List all invited users with their pending/accepted status (admin only)' })
   @ApiResponse({ status: 200, description: 'Array of invited users with invitationStatus' })
-  getInvitedUsers() {
-    return this.adminService.getInvitedUsers();
+  getInvitedUsers(
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.getInvitedUsers(admin?.sub);
   }
 
   // ── POST /api/admin/invite-user ──────────────────────────────────────────

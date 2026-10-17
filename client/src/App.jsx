@@ -11,6 +11,7 @@ import DoctorClarifications from './doctor/pages/DoctorClarifications'
 import DoctorClarificationDetails from './doctor/pages/DoctorClarificationDetails'
 import DoctorClarificationRoutes from './doctor/components/DoctorClarificationRoutes'
 import DoctorPatientDetails, { DoctorPatientRoutes } from './doctor/pages/DoctorPatientDetails'
+import AcceptInvite from './pages/AcceptInvite'
 import CreateAccount from './pages/CreateAccount'
 import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
@@ -44,9 +45,10 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-reset-code" element={<VerifyResetCode />} />
         <Route path="/new-password" element={<NewPassword />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
         <Route path="/doctor/create-password" element={<DoctorCreatePassword />} />
         <Route path="/doctor/login" element={<DoctorLogin />} />
-        <Route path="/doctor/verify-email" element={<VerifyEmail frontendOnly />} />
+        <Route path="/doctor/verify-email" element={<VerifyEmail successPath="/doctor/login" />} />
         <Route path="/doctor/forgot-password" element={<ForgotPassword recoveryBasePath="/doctor" frontendOnly />} />
         <Route path="/doctor/verify-reset-code" element={<VerifyResetCode recoveryBasePath="/doctor" frontendOnly />} />
         <Route path="/doctor/new-password" element={<NewPassword recoveryBasePath="/doctor" frontendOnly />} />

@@ -7,9 +7,10 @@ import AddMedicationModal from '../components/AddMedicationModal'
 import MedicationActionsMenu from '../components/MedicationActionsMenu'
 import ModifyPrescriptionModal from '../components/ModifyPrescriptionModal'
 import DiscontinuePrescriptionModal from '../components/DiscontinuePrescriptionModal'
+import { createDoctorPrescription, getDoctorPatientDetails, modifyDoctorPrescription, discontinueDoctorPrescription } from '../prescriptions'
+import useDoctorRecords from '../useDoctorRecords'
 
-// Keep selected records in memory only, scoped to the Patients routes. A future data
-// provider can load by patientId; neither patient details nor medications belong in URLs.
+// Keep selected records in memory only; real details are loaded by their route ID.
 export function DoctorPatientRoutes() {
   const [selectedPatient, setSelectedPatient] = useState(null)
   return <Outlet context={{ selectedPatient, setSelectedPatient }} />
@@ -43,17 +44,18 @@ function MedicationDate({ value, timeZone }) {
   return formatted ? <time dateTime={formatted.dateTime}>{formatted.label}</time> : '\u2014'
 }
 
-// Future adapter contract: patient.currentMedications / patient.medicationHistory contain
-// actual records with id, name, indication, dose, frequency, duration, prescribedBy,
-// status, and date (original prescription timestamp). No medication timestamp fields
-// are confirmed by the backend yet; do not substitute account createdAt/updatedAt.
-// getDiscontinuationTimestamp is an optional adapter, not an assumed backend field.
-function DoctorPatientDetails({ patient = null, doctor = null, isLoading = false, error = '', medicationsLoading = false, medicationsError = '', onRetry, Layout = DoctorLayout, timeZone, getDiscontinuationTimestamp, duplicateRecords = null, patientsPath = '/doctor/patients' }) {
+function PatientDetailsContent({ patient = null, isLoading: suppliedLoading = false, error: suppliedError = '', medicationsLoading = false, medicationsError = '', onRetry: suppliedRetry, live, timeZone, getDiscontinuationTimestamp, duplicateRecords: suppliedDuplicates = null, patientsPath = '/doctor/patients' }) {
   const { patientId } = useParams()
   const context = useOutletContext()
-  const candidate = patient || context?.selectedPatient?.patient
+  const loadPatient = useCallback(signal => getDoctorPatientDetails(patientId, signal), [patientId])
+  const loaded = useDoctorRecords(loadPatient, live)
+  const isLoading = live ? loaded.isLoading : suppliedLoading
+  const error = live ? loaded.error : suppliedError
+  const onRetry = live ? loaded.onRetry : suppliedRetry
+  const duplicateRecords = live ? loaded.records?.duplicateRecords : suppliedDuplicates
+  const candidate = live ? loaded.records?.patient || context?.selectedPatient?.patient : patient || context?.selectedPatient?.patient
   const selectedPatient = candidate && String(candidate.id) === patientId ? candidate : null
-  const selectedDoctor = doctor || context?.selectedPatient?.doctor || null
+  const [feedback, setFeedback] = useState(null)
   const [tabState, setTabState] = useState(null)
   const [modalPatientId, setModalPatientId] = useState(null)
   const [actionState, setActionState] = useState(null)
@@ -76,8 +78,22 @@ function DoctorPatientDetails({ patient = null, doctor = null, isLoading = false
   const unavailable = isLoading || Boolean(error) || medicationsLoading || Boolean(medicationsError) || !selectedPatient
   const medications = !unavailable && Array.isArray(records) ? records : []
 
+  async function saveMedication(action, signal) {
+    if (!live || unavailable || !selectedPatient || duplicateRecords?.source !== 'backend') {
+      throw new Error('Refresh the patient medication records before submitting.')
+    }
+    const result = await action()
+    if (signal.aborted) return
+    setFeedback({ patientId, message: result.message })
+    setModalPatientId(null)
+    setModification(null)
+    setDiscontinuation(null)
+    setTabState({ patientId, tab: 'current' })
+    loaded.onRetry()
+  }
+
   return (
-    <Layout doctor={selectedDoctor} view="patients">
+    <>
       <nav aria-label="Breadcrumb" className="mt-5 flex min-w-0 items-center gap-2 text-sm text-[#7A8190]">
         <Link to={patientsPath} className="shrink-0 font-medium text-[#475AA2] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/15">Patients</Link>
         <span aria-hidden="true">&gt;</span>
@@ -97,6 +113,7 @@ function DoctorPatientDetails({ patient = null, doctor = null, isLoading = false
       </section>
 
       {!isLoading && !error && !selectedPatient && <p role="status" className="mt-3 text-sm text-[#7A8190]">Patient information is not available. Return to Patients to select a patient.</p>}
+      {feedback?.patientId === patientId && <p role="status" className="mt-3 text-sm text-[#2F7D59]">{feedback.message}</p>}
 
       <div className="mt-[22px] flex flex-wrap items-center justify-between gap-3 border-b border-[#E2E5ED]">
         <div role="tablist" aria-label="Patient medications" className="flex min-w-0 max-w-full">
@@ -113,7 +130,7 @@ function DoctorPatientDetails({ patient = null, doctor = null, isLoading = false
               className={`min-w-0 border-b-2 px-3 py-3 text-sm font-medium transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/15 ${tab === value ? 'border-[#475AA2] text-[#475AA2]' : 'border-transparent text-[#7A8190] hover:text-[#475AA2]'}`}>{label}</button>
           ))}
         </div>
-        <button type="button" onClick={() => { closeActions(); setModalPatientId(patientId) }} aria-haspopup="dialog" className="mb-2 inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#475AA2] px-4 text-sm font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">
+        <button type="button" onClick={() => { closeActions(); setFeedback(null); setModalPatientId(patientId) }} aria-haspopup="dialog" className="mb-2 inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-[#475AA2] px-4 text-sm font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">
           <span aria-hidden="true" className="text-lg leading-none">+</span>Add medication
         </button>
       </div>
@@ -142,6 +159,7 @@ function DoctorPatientDetails({ patient = null, doctor = null, isLoading = false
                   onToggle={() => setActionState((previous) => previous?.patientId === patientId && previous?.medicationId === medication.id ? null : { patientId, medicationId: medication.id })}
                   onClose={closeActions}
                   onSelect={(action) => {
+                    setFeedback(null)
                     if (action === 'Modify prescription') {
                       setModification({ patientId, prescription: medication })
                     } else if (action === 'Discontinue') {
@@ -159,11 +177,16 @@ function DoctorPatientDetails({ patient = null, doctor = null, isLoading = false
           </div>}
         </div>
       </section>
-      {modalPatientId !== null && modalPatientId === patientId && <AddMedicationModal key={patientId} patient={selectedPatient} onClose={closeMedicationModal} duplicateRecords={duplicateRecords} />}
-      {modification?.patientId === patientId && selectedPatient && <ModifyPrescriptionModal key={`${patientId}:${modification.prescription.id}`} patient={selectedPatient} prescription={modification.prescription} onClose={closeModification} />}
-      {discontinuation?.patientId === patientId && selectedPatient && <DiscontinuePrescriptionModal key={`${patientId}:${discontinuation.prescription.id}`} patient={selectedPatient} prescription={discontinuation.prescription} onClose={closeDiscontinuation} />}
-    </Layout>
+      {modalPatientId !== null && modalPatientId === patientId && <AddMedicationModal key={patientId} patient={selectedPatient} onClose={() => { closeMedicationModal(); if (live) loaded.onRetry() }} duplicateRecords={duplicateRecords} onSubmitPrescription={live && !unavailable ? (values, signal) => saveMedication(() => createDoctorPrescription(patientId, values, signal), signal) : null} />}
+      {modification?.patientId === patientId && selectedPatient && <ModifyPrescriptionModal key={`${patientId}:${modification.prescription.id}`} patient={selectedPatient} prescription={modification.prescription} onClose={() => { closeModification(); if (live) loaded.onRetry() }} onSubmitPrescription={live && !unavailable ? (values, signal) => saveMedication(() => modifyDoctorPrescription(patientId, modification.prescription.id, values, signal), signal) : null} />}
+      {discontinuation?.patientId === patientId && selectedPatient && <DiscontinuePrescriptionModal key={`${patientId}:${discontinuation.prescription.id}`} patient={selectedPatient} prescription={discontinuation.prescription} onClose={() => { closeDiscontinuation(); if (live) loaded.onRetry() }} onSubmitPrescription={live && !unavailable ? (reason, signal) => saveMedication(() => discontinueDoctorPrescription(patientId, discontinuation.prescription.id, reason, signal), signal) : null} />}
+    </>
   )
 }
 
-export default DoctorPatientDetails
+export default function DoctorPatientDetails({ doctor = null, Layout = DoctorLayout, ...props }) {
+  const context = useOutletContext()
+  return <Layout doctor={doctor || context?.selectedPatient?.doctor || null} view="patients">
+    <PatientDetailsContent {...props} live={Layout === DoctorLayout} />
+  </Layout>
+}

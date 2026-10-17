@@ -14,7 +14,7 @@ const fields = [
 ]
 const primaryButtonClassName = 'inline-flex h-9 items-center justify-center rounded-xl bg-[#475AA2] px-3 text-[13px] font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-45'
 
-function PrescriptionModal({ patient, onClose, duplicateRecords = null, developmentPreviewValues = null, mode = 'add', prescription = null }) {
+function PrescriptionModal({ patient, onClose, duplicateRecords = null, developmentPreviewValues = null, mode = 'add', prescription = null, onSubmitPrescription = null }) {
   const modifying = mode === 'modify'
   const title = modifying ? 'Modify prescription' : 'Add medication'
   const idPrefix = modifying ? 'modify-prescription' : 'add-medication'
@@ -25,12 +25,41 @@ function PrescriptionModal({ patient, onClose, duplicateRecords = null, developm
   const [originalValues] = useState(() => getModificationValues(prescription))
   const [values, setValues] = useState(() => modifying ? { ...originalValues } : previewValues ? { ...previewValues } : { medication: '', dose: '', frequency: '', duration: '', reason: '' })
   const [touched, setTouched] = useState({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [saveUncertain, setSaveUncertain] = useState(false)
+  const submissionInFlight = useRef(false)
+  const submitController = useRef(null)
   const errors = modifying ? validateModificationDetails(values, originalValues) : validateMedicationDetails(values)
   const isValid = Object.keys(errors).length === 0
   const duplicateResult = useMemo(() => modifying ? { status: 'unavailable' } : checkMedicationDuplicate(values, patient?.id, duplicateRecords), [modifying, values, patient?.id, duplicateRecords])
   const previewResult = useMemo(() => previewValues ? { status: 'found', existing: previewValues } : null, [previewValues])
   const showingPreview = Boolean(previewValues && fields.every(({ key }) => values[key] === previewValues[key]))
   const reviewResult = showingPreview ? previewResult : duplicateResult
+  const canSubmit = !previewValues && isValid && (modifying || reviewResult.status === 'none')
+    && typeof onSubmitPrescription === 'function' && !isSubmitting && !saveUncertain
+
+  useEffect(() => () => submitController.current?.abort(), [])
+
+  async function submitPrescription() {
+    if (submissionInFlight.current || !canSubmit || step !== 'review') return
+    submissionInFlight.current = true
+    const controller = new AbortController()
+    submitController.current = controller
+    setIsSubmitting(true)
+    setSubmitError('')
+    try {
+      await onSubmitPrescription({ ...values }, controller.signal)
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setSubmitError(error.message || 'Unable to submit prescription. Please try again.')
+        setSaveUncertain(Boolean(error.saveUncertain))
+      }
+    } finally {
+      submissionInFlight.current = false
+      if (!controller.signal.aborted) setIsSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     if (step === 'review') dialogRef.current.querySelector('[data-review-heading]')?.focus({ preventScroll: true })
@@ -39,16 +68,17 @@ function PrescriptionModal({ patient, onClose, duplicateRecords = null, developm
 
   function reviewMedication(event) {
     event.preventDefault()
+    setSubmitError('')
     if (isValid) setStep('review')
     else setTouched(Object.fromEntries(fields.map(({ key }) => [key, true])))
   }
 
   return (
-    <PrescriptionDialog patient={patient} title={title} idPrefix={idPrefix} onClose={onClose} dialogRef={dialogRef}>
+    <PrescriptionDialog patient={patient} title={title} idPrefix={idPrefix} onClose={() => { if (!submissionInFlight.current) onClose() }} dialogRef={dialogRef}>
       <ol aria-label="Prescription progress" className="my-2.5 flex items-center gap-2 text-[13px] leading-5 font-medium">
         {[['details', 'Details'], ['review', 'Review']].map(([value, label], index) => (
           <li key={value} className="flex flex-1 items-center gap-2 last:flex-none">
-            <button type="button" aria-current={step === value ? 'step' : undefined} aria-label={step === 'review' && value === 'details' ? 'Details, completed' : undefined} disabled={value === 'review' && !isValid} onClick={() => setStep(value)} className={`inline-flex items-center gap-2 rounded-sm focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:cursor-not-allowed ${step === value ? 'text-[#475AA2]' : step === 'review' && value === 'details' ? 'text-[#2F7D59]' : 'text-[#7A8190]'}`}>
+            <button type="button" aria-current={step === value ? 'step' : undefined} aria-label={step === 'review' && value === 'details' ? 'Details, completed' : undefined} disabled={isSubmitting || (value === 'review' && !isValid)} onClick={() => setStep(value)} className={`inline-flex items-center gap-2 rounded-sm focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:cursor-not-allowed ${step === value ? 'text-[#475AA2]' : step === 'review' && value === 'details' ? 'text-[#2F7D59]' : 'text-[#7A8190]'}`}>
               <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${step === value ? 'bg-[#475AA2] text-white' : step === 'review' && value === 'details' ? 'bg-[#D0E7DC] text-[#2F7D59]' : 'border border-[#D8DCE5]'}`}>
                 {step === 'review' && value === 'details' ? <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4"><path d="M4 10L8 14L16 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg> : index + 1}
               </span>{label}
@@ -80,14 +110,14 @@ function PrescriptionModal({ patient, onClose, duplicateRecords = null, developm
           })}
         </div>
         <button type="submit" disabled={!isValid} className={`mt-3 ${primaryButtonClassName}`}>Review medication</button>
-      </form> : <section aria-label="Review medication">
+      </form> : <section aria-label="Review medication" aria-busy={isSubmitting}>
         {modifying ? <ReviewCard title="Review prescriptions" fields={fields} values={values} /> : <MedicationReview fields={fields} values={values} result={reviewResult} preview={showingPreview} />}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <button type="button" onClick={() => setStep('details')} className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#DEE2F4] px-3 text-[13px] font-semibold text-[#475AA2] hover:bg-[#CCD2FF] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"><DoctorIcon type="back" className="h-4 w-4" />Back</button>
-          {/* No creation or modification API is integrated. Review never changes a record. */}
-          <button type="button" disabled aria-describedby="medication-save-unavailable" title={modifying ? 'Prescription modification is not available yet' : 'Prescription submission is not available yet'} className={`ml-auto ${primaryButtonClassName}`}>{modifying ? 'Save changes' : 'Submit prescription'}</button>
+          <button type="button" disabled={isSubmitting} onClick={() => setStep('details')} className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#DEE2F4] px-3 text-[13px] font-semibold text-[#475AA2] hover:bg-[#CCD2FF] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"><DoctorIcon type="back" className="h-4 w-4" />Back</button>
+          <button type="button" disabled={!canSubmit} onClick={submitPrescription} aria-describedby={!canSubmit ? 'medication-save-unavailable' : undefined} className={`ml-auto ${primaryButtonClassName}`}>{isSubmitting ? 'Submitting...' : modifying ? 'Save changes' : 'Submit prescription'}</button>
         </div>
-        <p id="medication-save-unavailable" className="mt-2 text-xs text-[#7A8190]">{modifying ? 'Saving prescription changes is not available yet. No changes have been saved.' : showingPreview ? 'Development preview only. Prescription submission remains unavailable.' : duplicateResult.status === 'found' ? 'An exact duplicate exists. Submission is disabled until duplicate handling is confirmed.' : 'Prescription submission is not available yet.'}</p>
+        {submitError && <p role="alert" className="mt-2 text-xs text-[#E5484D]">{submitError}</p>}
+        {!canSubmit && <p id="medication-save-unavailable" className="mt-2 text-xs text-[#7A8190]">{isSubmitting ? 'Saving prescription...' : saveUncertain ? 'Close this popup and review the refreshed records before trying again.' : modifying ? 'Saving prescription changes is not available yet. No changes have been saved.' : previewValues ? 'Development preview only. Prescription submission remains unavailable.' : duplicateResult.status === 'found' ? 'An exact duplicate exists. Submission is disabled until duplicate handling is confirmed.' : 'Submission requires verified patient medication records and a completed duplicate check.'}</p>}
       </section>}
     </PrescriptionDialog>
   )

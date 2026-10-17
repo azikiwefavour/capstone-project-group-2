@@ -64,6 +64,7 @@ export class AuthService {
       phone: dto.phone,
       hospitalName: dto.hospitalName,
       password: hashedPassword,
+      role: UserRole.ADMIN,
       emailOtp: otp,
       emailOtpExpiry: expiry,
       isEmailVerified: false,
@@ -154,7 +155,19 @@ export class AuthService {
       );
     }
 
-    // Role check: Ensure user logs into their assigned role (e.g. doctor, pharmacist, admin, patient)
+    // Strict Role Enforcement
+    if (user.role === UserRole.ADMIN && dto.role !== UserRole.ADMIN) {
+      throw new UnauthorizedException(
+        'Administrator accounts can only log in as Admin. You cannot log in as a doctor, pharmacist, or patient.',
+      );
+    }
+
+    if (user.role && user.role !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
+      throw new UnauthorizedException(
+        `Access denied. Your account is registered as a ${user.role}, not an administrator.`,
+      );
+    }
+
     if (user.role && user.role !== dto.role) {
       throw new UnauthorizedException(
         `Your account is registered as a ${user.role}. Please select the ${user.role} role to log in.`,
@@ -162,7 +175,13 @@ export class AuthService {
     }
 
     if (!user.role) {
+      if (dto.role === UserRole.ADMIN) {
+        throw new UnauthorizedException(
+          'Access denied. This account does not have administrator privileges.',
+        );
+      }
       await this.usersService.updateById(String(user.id), { role: dto.role });
+      user.role = dto.role;
     }
 
     const token = this.signToken({
@@ -358,5 +377,36 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  // ─── Dev Admin Token (for testing/development) ─────────────────────────────
+
+  async getDevAdminToken() {
+    let admin = await this.usersService.findByEmail('admin@medtrail.com');
+    if (!admin) {
+      admin = await this.usersService.create({
+        name: 'Amos',
+        email: 'admin@medtrail.com',
+        role: UserRole.ADMIN,
+        isEmailVerified: true,
+        isInvited: false,
+      });
+    }
+
+    const token = this.signToken({
+      sub: String(admin.id),
+      email: admin.email,
+      role: UserRole.ADMIN,
+    });
+
+    return {
+      accessToken: token,
+      user: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: UserRole.ADMIN,
+      },
+    };
   }
 }

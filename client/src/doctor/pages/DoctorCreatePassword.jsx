@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { startDoctorPreviewSession } from '../previewAuth'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { completeInvitation } from '../../auth/invitations'
+import useInvitation from '../../auth/useInvitation'
 import MedTrailLogo from '../../admin/components/MedTrailLogo'
 import medicationImage from '../../assets/medication-image.png'
 
@@ -66,7 +67,7 @@ function PasswordField({ id, label, value, onChange, onBlur, isVisible, onToggle
   )
 }
 
-function DoctorCreatePassword() {
+function DoctorPasswordForm() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -74,6 +75,14 @@ function DoctorCreatePassword() {
   const [touchedFields, setTouchedFields] = useState({})
   const [submitClicked, setSubmitClicked] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const token = searchParams.get('token') || ''
+  const { isValidating, validationError, userData } = useInvitation(token, '', 'doctor')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const submissionInFlight = useRef(false)
+  const submitController = useRef(null)
+  useEffect(() => () => submitController.current?.abort(), [])
 
   const passwordRequirements = [
     { label: 'At least 1 uppercase letter', isMet: /[A-Z]/.test(password) },
@@ -98,14 +107,32 @@ function DoctorCreatePassword() {
     setTouchedFields((current) => ({ ...current, [field]: true }))
   }
 
-  function handleContinue(event) {
+  async function handleContinue(event) {
     event.preventDefault()
+    if (submissionInFlight.current) return
     setSubmitClicked(true)
+    setSubmitError('')
     if (password.trim() === '' || !isPasswordValid || confirmPassword.trim() === '' || password !== confirmPassword) return
-    startDoctorPreviewSession()
-    setPassword('')
-    setConfirmPassword('')
-    navigate('/doctor/dashboard', { replace: true })
+    if (isValidating || validationError || !userData) {
+      setSubmitError(validationError || 'Please wait for your invitation to be verified.')
+      return
+    }
+    submissionInFlight.current = true
+    const controller = new AbortController()
+    submitController.current = controller
+    setIsSubmitting(true)
+    try {
+      const result = await completeInvitation({ token, password, confirmPassword, invitation: userData, signal: controller.signal })
+      if (!result || controller.signal.aborted) return
+      setPassword('')
+      setConfirmPassword('')
+      navigate('/doctor/dashboard', { replace: true })
+    } catch (error) {
+      if (controller.signal.aborted) return
+      setSubmitError(error.message || 'Unable to complete registration. Please try again.')
+      submissionInFlight.current = false
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -127,7 +154,7 @@ function DoctorCreatePassword() {
       </section>
 
       <section className="flex w-full items-center justify-center rounded-t-[24px] bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:overflow-y-auto lg:rounded-l-[24px] lg:rounded-tr-none lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form onSubmit={handleContinue} noValidate aria-label="Doctor create password form" className="w-full max-w-[440px]">
+        <form onSubmit={handleContinue} noValidate aria-label="Doctor create password form" aria-busy={isValidating || isSubmitting} className="w-full max-w-[440px]">
           <div className="mb-6 [@media(min-height:900px)]:lg:mb-8">
             <h1 className="text-3xl font-semibold tracking-normal text-[#111827]">
               Welcome to MedTrail
@@ -182,8 +209,9 @@ function DoctorCreatePassword() {
             />
           </div>
 
-          <button type="submit" className="mt-6 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13">
-            Continue
+          {(validationError || submitError) && <p role="alert" className="mt-3 text-xs font-medium text-[#E5484D]">{submitError || validationError}</p>}
+          <button type="submit" disabled={isValidating || isSubmitting || Boolean(validationError) || !userData} className="mt-6 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 [@media(min-height:850px)]:lg:h-13">
+            {isValidating ? 'Checking invitation...' : isSubmitting ? 'Creating password...' : 'Continue'}
           </button>
           <p className="mt-4 text-center text-sm text-[#7A8190]">
             Already have an account?{' '}
@@ -195,4 +223,7 @@ function DoctorCreatePassword() {
   )
 }
 
-export default DoctorCreatePassword
+export default function DoctorCreatePassword() {
+  const [searchParams] = useSearchParams()
+  return <DoctorPasswordForm key={searchParams.get('token') || ''} />
+}

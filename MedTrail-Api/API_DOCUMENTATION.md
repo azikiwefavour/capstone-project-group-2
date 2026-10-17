@@ -400,3 +400,424 @@ async function handleInviteUser(userData) {
   return data;
 }
 ```
+
+---
+
+## 🩺 6. Doctor Module Endpoints
+
+All endpoints require `Authorization: Bearer <token>` where the user has role `doctor`.
+
+### `GET /api/doctor/dashboard`
+Returns live metrics, recent patients, and recent clinical activities for the doctor's hospital.
+- **Headers:** `Authorization: Bearer <jwt_token>`
+- **Response `200 OK`:**
+```json
+{
+  "doctor": {
+    "id": "71c70fde-4f64-4790-9c1b-07764e26f931",
+    "name": "Dr. Adewale",
+    "email": "doctor@hospital.com",
+    "role": "doctor",
+    "hospitalName": "General Hospital"
+  },
+  "stats": {
+    "patients": 22,
+    "awaitingClarification": 12,
+    "prescriptions": 23
+  },
+  "recentPatients": [
+    {
+      "id": "502d43af-cf3d-4488-af18-ae612c77af97",
+      "name": "Miss. Jennifer",
+      "email": "jennifer@generalhospital.com",
+      "phone": "08123456789",
+      "gender": "Female",
+      "age": 34,
+      "initials": "MJ",
+      "lastPrescription": {
+        "medicationName": "Amoxicillin",
+        "date": "2026-10-17T00:32:41.004Z",
+        "formattedDate": "17 Oct, 26, 12:32am",
+        "status": "active"
+      }
+    }
+  ],
+  "recentActivities": [...]
+}
+```
+
+---
+
+### `GET /api/doctor/patients`
+List all patients in the doctor's hospital matching Figma table:
+Columns: `Name` | `Email` | `Phone` | `Current Medications` (count)
+- **Query Parameters:**
+  - `search` (optional): search by patient name, email, or phone.
+  - `filter` (optional): `active` / `has_active`, `all`, `female`, `male`.
+- **Response `200 OK`:**
+```json
+[
+  {
+    "id": "502d43af-cf3d-4488-af18-ae612c77af97",
+    "name": "Miss. Jennifer",
+    "email": "jennifer@generalhospital.com",
+    "phone": "08123456789",
+    "gender": "Female",
+    "age": 34,
+    "initials": "MJ",
+    "hospitalName": "General Hospital",
+    "currentMedications": 2,
+    "currentMedicationsCount": 2,
+    "totalPrescriptions": 3,
+    "lastPrescription": {
+      "medicationName": "Amoxicillin",
+      "status": "active",
+      "date": "17 Oct, 26, 12:32am",
+      "createdAt": "2026-10-17T00:32:41.004Z"
+    },
+    "createdAt": "2026-10-17T00:32:30.000Z"
+  }
+]
+```
+
+---
+
+### `GET /api/doctor/patients/:id`
+Patient details header and partitioned tabs: **Current medications** (`active`, `pending`) and **Medication history** (`discontinued`, `completed`, `dispensed`, etc.).
+- **Response `200 OK`:**
+```json
+{
+  "patient": {
+    "id": "502d43af-cf3d-4488-af18-ae612c77af97",
+    "name": "Miss. Jennifer",
+    "initials": "MJ",
+    "email": "jennifer@generalhospital.com",
+    "phone": "08123456789",
+    "gender": "Female",
+    "age": 34,
+    "subtitle": "34 years old • Female",
+    "hospitalName": "General Hospital"
+  },
+  "currentMedications": [
+    {
+      "id": "ca39a265-b939-4fdc-9138-cb4a0ad3c524",
+      "medicationName": "Amoxicillin",
+      "dosage": "500mg",
+      "frequency": "3 times daily",
+      "doseAndFrequency": "500mg, 3 times daily",
+      "duration": "7 days",
+      "reason": "Bacterial infection",
+      "status": "active",
+      "prescribedBy": "Dr. Adewale",
+      "date": "17 Oct, 26, 12:32am"
+    }
+  ],
+  "medicationHistory": [
+    {
+      "id": "...",
+      "medicationName": "Paracetamol",
+      "dosage": "500mg",
+      "frequency": "1 tablet",
+      "doseAndFrequency": "500mg, 1 tablet",
+      "duration": "3 days",
+      "reason": "Headache",
+      "status": "discontinued",
+      "prescribedBy": "Dr. Richardson",
+      "date": "17 Oct, 26, 12:32am"
+    }
+  ],
+  "currentMedicationsCount": 1,
+  "medicationHistoryCount": 1,
+  "totalPrescriptions": 2
+}
+```
+
+---
+
+### `POST /api/doctor/prescriptions/check-duplicate`
+**MedTrailNG Exact Duplicate Detection** (Figma Frames 38 & 39):
+Checks if proposed prescription exactly matches any existing `active` or `pending` prescription for the patient.
+- **Request Body:**
+```json
+{
+  "patientId": "502d43af-cf3d-4488-af18-ae612c77af97",
+  "medicationName": "Amoxicillin",
+  "dosage": "500mg",
+  "frequency": "3 times daily",
+  "duration": "7 days",
+  "reason": "Bacterial infection"
+}
+```
+- **Response if Duplicate Found (Frame 39):**
+```json
+{
+  "isDuplicate": true,
+  "message": "Duplicate found",
+  "warningText": "MedTrailNG checks for exact duplicates only. It supports your decision and does not replace it.",
+  "inReview": {
+    "medicationName": "Amoxicillin",
+    "dosage": "500mg",
+    "frequency": "3 times daily",
+    "duration": "7 days",
+    "reason": "Bacterial infection"
+  },
+  "existing": {
+    "id": "ca39a265-b939-4fdc-9138-cb4a0ad3c524",
+    "medicationName": "Amoxicillin",
+    "dosage": "500mg",
+    "frequency": "3 times daily",
+    "duration": "7 days",
+    "reason": "Bacterial infection",
+    "status": "active",
+    "prescribedBy": "Dr. Adewale",
+    "date": "17 Oct, 26, 12:32am"
+  }
+}
+```
+- **Response if No Duplicate (Frame 38):**
+```json
+{
+  "isDuplicate": false,
+  "message": "No exact duplicate found",
+  "warningText": "MedTrailNG checks for exact duplicates only. It supports your decision and does not replace it.",
+  "inReview": {
+    "medicationName": "Azithromycin",
+    "dosage": "250mg",
+    "frequency": "Once daily",
+    "duration": "5 days",
+    "reason": "Respiratory infection"
+  },
+  "existing": null
+}
+```
+
+---
+
+### `POST /api/doctor/prescriptions`
+Submit prescription. Created in `status: pending` awaiting pharmacy approval.
+- **Request Body:**
+```json
+{
+  "patientId": "502d43af-cf3d-4488-af18-ae612c77af97",
+  "medicationName": "Amoxicillin",
+  "dosage": "500mg",
+  "frequency": "3 times daily",
+  "duration": "7 days",
+  "reason": "Bacterial infection",
+  "instructions": "Take after meals"
+}
+```
+- **Response `201 Created`:**
+```json
+{
+  "message": "Prescription created successfully and sent to pharmacy for review",
+  "prescription": {
+    "id": "ee035bbd-dc47-4529-bb37-7610fbd30c50",
+    "hospitalName": "General Hospital",
+    "patientId": "502d43af-cf3d-4488-af18-ae612c77af97",
+    "patientName": "Miss. Jennifer",
+    "medicationName": "Amoxicillin",
+    "dosage": "500mg",
+    "frequency": "3 times daily",
+    "doseAndFrequency": "500mg, 3 times daily",
+    "duration": "7 days",
+    "reason": "Bacterial infection",
+    "status": "pending",
+    "date": "17 Oct, 26, 12:32am",
+    "createdAt": "2026-10-17T00:32:50.000Z"
+  }
+}
+```
+
+---
+
+---
+
+### `PATCH /api/doctor/prescriptions/:id` (Also supports `PUT`)
+**Modify Prescription** (Figma Frame: *Modify prescription*):
+Allows the doctor to modify an existing prescription (dosage, frequency, duration, reason, instructions, note to pharmacist).
+- **Request Body:**
+```json
+{
+  "dosage": "625mg",
+  "frequency": "2 times daily",
+  "duration": "10 days",
+  "reason": "Persistent bacterial infection",
+  "noteToPharmacist": "Increased dosage to 625mg for 10 days"
+}
+```
+- **Response `200 OK`:**
+```json
+{
+  "message": "Prescription modified successfully",
+  "prescription": {
+    "id": "ca39a265-b939-4fdc-9138-cb4a0ad3c524",
+    "medicationName": "Amoxicillin",
+    "dosage": "625mg",
+    "frequency": "2 times daily",
+    "doseAndFrequency": "625mg, 2 times daily",
+    "duration": "10 days",
+    "reason": "Persistent bacterial infection",
+    "status": "active",
+    "date": "17 Oct, 26, 12:32am"
+  }
+}
+```
+
+---
+
+### `POST /api/doctor/prescriptions/:id/discontinue`
+**Discontinue Prescription** (Figma Frame: *Discontinue prescription*):
+Allows the doctor to discontinue a medication course with a mandatory clinical reason/note (e.g. adverse reaction, completed, etc.). Automatically moves the prescription from **Current medications** tab to **Medication history** tab.
+- **Request Body:**
+```json
+{
+  "reason": "Patient reported mild skin rash. Discontinuing course."
+}
+```
+- **Response `200 OK`:**
+```json
+{
+  "message": "Prescription discontinued successfully and moved to history",
+  "prescription": {
+    "id": "ca39a265-b939-4fdc-9138-cb4a0ad3c524",
+    "medicationName": "Amoxicillin",
+    "status": "discontinued",
+    "discontinueReason": "Patient reported mild skin rash. Discontinuing course.",
+    "date": "17 Oct, 26, 12:32am"
+  }
+}
+```
+
+---
+
+### `GET /api/doctor/clarifications`
+**Clarifications List** (Figma Frame: *Clarifications table*):
+Returns prescriptions flagged by the pharmacy requiring doctor input.
+- **Columns Matching Figma:**
+  - `Patient`: e.g. `"Miss. Jennifer"`, `"Mr. Alexander"`
+  - `Concern`: e.g. `"Other"`, `"Dose"`, `"Allergy"`
+  - `Sent by`: e.g. `"Pharm. Melissa"`, `"Pharm. Felix"`
+  - `Status`: `"Pending"`
+  - `Date`: e.g. `"28 Sep, 26, 10:15am"`
+- **Response `200 OK`:**
+```json
+[
+  {
+    "id": "4f0be680-ea40-46ff-82a3-004d1977097b",
+    "patient": "Miss. Jennifer",
+    "initials": "MJ",
+    "concern": "Other",
+    "sentBy": "Pharm. Melissa",
+    "status": "Pending",
+    "date": "28 Sep, 26, 10:15am",
+    "note": "The patient noted mild penicillin sensitivity in records."
+  }
+]
+```
+
+---
+
+### `GET /api/doctor/clarifications/:id`
+**Clarification Detail View** (Figma Frame: *Clarifications > Patient Detail View*):
+Returns the comprehensive breakdown for reviewing a pharmacist's question.
+- **Response `200 OK`:**
+```json
+{
+  "patient": {
+    "id": "502d43af-cf3d-4488-af18-ae612c77af97",
+    "name": "Miss. Jennifer",
+    "initials": "MJ",
+    "subtitle": "34 years old • Female",
+    "age": 34,
+    "gender": "Female",
+    "email": "jennifer@hospital.com",
+    "phone": "08123456789"
+  },
+  "clarification": {
+    "id": "4f0be680-ea40-46ff-82a3-004d1977097b",
+    "requestedBy": "Pharm. Melissa",
+    "concern": "Other",
+    "note": "The patient...",
+    "submittedOn": "05 Oct, 26, 10:32am",
+    "status": "Pending"
+  },
+  "prescription": {
+    "id": "4f0be680-ea40-46ff-82a3-004d1977097b",
+    "medication": "Amoxicillin",
+    "dose": "500mg",
+    "frequency": "3 times daily",
+    "duration": "7 days",
+    "reason": "Bacterial infection",
+    "status": "awaiting_clarification",
+    "date": "28 Sep, 26, 10:15am"
+  }
+}
+```
+
+---
+
+### `POST /api/doctor/clarifications/:id/confirm`
+**Confirm Prescription** (Figma Frame 238: *Confirm prescription*):
+*"The pharmacist will be told the prescription stands as written."*
+- **Request Body:**
+```json
+{
+  "noteToPharmacist": "Patient has been evaluated and confirmed tolerating dosage. Proceed as written."
+}
+```
+- **Response `200 OK`:**
+```json
+{
+  "message": "Prescription confirmed and sent to pharmacy",
+  "prescription": {
+    "id": "4f0be680-ea40-46ff-82a3-004d1977097b",
+    "status": "clarified",
+    "clarificationResponse": "Patient has been evaluated and confirmed tolerating dosage. Proceed as written.",
+    "date": "17 Oct, 26, 12:32am"
+  }
+}
+```
+
+---
+
+### `PATCH /api/doctor/clarifications/:id/modify`
+**Modify from Clarification** (Figma: *Modify prescription from clarification view*):
+Doctor adjusts prescription parameters in response to the pharmacy query.
+- **Request Body:** Same as `ModifyPrescriptionDto` (`dosage`, `frequency`, `duration`, `reason`, `noteToPharmacist`).
+- **Response `200 OK`:**
+```json
+{
+  "message": "Prescription modified successfully",
+  "prescription": {
+    "id": "4f0be680-ea40-46ff-82a3-004d1977097b",
+    "status": "clarified",
+    "date": "17 Oct, 26, 12:32am"
+  }
+}
+```
+
+---
+
+## 💊 7. Pharmacy Module Endpoints (`/api/pharmacy`)
+
+Role: `pharmacist` or `admin`.
+
+### `GET /api/pharmacy/dashboard`
+Pharmacy dashboard metrics (total prescriptions, pending, awaiting clarification, dispensed).
+
+### `GET /api/pharmacy/prescriptions`
+Prescriptions queue for the hospital:
+- **Query params:**
+  - `status`: `pending`, `awaiting_clarification`, `clarified`, `dispensed`, `all`
+  - `search`: search by patient name or medication name
+
+### `POST /api/pharmacy/prescriptions/:id/dispense`
+Pharmacist dispenses prescription (marks status as `dispensed`).
+
+### `POST /api/pharmacy/prescriptions/:id/clarify`
+Pharmacist flags an issue / questions doctor:
+- **Body:** `{ "reason": "Patient noted penicillin allergy history. Please confirm alternative." }`
+- Prescription status changes to `awaiting_clarification` and appears immediately in doctor's clarification queue!
+
+

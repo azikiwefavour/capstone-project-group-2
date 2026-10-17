@@ -36,6 +36,14 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
   hospitalName: string | null;
 
+  @ApiProperty({ example: 'Female', nullable: true, required: false })
+  @Column({ type: 'varchar', length: 20, nullable: true, default: null })
+  gender: string | null;
+
+  @ApiProperty({ example: 34, nullable: true, required: false })
+  @Column({ type: 'int', nullable: true, default: null })
+  age: number | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true, select: false, default: null })
   password: string | null;
 

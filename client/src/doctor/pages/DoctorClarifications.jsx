@@ -1,9 +1,11 @@
 import { useCallback, useState } from 'react'
-import { Link, useOutletContext } from 'react-router-dom'
+import { Link, useLocation, useOutletContext } from 'react-router-dom'
 import DoctorLayout from '../components/DoctorLayout'
 import DoctorIcon from '../components/DoctorIcon'
 import ClarificationActions from '../components/ClarificationActions'
 import { formatMedicationTimestamp } from '../medicationDates'
+import { getDoctorClarifications } from '../api'
+import useDoctorRecords from '../useDoctorRecords'
 
 function text(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : '\u2014'
@@ -18,19 +20,23 @@ function ClarificationStatus({ status }) {
   </span>
 }
 
-// Frontend view props, not an assumed API schema. A confirmed backend adapter must
-// supply id, patient (name), concern, sentBy (name), status, and date (ISO with offset).
-// No clarification endpoint or Doctor API-authorized session is currently integrated.
-export default function DoctorClarifications({ doctor = null, clarifications = [], isLoading = false, error = '', onRetry, timeZone, Layout = DoctorLayout, basePath = '/doctor' }) {
+function ClarificationsContent({ doctor = null, clarifications: suppliedClarifications = [], isLoading: suppliedLoading = false, error: suppliedError = '', onRetry: suppliedRetry, timeZone, live, basePath = '/doctor' }) {
+  const loaded = useDoctorRecords(getDoctorClarifications, live)
+  const clarifications = live ? loaded.records : suppliedClarifications
+  const isLoading = live ? loaded.isLoading : suppliedLoading
+  const error = live ? loaded.error : suppliedError
+  const onRetry = live ? loaded.onRetry : suppliedRetry
   const clarificationContext = useOutletContext()
+  const location = useLocation()
   const [openRecord, setOpenRecord] = useState(null)
   const closeActions = useCallback(() => setOpenRecord(null), [])
   const records = !isLoading && !error && Array.isArray(clarifications) ? clarifications : []
 
-  return <Layout doctor={doctor} view="clarifications">
+  return <>
     <section className="mt-4">
       <h1 className="text-2xl font-semibold tracking-normal text-[#111827]">Clarifications</h1>
       <p className="mt-2 text-base leading-relaxed text-[#7A8190]">Questions from pharmacists about your prescriptions.</p>
+      {live && typeof location.state?.doctorClarificationSuccess === 'string' && <p role="status" className="mt-3 text-sm text-[#2F7D59]">{location.state.doctorClarificationSuccess}</p>}
     </section>
     <section aria-label="Clarifications" aria-busy={isLoading} className="mt-[22px] overflow-hidden rounded-2xl border border-[#E2E5ED] bg-white shadow-sm shadow-[#111827]/[0.03] lg:flex lg:max-h-[calc(100vh-200px)] lg:flex-col">
       <div className="overflow-x-auto lg:min-h-0 lg:overflow-y-auto">
@@ -48,7 +54,7 @@ export default function DoctorClarifications({ doctor = null, clarifications = [
                 <td className="max-w-[260px] break-words px-4 py-3">{text(record.concern)}</td>
                 <td className="px-4 py-3">{text(typeof record.sentBy === 'object' ? record.sentBy?.name : record.sentBy)}</td>
                 <td className="px-4 py-3"><ClarificationStatus status={record.status} /></td>
-                <td className="px-4 py-3 text-xs text-[#7A8190]">{date ? <time dateTime={date.dateTime}>{date.label}</time> : '\u2014'}</td>
+                <td className="px-4 py-3 text-xs text-[#7A8190]">{record.dateLabel !== undefined ? text(record.dateLabel) : date ? <time dateTime={date.dateTime}>{date.label}</time> : '\u2014'}</td>
                 <td className="px-4 py-3"><ClarificationActions recordId={record.id} patientName={patientName} open={openRecord !== null && openRecord === record.id}
                   onToggle={() => setOpenRecord(previous => previous === record.id ? null : record.id)} onClose={closeActions} /></td>
               </tr>
@@ -62,5 +68,11 @@ export default function DoctorClarifications({ doctor = null, clarifications = [
         </div>}
       </div>
     </section>
+  </>
+}
+
+export default function DoctorClarifications({ doctor = null, Layout = DoctorLayout, ...props }) {
+  return <Layout doctor={doctor} view="clarifications">
+    <ClarificationsContent {...props} doctor={doctor} live={Layout === DoctorLayout} />
   </Layout>
 }

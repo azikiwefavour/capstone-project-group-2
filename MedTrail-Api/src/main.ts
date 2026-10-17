@@ -16,9 +16,27 @@ async function bootstrap() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // CORS – allow frontend dev server
+  // Redirect root '/' to Swagger docs so visitors don't see 'Cannot GET /'
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/', (_req: any, res: any) => {
+    res.redirect('/api/docs');
+  });
+
+  // CORS – allow frontend dev servers and production Render URLs
+  const frontendUrl = process.env.FRONTEND_URL?.replace(/\/+$/, '');
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3001'],
+    origin: (origin: any, callback: any) => {
+      if (
+        !origin ||
+        origin.includes('localhost') ||
+        origin.includes('onrender.com') ||
+        (frontendUrl && origin === frontendUrl)
+      ) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   });
 
