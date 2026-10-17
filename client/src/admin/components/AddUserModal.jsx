@@ -128,8 +128,6 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setAge('')
     setTouchedFields({})
     setSubmitClicked(false)
-    setSubmitError('')
-    setIsSubmitting(false)
   }
 
   function handleRoleChange(nextRole) {
@@ -157,55 +155,34 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setSubmitClicked(true)
     setSubmitError('')
 
-    if (!isFormValid || isSubmitting) {
+    if (!isFormValid) return
+    if (isEditing) {
+      setSubmitError('Editing users is not supported by the current admin API.')
       return
     }
-
-    if (isEditing) {
-      const updated = {
-        id: initialUser?.id,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        role,
-        ...(isPatient ? { gender, age: numericAge } : {}),
-      }
-      resetForm()
-      onSuccess(updated)
-      onClose()
+    if (isPatient) {
+      setSubmitError('The current admin API supports invitations for Doctors and Pharmacists only. Patient creation is not available yet.')
       return
     }
 
     submissionInFlight.current = true
     setIsSubmitting(true)
-
     try {
-      const result = await adminRequest('invite-user', {
+      await adminRequest('invite-user', {
         method: 'POST',
         body: {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           phone: `+234${phoneDigits.replace(/^0/, '')}`,
           role: role.toLowerCase(),
-          ...(isPatient ? { gender, age: numericAge } : {}),
         },
       })
-
-      const createdUser = {
-        id: result?.user?.id || window.crypto?.randomUUID?.() || `${Date.now()}`,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        role,
-        status: 'pending',
-        ...(isPatient ? { gender, age: numericAge } : {}),
-      }
-
       resetForm()
-      onSuccess(createdUser)
+      // The current API does not report mail delivery failures.
+      onSuccess('Invitation created successfully.')
       onClose()
     } catch (error) {
-      setSubmitError(error.message || 'Unable to invite user. Please try again.')
+      setSubmitError(error.message)
     } finally {
       submissionInFlight.current = false
       setIsSubmitting(false)
@@ -218,8 +195,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       role="presentation"
       onClick={handleClose}
     >
-      <form
-        aria-busy={isSubmitting}
+      <form aria-busy={isSubmitting}
         className="max-h-[calc(100dvh-3rem)] w-full max-w-[520px] overflow-y-auto rounded-3xl bg-white p-6 shadow-xl shadow-[#111827]/10 sm:p-8"
         role="dialog"
         aria-modal="true"
@@ -263,15 +239,6 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
             </svg>
           </button>
         </div>
-
-        {submitError && (
-          <div role="alert" className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-[#E5484D]">
-            <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 shrink-0">
-              <path fillRule="evenodd" d="M8 15A7 7 0 108 1a7 7 0 000 14zm.75-10.25a.75.75 0 00-1.5 0v4.5a.75.75 0 001.5 0v-4.5zm-.75 7.5a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-            </svg>
-            <span>{submitError}</span>
-          </div>
-        )}
 
         <div className="mt-7 space-y-4">
           <div>
@@ -420,12 +387,13 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
           )}
         </div>
 
+        {submitError && <div role="alert" className="mt-3"><FieldError id="new-user-submit-error" message={submitError} /></div>}
         <div className="mt-8 flex justify-start">
           <button
             type="submit"
             disabled={!isFormValid || isSubmitting}
             className={`h-11 rounded-xl px-6 text-base font-semibold text-white transition focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 ${
-              isFormValid && !isSubmitting
+              isFormValid
                 ? 'bg-[#475AA2] hover:bg-[#3D4F91]'
                 : 'cursor-not-allowed bg-[#475AA2]/45'
             }`}

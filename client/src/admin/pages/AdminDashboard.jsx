@@ -102,16 +102,14 @@ function EmptyPanel({ title, linkTo, linkLabel, icon, message, children }) {
         </Link>
       </div>
 
-      {children || (
-        <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center text-center lg:min-h-0 lg:justify-start lg:pt-[clamp(56px,12vh,108px)]">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59] lg:h-20 lg:w-20">
-            {icon}
-          </div>
-          <p className="mt-3 text-sm font-medium text-[#7A8190] lg:mt-4">
-            {message}
-          </p>
+      {children || <div className="flex min-h-[160px] flex-1 flex-col items-center justify-center text-center lg:min-h-0 lg:justify-start lg:pt-[clamp(56px,12vh,108px)]">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59] lg:h-20 lg:w-20">
+          {icon}
         </div>
-      )}
+        <p className="mt-3 text-sm font-medium text-[#7A8190] lg:mt-4">
+          {message}
+        </p>
+      </div>}
     </section>
   )
 }
@@ -159,15 +157,7 @@ function AdminDashboard() {
         </p>
       </section>
 
-      {dashboard.statsError && (
-        <div role="alert" className="mt-3 text-sm text-[#E5484D]">
-          {dashboard.statsError}{' '}
-          <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>
-            Try again
-          </button>
-        </div>
-      )}
-
+      {dashboard.statsError && <div role="alert" className="mt-3 text-sm text-[#E5484D]">{dashboard.statsError} <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button></div>}
       <section className="mt-[22px] grid gap-4 lg:grid-cols-3 lg:gap-[22px]" aria-busy={dashboard.loading}>
         {summaryCards.map((card) => (
           <article
@@ -176,7 +166,7 @@ function AdminDashboard() {
           >
             <div>
               <p className="text-3xl font-semibold tracking-normal text-[#111827]">
-                {dashboard.loading ? '...' : dashboard.stats ? (dashboard.stats.byRole[card.role] ?? 0) : 0}
+                {dashboard.loading ? '...' : dashboard.stats ? dashboard.stats.byRole[card.role] ?? 0 : '-'}
               </p>
               <p className="mt-1.5 text-sm font-medium text-[#7A8190]">
                 {card.label}
@@ -199,25 +189,11 @@ function AdminDashboard() {
           icon={<PersonIcon />}
           message="No user records"
         >
-          {dashboard.loading ? (
-            <p role="status" className="my-auto py-8 text-center text-sm text-[#7A8190]">Loading users...</p>
-          ) : dashboard.usersError ? (
-            <div role="alert" className="my-auto py-8 text-center text-sm text-[#E5484D]">
-              {dashboard.usersError}{' '}
-              <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>
-                Try again
-              </button>
-            </div>
-          ) : dashboard.users.length > 0 ? (
-            <ul className="mt-4 min-h-0 flex-1 overflow-y-auto divide-y divide-[#E2E5ED]">
-              {dashboard.users.map((user) => (
-                <li key={user.id} className="flex items-center justify-between gap-4 py-3 text-sm">
-                  <span className="min-w-0 break-words font-medium text-[#111827]">{user.name}</span>
-                  <span className="text-xs text-[#7A8190]">{user.role || '-'}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          {dashboard.loading ? <p role="status" className="my-auto py-8 text-center text-sm text-[#7A8190]">Loading users...</p>
+            : dashboard.usersError ? <div role="alert" className="my-auto py-8 text-center text-sm text-[#E5484D]">{dashboard.usersError} <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button></div>
+            : dashboard.users.length > 0 ? <ul className="mt-4 min-h-0 flex-1 overflow-y-auto divide-y divide-[#E2E5ED]">
+              {dashboard.users.map((user) => <li key={user.id} className="flex items-center justify-between gap-4 py-3 text-sm"><span className="min-w-0 break-words font-medium text-[#111827]">{user.name}</span><span className="text-xs text-[#7A8190]">{user.role || '-'}</span></li>)}
+            </ul> : null}
         </EmptyPanel>
         <EmptyPanel
           title="Audit log"

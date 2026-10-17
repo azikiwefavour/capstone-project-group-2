@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { setAccessToken } from '../auth/session'
-
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
+import { completeInvitation } from '../auth/invitations'
+import useInvitation from '../auth/useInvitation'
+import medicationImage from '../assets/medication-image.png'
 
 function EyeIcon({ isVisible }) {
   if (isVisible) {
@@ -29,15 +29,13 @@ function CheckmarkIcon() {
   )
 }
 
-function AcceptInvite() {
+function InvitationForm() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const token = searchParams.get('token') || ''
   const errorParam = searchParams.get('error')
 
-  const [isValidating, setIsValidating] = useState(true)
-  const [validationError, setValidationError] = useState(errorParam || '')
-  const [userData, setUserData] = useState(null)
+  const { isValidating, validationError, userData } = useInvitation(token, errorParam)
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -46,6 +44,9 @@ function AcceptInvite() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
+  const [successRole, setSuccessRole] = useState(null)
+  const submissionInFlight = useRef(false)
+  const submitController = useRef(null)
 
   // Validation rules
   const hasUpper = /[A-Z]/.test(password)
@@ -56,38 +57,30 @@ function AcceptInvite() {
   const passedCriteria = [hasUpper, hasNumber, hasSpecial, hasMinLength].filter(Boolean).length
   const isPasswordValid = passedCriteria === 4
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword
-  const canSubmit = isPasswordValid && passwordsMatch && !isSubmitting
+  const canSubmit = Boolean(userData && !isValidating && !validationError && isPasswordValid && passwordsMatch && !isSubmitting && !isSuccess)
 
   useEffect(() => {
-    if (!token) {
-      setValidationError('No invitation token was provided. Please check the link in your email.')
-      setIsValidating(false)
-      return
-    }
+    return () => submitController.current?.abort()
+  }, [])
 
-    async function validate() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/api/auth/validate-invitation?token=${encodeURIComponent(token)}`)
-        const data = await response.json()
-
-        if (!response.ok) {
-          setValidationError(data?.message || 'Invalid or expired invitation link.')
-        } else {
-          setUserData(data)
-        }
-      } catch {
-        setValidationError('Failed to connect to the server. Please verify your connection.')
-      } finally {
-        setIsValidating(false)
-      }
-    }
-
-    validate()
-  }, [token])
+  useEffect(() => {
+    if (!isSuccess) return
+    const timer = window.setTimeout(() => {
+      if (successRole === 'doctor') navigate('/doctor/dashboard', { replace: true })
+      else navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+    }, 1500)
+    return () => window.clearTimeout(timer)
+  }, [isSuccess, successRole, navigate])
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (submissionInFlight.current || isSuccess) return
     setSubmitError('')
+
+    if (!userData || isValidating || validationError) {
+      setSubmitError(validationError || 'Please wait for your invitation to be verified.')
+      return
+    }
 
     if (!isPasswordValid) {
       setSubmitError('Please ensure your password meets all requirements.')
@@ -99,54 +92,22 @@ function AcceptInvite() {
       return
     }
 
+    submissionInFlight.current = true
+    const controller = new AbortController()
+    submitController.current = controller
     setIsSubmitting(true)
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/auth/complete-registration`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          password,
-          confirmPassword,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        const msg = Array.isArray(data?.message) ? data.message.join(' ') : (data?.message || 'Registration failed.')
-        setSubmitError(msg)
-        setIsSubmitting(false)
-        return
-      }
-
-      // Save token and user details to session
-      if (data.accessToken) {
-        setAccessToken(data.accessToken)
-      }
-      if (data.user) {
-        try {
-          sessionStorage.setItem('medtrailUser', JSON.stringify(data.user))
-          if (data.user.role === 'admin') {
-            sessionStorage.setItem('medtrailDemoAdminName', data.user.name || 'Admin')
-          }
-        } catch (_) {}
-      }
-
+      const result = await completeInvitation({ token, password, confirmPassword, invitation: userData, signal: controller.signal })
+      if (!result || controller.signal.aborted) return
+      setPassword('')
+      setConfirmPassword('')
+      setSuccessRole(result.role)
       setIsSuccess(true)
-
-      // Direct them to their dashboard after a short celebratory moment
-      setTimeout(() => {
-        const role = data?.user?.role || userData?.role || 'doctor'
-        if (role === 'admin') {
-          navigate('/admin/dashboard', { replace: true })
-        } else {
-          navigate(`/${role}/dashboard`, { replace: true, state: { user: data.user } })
-        }
-      }, 1500)
-    } catch {
-      setSubmitError('Unable to complete registration. Please check your network and try again.')
+    } catch (error) {
+      if (controller.signal.aborted) return
+      submissionInFlight.current = false
+      setSubmitError(error.message || 'Unable to complete registration. Please try again.')
       setIsSubmitting(false)
     }
   }
@@ -162,29 +123,21 @@ function AcceptInvite() {
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
       {/* Left side brand banner */}
-      <section className="relative flex min-h-[380px] w-full flex-col justify-between overflow-hidden bg-gradient-to-br from-[#475AA2] via-[#3D4F91] to-[#2B3B73] px-8 py-12 text-white sm:px-12 md:min-h-[480px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:py-16">
-        <div>
-          <Link to="/" className="inline-flex items-center gap-1.5 text-2xl font-bold tracking-tight text-white">
-            med<span className="font-normal opacity-85">trail</span>
-          </Link>
+      <section className="relative flex min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16">
+        <h4 className="mt-10 max-w-[520px] text-2xl font-semibold leading-[1.13] tracking-normal text-[#111827] sm:text-2xl lg:text-3xl">
+          One medication record,
+          <br />
+          from prescription to
+          <br />
+          patient
+        </h4>
 
-          <h1 className="mt-12 max-w-[480px] text-3xl font-semibold leading-[1.2] tracking-tight text-white sm:text-4xl">
-            One medication record,
-            <br />
-            from prescription to
-            <br />
-            patient
-          </h1>
-        </div>
-
-        {/* Decorative Graphic */}
-        <div className="relative mt-8 flex items-center justify-center pt-4">
-          <div className="flex w-full max-w-[380px] flex-col items-center justify-center rounded-3xl border border-white/20 bg-white/10 p-8 backdrop-blur-md shadow-2xl">
-            <div className="mb-4 h-12 w-28 -rotate-12 rounded-full bg-gradient-to-r from-blue-300 via-blue-200 to-white shadow-lg" />
-            <span className="rounded-full bg-white/20 px-3.5 py-1 text-xs font-semibold uppercase tracking-wider text-white">
-              MedTrail Healthcare Platform
-            </span>
-          </div>
+        <div className="mt-auto flex min-h-0 flex-1 items-end justify-center pt-4 [@media(min-height:850px)]:lg:pt-8">
+          <img
+            src={medicationImage}
+            alt="Medication records and pills"
+            className="max-h-full w-full max-w-[600px] object-contain lg:max-w-[650px]"
+          />
         </div>
       </section>
 
@@ -211,7 +164,8 @@ function AcceptInvite() {
               <p className="mt-2 text-sm text-[#52556C]">{validationError}</p>
               <div className="mt-6 flex flex-col gap-3">
                 <Link
-                  to="/login"
+                  to={userData?.role === 'pharmacist' ? '/login' : '/doctor/login'}
+                  state={userData?.role === 'pharmacist' ? { selectedRole: 'Pharmacist' } : undefined}
                   className="inline-flex h-11 items-center justify-center rounded-xl bg-[#475AA2] px-6 text-sm font-semibold text-white transition hover:bg-[#3D4F91]"
                 >
                   Return to Login
@@ -228,7 +182,7 @@ function AcceptInvite() {
               <h2 className="mt-4 text-2xl font-bold text-[#111827]">Account Activated!</h2>
               <p className="mt-2 text-base text-[#7A8190]">
                 Welcome aboard, <strong>{displayName}</strong>.<br />
-                Taking you to your dashboard...
+                {successRole === 'doctor' ? 'Taking you to your dashboard...' : 'Taking you to login. Your pharmacist workspace is not available yet.'}
               </p>
               <div className="mt-6 flex justify-center">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#475AA2]/20 border-t-[#475AA2]" />
@@ -403,4 +357,8 @@ function AcceptInvite() {
   )
 }
 
-export default AcceptInvite
+export default function AcceptInvite() {
+  const [searchParams] = useSearchParams()
+  // Query changes discard credentials and cancel work for the previous invitation.
+  return <InvitationForm key={searchParams.toString()} />
+}

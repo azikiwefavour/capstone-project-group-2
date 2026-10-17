@@ -4,7 +4,7 @@ import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
-function VerifyEmail({ frontendOnly = false }) {
+function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard' }) {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationError, setVerificationError] = useState('')
@@ -108,7 +108,7 @@ function VerifyEmail({ frontendOnly = false }) {
         return
       }
 
-      navigate('/admin/dashboard')
+      navigate(successPath)
     } catch {
       setVerificationError('Unable to connect. Please check your connection and try again.')
     } finally {

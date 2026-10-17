@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
 
@@ -7,12 +7,12 @@ function RoleDashboard() {
   const location = useLocation()
   const { role: routeRole } = useParams()
 
-  const [user, setUser] = useState(() => {
+  const [user] = useState(() => {
     if (location.state?.user) return location.state.user
     try {
       const stored = sessionStorage.getItem('medtrailUser')
       return stored ? JSON.parse(stored) : null
-    } catch (_) {
+    } catch {
       return null
     }
   })
@@ -35,7 +35,7 @@ function RoleDashboard() {
       sessionStorage.removeItem('medtrailUser')
       sessionStorage.removeItem('medtrailAuthToken')
       sessionStorage.removeItem('medtrailDemoAdminName')
-    } catch (_) {}
+    } catch { /* Storage may be disabled. */ }
     navigate('/login')
   }
 

@@ -182,6 +182,8 @@ function CloseIcon() {
   )
 }
 
+
+
 function formatPhoneNumber(phone) {
   return phone || '-'
 }
@@ -327,13 +329,12 @@ function AdminUsers() {
     })
   }
 
-  function handleUserSaved(message = 'New user successfully added!')
-  {
+  function handleUserSaved(message) {
     rememberScrollPosition()
     setReloadKey((key) => key + 1)
     setEditingUser(null)
     setActionError('')
-    setSuccessMessage(typeof message === 'string' ? message : 'New user successfully added!')
+    setSuccessMessage(message)
     setShowSuccessToast(true)
     restoreScrollPosition()
   }
@@ -350,7 +351,7 @@ function AdminUsers() {
         method: resend ? 'POST' : 'DELETE',
       })
       if (!resend) setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
-      handleUserSaved(resend ? 'Invitation resent successfully.' : data?.message || 'User deleted successfully.')
+      handleUserSaved(resend ? 'Invitation resend requested.' : data?.message || 'User deleted successfully.')
     } catch (error) {
       setActionError(error.message)
     } finally {
@@ -494,20 +495,12 @@ function AdminUsers() {
             </thead>
             <tbody>
               {isLoading || loadError ? (
-                <tr>
-                  <td colSpan="7" className="px-5 py-10 text-center text-sm text-[#7A8190]">
-                    {isLoading ? (
-                      <span role="status">Loading users...</span>
-                    ) : (
-                      <div role="alert">
-                        <p className="text-[#E5484D]">{loadError}</p>
-                        <button type="button" className="mt-3 font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>
-                          Try again
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
+                <tr><td colSpan="7" className="px-5 py-10 text-center text-sm text-[#7A8190]">
+                  {isLoading ? <span role="status">Loading users...</span> : <div role="alert">
+                    <p className="text-[#E5484D]">{loadError}</p>
+                    <button type="button" className="mt-3 font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button>
+                  </div>}
+                </td></tr>
               ) : paginatedUsers.length > 0 ? (
                 paginatedUsers.map((user) => (
                   <tr
@@ -535,17 +528,8 @@ function AdminUsers() {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2 text-[#52556C]">
                         {user.invitationStatus === 'pending' && (
-                          <button
-                            type="button"
-                            aria-label={`Resend invitation to ${user.name}`}
-                            title="Resend invitation"
-                            disabled={busyUserId !== null}
-                            onClick={() => handleUserAction(user.id, true)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:opacity-45"
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4">
-                              <path d="M20 8V4L16 8H20ZM20 8A8 8 0 1 0 20 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                          <button type="button" aria-label={`Resend invitation to ${user.name}`} title="Resend invitation" disabled={busyUserId !== null} onClick={() => handleUserAction(user.id, true)} className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:opacity-45">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4"><path d="M20 8V4L16 8H20ZM20 8A8 8 0 1 0 20 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                           </button>
                         )}
                         <button
@@ -562,7 +546,7 @@ function AdminUsers() {
                           aria-label={`Edit ${user.name}`}
                           disabled
                           title="Editing users is not supported by the current admin API"
-                          className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 opacity-40 cursor-not-allowed"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
                         >
                           <EditIcon />
                         </button>
