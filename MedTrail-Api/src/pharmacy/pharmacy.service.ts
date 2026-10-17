@@ -181,7 +181,8 @@ export class PharmacyService {
       : `Pharm. ${pharmacist.name}`;
 
     rx.status = PrescriptionStatus.AWAITING_CLARIFICATION;
-    rx.clarificationReason = dto.reason;
+    rx.concern = dto.concern || 'Other';
+    rx.clarificationReason = dto.reason || dto.note || 'Clarification requested by pharmacy';
     rx.clarificationResponse = null;
     rx.pharmacistId = pharmacist.id;
     rx.pharmacistName = cleanPharmName;

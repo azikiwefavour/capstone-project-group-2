@@ -13,6 +13,9 @@ import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
 import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
+import { ModifyPrescriptionDto } from './dto/modify-prescription.dto';
+import { DiscontinuePrescriptionDto } from './dto/discontinue-prescription.dto';
+import { ConfirmPrescriptionDto } from './dto/confirm-prescription.dto';
 
 function formatPrescriptionDate(date: Date): string {
   if (!date) return '';
@@ -35,7 +38,6 @@ function getInitials(name: string): string {
     return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   }
   if (clean.length > 0) {
-    // E.g. "Jennifer" -> "MJ" if original was "Miss. Jennifer", or first 2 letters
     const origParts = name.trim().split(/\s+/);
     if (origParts.length >= 2) {
       return `${origParts[0][0]}${origParts[1][0]}`.toUpperCase();
@@ -67,7 +69,6 @@ export class DoctorService {
 
     const hospitalName = doctor.hospitalName || 'General Hospital';
 
-    // Ensure initial demo data exists if hospital is fresh
     await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
     // 1. Hospital patients
@@ -153,7 +154,6 @@ export class DoctorService {
 
     const hospitalName = doctor.hospitalName || 'General Hospital';
 
-    // Seed demo patients if empty
     await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
     const allUsers = await this.usersService.findAll();
@@ -163,19 +163,16 @@ export class DoctorService {
         u.hospitalName?.toLowerCase() === hospitalName.toLowerCase(),
     );
 
-    // Get all prescriptions for this hospital
     const allHospitalPrescriptions = await this.prescriptionRepo.find({
       where: { hospitalName },
       order: { createdAt: 'DESC' },
     });
 
-    // Map patients with current active/pending medications count
     let mapped = patients.map((p) => {
       const patientPrescriptions = allHospitalPrescriptions.filter(
         (rx) => rx.patientId === p.id,
       );
 
-      // Active or pending approval count
       const activeOrPending = patientPrescriptions.filter(
         (rx) =>
           rx.status === PrescriptionStatus.ACTIVE ||
@@ -208,7 +205,6 @@ export class DoctorService {
       };
     });
 
-    // 1. Search Query Filter (name, email, phone)
     if (query && query.trim() !== '') {
       const q = query.trim().toLowerCase();
       mapped = mapped.filter(
@@ -219,7 +215,6 @@ export class DoctorService {
       );
     }
 
-    // 2. Category / Status Filter
     if (filter && filter.trim() !== '' && filter.toLowerCase() !== 'all') {
       const f = filter.trim().toLowerCase();
       if (f === 'active' || f === 'has_active') {
@@ -250,7 +245,6 @@ export class DoctorService {
       order: { createdAt: 'DESC' },
     });
 
-    // Format prescription row helper
     const formatRx = (rx: Prescription) => {
       const dose = rx.dosage || '';
       const freq = rx.frequency || '';
@@ -271,14 +265,16 @@ export class DoctorService {
         pharmacistName: rx.pharmacistName,
         clarificationReason: rx.clarificationReason,
         clarificationResponse: rx.clarificationResponse,
-        date: formatPrescriptionDate(rx.createdAt),
+        concern: rx.concern,
+        discontinueReason: rx.discontinueReason,
+        noteToPharmacist: rx.noteToPharmacist,
+        date: formatPrescriptionDate(rx.updatedAt || rx.createdAt),
         createdAt: rx.createdAt,
         updatedAt: rx.updatedAt,
       };
     };
 
-    // Partition into Current medications vs Medication history
-    // Current medications = active medications currently taken + pending prescriptions awaiting pharmacy approval
+    // Current medications = active medications + pending prescriptions awaiting pharmacy approval
     const currentMedications = prescriptions
       .filter(
         (rx) =>
@@ -334,7 +330,6 @@ export class DoctorService {
     const proposedMedName = dto.medicationName.trim().toLowerCase();
     const proposedDose = (dto.dosage || dto.dose || '').trim().toLowerCase();
 
-    // Look for active or pending prescriptions for this patient
     const existingPrescriptions = await this.prescriptionRepo.find({
       where: { patientId: dto.patientId },
       order: { createdAt: 'DESC' },
@@ -346,7 +341,6 @@ export class DoctorService {
         rx.status === PrescriptionStatus.PENDING,
     );
 
-    // Exact duplicate match: same medication name (and matching dosage if supplied)
     const duplicate = activeOrPending.find((rx) => {
       const rxMedName = rx.medicationName.trim().toLowerCase();
       if (rxMedName === proposedMedName) {
@@ -429,12 +423,11 @@ export class DoctorService {
       duration: dto.duration ?? null,
       reason: dto.reason ?? null,
       instructions: dto.instructions ?? null,
-      status: PrescriptionStatus.PENDING, // Sent to pharmacy for review
+      status: PrescriptionStatus.PENDING,
     });
 
     const saved = await this.prescriptionRepo.save(prescription);
 
-    // Record activity
     const activity = this.activityRepo.create({
       hospitalName,
       actorName: cleanDoctorName,
@@ -456,13 +449,123 @@ export class DoctorService {
     };
   }
 
-  // ─── Get Prescriptions Awaiting Clarification ─────────────────────────────
+  // ─── Modify Prescription (Image 1 Middle Frame & Image 3/4 Right Frame) ───
+
+  async modifyPrescription(
+    doctorId: string,
+    prescriptionId: string,
+    dto: ModifyPrescriptionDto,
+  ) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const rx = await this.prescriptionRepo.findOne({
+      where: { id: prescriptionId },
+    });
+    if (!rx) throw new NotFoundException('Prescription not found');
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    if (dto.medicationName) rx.medicationName = dto.medicationName;
+    if (dto.dosage || dto.dose) rx.dosage = dto.dosage || dto.dose || rx.dosage;
+    if (dto.frequency) rx.frequency = dto.frequency;
+    if (dto.duration) rx.duration = dto.duration;
+    if (dto.reason) rx.reason = dto.reason;
+    if (dto.instructions) rx.instructions = dto.instructions;
+    if (dto.noteToPharmacist) rx.noteToPharmacist = dto.noteToPharmacist;
+
+    const dose = rx.dosage || '';
+    const freq = rx.frequency || '';
+    rx.doseAndFrequency = freq && dose ? `${dose}, ${freq}` : dose || freq;
+
+    // If modified while awaiting clarification, resolve the clarification
+    if (rx.status === PrescriptionStatus.AWAITING_CLARIFICATION) {
+      rx.status = PrescriptionStatus.CLARIFIED;
+      rx.clarificationResponse =
+        dto.note ||
+        dto.noteToPharmacist ||
+        `Modified by ${cleanDoctorName}: ${rx.medicationName} (${rx.doseAndFrequency})`;
+    }
+
+    const saved = await this.prescriptionRepo.save(rx);
+
+    const activity = this.activityRepo.create({
+      hospitalName: rx.hospitalName,
+      actorName: cleanDoctorName,
+      actorRole: 'doctor',
+      description: `${cleanDoctorName} modified prescription for ${rx.patientName}`,
+      actionType: 'modified',
+      targetPatientName: rx.patientName,
+    });
+    await this.activityRepo.save(activity);
+
+    this.logger.log(`Prescription [${rx.id}] modified by ${cleanDoctorName}`);
+
+    return {
+      message: 'Prescription modified successfully',
+      prescription: {
+        ...saved,
+        date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
+      },
+    };
+  }
+
+  // ─── Discontinue Prescription (Image 1 Right Frame) ───────────────────────
+
+  async discontinuePrescription(
+    doctorId: string,
+    prescriptionId: string,
+    dto: DiscontinuePrescriptionDto,
+  ) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const rx = await this.prescriptionRepo.findOne({
+      where: { id: prescriptionId },
+    });
+    if (!rx) throw new NotFoundException('Prescription not found');
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    rx.status = PrescriptionStatus.DISCONTINUED;
+    rx.discontinueReason = dto.reason;
+
+    const saved = await this.prescriptionRepo.save(rx);
+
+    const activity = this.activityRepo.create({
+      hospitalName: rx.hospitalName,
+      actorName: cleanDoctorName,
+      actorRole: 'doctor',
+      description: `${cleanDoctorName} discontinued prescription for ${rx.patientName}`,
+      actionType: 'discontinued',
+      targetPatientName: rx.patientName,
+    });
+    await this.activityRepo.save(activity);
+
+    this.logger.log(`Prescription [${rx.id}] discontinued by ${cleanDoctorName}: "${dto.reason}"`);
+
+    return {
+      message: 'Prescription discontinued successfully and moved to history',
+      prescription: {
+        ...saved,
+        date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
+      },
+    };
+  }
+
+  // ─── Get Clarifications List (Image 2 Left Frame) ─────────────────────────
 
   async getClarifications(doctorId: string) {
     const doctor = await this.usersService.findById(doctorId);
     if (!doctor) throw new NotFoundException('Doctor not found');
 
     const hospitalName = doctor.hospitalName || 'General Hospital';
+
+    await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
     const items = await this.prescriptionRepo.find({
       where: {
@@ -473,17 +576,94 @@ export class DoctorService {
     });
 
     return items.map((rx) => ({
-      ...rx,
-      date: formatPrescriptionDate(rx.createdAt),
+      id: rx.id,
+      patient: rx.patientName,
+      patientName: rx.patientName,
+      patientId: rx.patientId,
+      initials: getInitials(rx.patientName),
+      concern: rx.concern || 'Other',
+      sentBy: rx.pharmacistName || 'Pharm. Melissa',
+      pharmacistName: rx.pharmacistName || 'Pharm. Melissa',
+      status: 'Pending',
+      rawStatus: rx.status,
+      date: formatPrescriptionDate(rx.updatedAt || rx.createdAt),
+      note: rx.clarificationReason,
+      medicationName: rx.medicationName,
+      dosage: rx.dosage,
+      frequency: rx.frequency,
+      duration: rx.duration,
+      reason: rx.reason,
     }));
   }
 
-  // ─── Resolve Clarification ────────────────────────────────────────────────
+  // ─── Get Clarification Details (Image 2 Right Frame) ──────────────────────
 
-  async resolveClarification(
+  async getClarificationDetails(doctorId: string, prescriptionId: string) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const rx = await this.prescriptionRepo.findOne({
+      where: { id: prescriptionId },
+    });
+    if (!rx) throw new NotFoundException('Clarification not found');
+
+    const patient = await this.usersService.findById(rx.patientId);
+
+    const dose = rx.dosage || '';
+    const freq = rx.frequency || '';
+    const doseAndFreq = rx.doseAndFrequency || (freq && dose ? `${dose}, ${freq}` : dose || freq);
+
+    return {
+      patient: patient
+        ? {
+            id: patient.id,
+            name: patient.name,
+            initials: getInitials(patient.name),
+            subtitle: `${patient.age ? patient.age + ' years old • ' : ''}${patient.gender || 'Patient'}`,
+            age: patient.age,
+            gender: patient.gender,
+            email: patient.email,
+            phone: patient.phone,
+          }
+        : {
+            id: rx.patientId,
+            name: rx.patientName,
+            initials: getInitials(rx.patientName),
+            subtitle: 'Patient',
+            email: rx.patientEmail,
+          },
+      clarification: {
+        id: rx.id,
+        requestedBy: rx.pharmacistName || 'Pharm. Melissa',
+        sentBy: rx.pharmacistName || 'Pharm. Melissa',
+        concern: rx.concern || 'Other',
+        note: rx.clarificationReason || 'The patient...',
+        submittedOn: formatPrescriptionDate(rx.updatedAt || rx.createdAt),
+        status: 'Pending',
+      },
+      prescription: {
+        id: rx.id,
+        medication: rx.medicationName,
+        medicationName: rx.medicationName,
+        dose: rx.dosage,
+        dosage: rx.dosage,
+        frequency: rx.frequency,
+        doseAndFrequency: doseAndFreq,
+        duration: rx.duration,
+        reason: rx.reason,
+        status: rx.status,
+        noteToPharmacist: rx.noteToPharmacist,
+        date: formatPrescriptionDate(rx.createdAt),
+      },
+    };
+  }
+
+  // ─── Confirm Prescription (Image 3 Left Frame & Frame 238) ────────────────
+
+  async confirmPrescription(
     doctorId: string,
     prescriptionId: string,
-    dto: ResolveClarificationDto,
+    dto: ConfirmPrescriptionDto,
   ) {
     const doctor = await this.usersService.findById(doctorId);
     if (!doctor) throw new NotFoundException('Doctor not found');
@@ -493,41 +673,54 @@ export class DoctorService {
     });
     if (!rx) throw new NotFoundException('Prescription not found');
 
-    if (rx.status !== PrescriptionStatus.AWAITING_CLARIFICATION) {
-      throw new BadRequestException('This prescription is not currently awaiting clarification');
-    }
-
-    rx.status = PrescriptionStatus.CLARIFIED;
-    rx.clarificationResponse = dto.response;
-    const updated = await this.prescriptionRepo.save(rx);
-
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
 
-    // Record resolution activity
+    rx.status = PrescriptionStatus.CLARIFIED;
+    rx.noteToPharmacist = dto.noteToPharmacist || null;
+    rx.clarificationResponse =
+      dto.noteToPharmacist ||
+      dto.response ||
+      'Confirmed: prescription stands as written.';
+
+    const saved = await this.prescriptionRepo.save(rx);
+
     const activity = this.activityRepo.create({
       hospitalName: rx.hospitalName,
       actorName: cleanDoctorName,
       actorRole: 'doctor',
-      description: `${cleanDoctorName} resolved clarification for ${rx.pharmacistName || 'pharmacy'}`,
-      actionType: 'resolved',
+      description: `${cleanDoctorName} confirmed prescription for ${rx.patientName}`,
+      actionType: 'confirmed',
       targetPatientName: rx.patientName,
     });
     await this.activityRepo.save(activity);
 
-    this.logger.log(`Clarification resolved: [${rx.id}] by ${cleanDoctorName}`);
+    this.logger.log(`Prescription [${rx.id}] confirmed by ${cleanDoctorName}`);
 
     return {
-      message: 'Clarification resolved and returned to pharmacy for dispensing',
+      message: 'Prescription confirmed and sent to pharmacy',
       prescription: {
-        ...updated,
-        date: formatPrescriptionDate(updated.createdAt),
+        ...saved,
+        date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
       },
     };
   }
 
-  // ─── Helper: Seed Demo Patients Matching Figma ────────────────────────────
+  // ─── Legacy Resolve Clarification ─────────────────────────────────────────
+
+  async resolveClarification(
+    doctorId: string,
+    prescriptionId: string,
+    dto: ResolveClarificationDto,
+  ) {
+    return this.confirmPrescription(doctorId, prescriptionId, {
+      response: dto.response,
+      noteToPharmacist: dto.response,
+    });
+  }
+
+  // ─── Helper: Seed Demo Patients & Clarifications Matching Figma ───────────
 
   private async seedDemoDataIfEmpty(hospitalName: string, doctor: any) {
     const jenniferEmail = `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
@@ -536,9 +729,9 @@ export class DoctorService {
     if (!existingJennifer) {
       this.logger.log(`Seeding initial clinical data for hospital "${hospitalName}"...`);
 
-      // Patients list from Figma Frame "PATIENTS"
       const demoPatientsData = [
         { name: 'Miss. Jennifer', email: `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Female', age: 34, phone: '08123456789' },
+        { name: 'Mr. Alexander', email: `alexander@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Male', age: 48, phone: '08123456788' },
         { name: 'Miss. Taylor', email: `taylor@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Female', age: 28, phone: '08123456780' },
         { name: 'Mr. Richardson', email: `richardson@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Male', age: 45, phone: '08123456781' },
         { name: 'Mr. Collins', email: `collins@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Male', age: 39, phone: '08123456782' },
@@ -567,17 +760,16 @@ export class DoctorService {
         createdPatients.push(existing);
       }
 
-      const pJennifer = createdPatients[0]; // Miss. Jennifer
-      const pTaylor = createdPatients[1];
-      const pRichardson = createdPatients[2];
+      const pJennifer = createdPatients[0];
+      const pAlexander = createdPatients[1];
+      const pTaylor = createdPatients[2];
 
       const cleanDoctorName = doctor.name.startsWith('Dr.')
         ? doctor.name
         : `Dr. ${doctor.name}`;
 
-      // Sample prescriptions matching Figma Frame "PATIENTS DATA" (Miss. Jennifer)
       const sampleRx = [
-        // Miss. Jennifer's Active medications
+        // Miss. Jennifer: Active medications
         {
           hospitalName,
           patientId: pJennifer.id,
@@ -610,7 +802,45 @@ export class DoctorService {
           status: PrescriptionStatus.ACTIVE,
           pharmacistName: 'Pharm. Okafor',
         },
-        // Miss. Jennifer's Medication History (Discontinued / past)
+        // Miss. Jennifer: Clarification (Image 2 Clarifications table row 1)
+        {
+          hospitalName,
+          patientId: pJennifer.id,
+          patientName: pJennifer.name,
+          patientEmail: pJennifer.email,
+          doctorId: doctor.id,
+          doctorName: cleanDoctorName,
+          medicationName: 'Amoxicillin',
+          dosage: '500mg',
+          frequency: '3 times daily',
+          doseAndFrequency: '500mg, 3 times daily',
+          duration: '7 days',
+          reason: 'Bacterial infection',
+          concern: 'Other',
+          status: PrescriptionStatus.AWAITING_CLARIFICATION,
+          pharmacistName: 'Pharm. Melissa',
+          clarificationReason: 'The patient noted mild penicillin sensitivity in records. Please verify safety or confirm.',
+        },
+        // Mr. Alexander: Clarification (Image 2 Clarifications table row 2)
+        {
+          hospitalName,
+          patientId: pAlexander.id,
+          patientName: pAlexander.name,
+          patientEmail: pAlexander.email,
+          doctorId: doctor.id,
+          doctorName: cleanDoctorName,
+          medicationName: 'Lisinopril',
+          dosage: '20mg',
+          frequency: 'Once daily',
+          doseAndFrequency: '20mg, Once daily',
+          duration: '30 days',
+          reason: 'Hypertension',
+          concern: 'Dose',
+          status: PrescriptionStatus.AWAITING_CLARIFICATION,
+          pharmacistName: 'Pharm. Felix',
+          clarificationReason: 'Dose appears high for patient kidney profile. Please confirm.',
+        },
+        // Miss. Jennifer: Discontinued
         {
           hospitalName,
           patientId: pJennifer.id,
@@ -624,10 +854,11 @@ export class DoctorService {
           doseAndFrequency: '500mg, 1 tablet',
           duration: '3 days',
           reason: 'Headache',
+          discontinueReason: 'Course completed / symptoms resolved',
           status: PrescriptionStatus.DISCONTINUED,
           pharmacistName: 'Pharm. Okafor',
         },
-        // Other patients
+        // Miss. Taylor: Active
         {
           hospitalName,
           patientId: pTaylor.id,
@@ -644,50 +875,15 @@ export class DoctorService {
           status: PrescriptionStatus.ACTIVE,
           pharmacistName: 'Pharm. Okafor',
         },
-        {
-          hospitalName,
-          patientId: pRichardson.id,
-          patientName: pRichardson.name,
-          patientEmail: pRichardson.email,
-          doctorId: doctor.id,
-          doctorName: cleanDoctorName,
-          medicationName: 'Lisinopril',
-          dosage: '10mg',
-          frequency: 'Every morning',
-          doseAndFrequency: '10mg, Every morning',
-          duration: '30 days',
-          reason: 'Hypertension',
-          status: PrescriptionStatus.AWAITING_CLARIFICATION,
-          clarificationReason: 'Pharmacy query: Patient blood pressure stabilized; verify if dosage reduction is appropriate.',
-          pharmacistName: 'Pharm. Okafor',
-        },
-        {
-          hospitalName,
-          patientId: pRichardson.id,
-          patientName: pRichardson.name,
-          patientEmail: pRichardson.email,
-          doctorId: doctor.id,
-          doctorName: 'Dr. Richardson',
-          medicationName: 'Atorvastatin',
-          dosage: '20mg',
-          frequency: 'Once at night',
-          doseAndFrequency: '20mg, Once at night',
-          duration: '30 days',
-          reason: 'High cholesterol',
-          status: PrescriptionStatus.ACTIVE,
-          pharmacistName: 'Pharm. Okafor',
-        },
       ];
 
       for (const rx of sampleRx) {
         await this.prescriptionRepo.save(this.prescriptionRepo.create(rx));
       }
 
-      // Sample activities matching Figma layout
       const sampleActivities = [
-        { actorName: 'Pharm. Okafor', actorRole: 'pharmacist', description: 'Pharm. Okafor dispensed medication to Miss. Jennifer', actionType: 'dispensed', targetPatientName: 'Miss. Jennifer' },
-        { actorName: cleanDoctorName, actorRole: 'doctor', description: `${cleanDoctorName} resolved dispute for Pharm. Okafor`, actionType: 'resolved', targetPatientName: 'Miss. Jennifer' },
-        { actorName: 'Pharm. Okafor', actorRole: 'pharmacist', description: `Pharm. Okafor raised clarification to ${cleanDoctorName}`, actionType: 'clarification', targetPatientName: 'Mr. Richardson' },
+        { actorName: 'Pharm. Melissa', actorRole: 'pharmacist', description: 'Pharm. Melissa raised clarification to Dr. Adewale', actionType: 'clarification', targetPatientName: 'Miss. Jennifer' },
+        { actorName: 'Pharm. Felix', actorRole: 'pharmacist', description: 'Pharm. Felix raised clarification to Dr. Adewale', actionType: 'clarification', targetPatientName: 'Mr. Alexander' },
         { actorName: cleanDoctorName, actorRole: 'doctor', description: `${cleanDoctorName} prescribed medication for Miss. Jennifer`, actionType: 'prescribed', targetPatientName: 'Miss. Jennifer' },
         { actorName: 'Dr. Richardson', actorRole: 'doctor', description: 'Dr. Richardson prescribed medication for Miss. Jennifer', actionType: 'prescribed', targetPatientName: 'Miss. Jennifer' },
       ];

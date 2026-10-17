@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Put,
   Param,
   Body,
   Query,
@@ -24,6 +26,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
+import { ModifyPrescriptionDto } from './dto/modify-prescription.dto';
+import { DiscontinuePrescriptionDto } from './dto/discontinue-prescription.dto';
+import { ConfirmPrescriptionDto } from './dto/confirm-prescription.dto';
 import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
 
 @ApiTags('Doctor')
@@ -103,21 +108,98 @@ export class DoctorController {
     return this.doctorService.createPrescription(user.sub, dto);
   }
 
+  // ── PATCH /api/doctor/prescriptions/:id ──────────────────────────────────
+  @Patch('prescriptions/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Modify an existing prescription (Figma Frame: Modify Prescription)' })
+  @ApiResponse({ status: 200, description: 'Prescription modified successfully' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  modifyPrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+    @Body() dto: ModifyPrescriptionDto,
+  ) {
+    return this.doctorService.modifyPrescription(user.sub, id, dto);
+  }
+
+  // ── PUT /api/doctor/prescriptions/:id (Alias) ────────────────────────────
+  @Put('prescriptions/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Modify an existing prescription (Alias for PATCH)' })
+  modifyPrescriptionPut(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+    @Body() dto: ModifyPrescriptionDto,
+  ) {
+    return this.doctorService.modifyPrescription(user.sub, id, dto);
+  }
+
+  // ── POST /api/doctor/prescriptions/:id/discontinue ───────────────────────
+  @Post('prescriptions/:id/discontinue')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Discontinue a medication with reason/note (Figma Frame: Discontinue prescription)' })
+  @ApiResponse({ status: 200, description: 'Prescription discontinued and moved to medication history' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  discontinuePrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+    @Body() dto: DiscontinuePrescriptionDto,
+  ) {
+    return this.doctorService.discontinuePrescription(user.sub, id, dto);
+  }
+
   // ── GET /api/doctor/clarifications ───────────────────────────────────────
   @Get('clarifications')
-  @ApiOperation({ summary: 'List prescriptions flagged by pharmacy awaiting doctor clarification' })
+  @ApiOperation({ summary: 'List prescriptions flagged by pharmacy awaiting doctor clarification (Figma: Clarifications table)' })
   @ApiResponse({ status: 200, description: 'List of prescriptions awaiting clarification' })
   getClarifications(@CurrentUser() user: { sub: string }) {
     return this.doctorService.getClarifications(user.sub);
   }
 
+  // ── GET /api/doctor/clarifications/:id ───────────────────────────────────
+  @Get('clarifications/:id')
+  @ApiOperation({ summary: 'Get details for a single clarification (Figma: Clarifications > Patient Detail View)' })
+  @ApiResponse({ status: 200, description: 'Clarification details, patient header, and prescription info' })
+  @ApiResponse({ status: 404, description: 'Clarification not found' })
+  getClarificationDetails(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.doctorService.getClarificationDetails(user.sub, id);
+  }
+
+  // ── POST /api/doctor/clarifications/:id/confirm ──────────────────────────
+  @Post('clarifications/:id/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Doctor confirms prescription stands as written (Figma Frame 238: Confirm prescription)' })
+  @ApiResponse({ status: 200, description: 'Prescription confirmed and sent to pharmacy' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  confirmPrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+    @Body() dto: ConfirmPrescriptionDto,
+  ) {
+    return this.doctorService.confirmPrescription(user.sub, id, dto);
+  }
+
+  // ── PATCH /api/doctor/clarifications/:id/modify ──────────────────────────
+  @Patch('clarifications/:id/modify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Doctor modifies prescription in response to pharmacy clarification (Figma: Modify prescription)' })
+  @ApiResponse({ status: 200, description: 'Prescription modified and returned to pharmacy' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  modifyClarification(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+    @Body() dto: ModifyPrescriptionDto,
+  ) {
+    return this.doctorService.modifyPrescription(user.sub, id, dto);
+  }
+
   // ── POST /api/doctor/clarifications/:id/resolve ──────────────────────────
   @Post('clarifications/:id/resolve')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Doctor resolves a pharmacy clarification query' })
-  @ApiResponse({ status: 200, description: 'Clarification resolved and returned to pharmacy' })
-  @ApiResponse({ status: 400, description: 'Invalid state or missing response' })
-  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  @ApiOperation({ summary: 'Legacy resolve clarification endpoint' })
   resolveClarification(
     @CurrentUser() user: { sub: string },
     @Param('id') id: string,

@@ -92,6 +92,18 @@ export class Prescription {
   @Column({ type: 'text', nullable: true })
   clarificationResponse: string | null;
 
+  @ApiProperty({ example: 'Dose', nullable: true, description: 'Concern category raised by pharmacy e.g. Dose, Allergy, Other' })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  concern: string | null;
+
+  @ApiProperty({ example: 'Patient experiencing mild stomach discomfort', nullable: true })
+  @Column({ type: 'text', nullable: true })
+  discontinueReason: string | null;
+
+  @ApiProperty({ example: 'Patient has been evaluated and confirmed tolerating dosage', nullable: true })
+  @Column({ type: 'text', nullable: true })
+  noteToPharmacist: string | null;
+
   @ApiProperty({ example: 'e1f2a3b4-c5d6-7890-1234-abcdef012345', nullable: true })
   @Column({ type: 'uuid', nullable: true })
   pharmacistId: string | null;
