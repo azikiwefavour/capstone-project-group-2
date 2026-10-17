@@ -400,3 +400,88 @@ async function handleInviteUser(userData) {
   return data;
 }
 ```
+
+---
+
+## 🩺 6. Doctor Module Endpoints
+
+All endpoints require `Authorization: Bearer <token>` where user has role `doctor`.
+
+### `GET /api/doctor/dashboard`
+Returns live metrics, recent patients, and recent clinical activities for the doctor's hospital.
+- **Headers:** `Authorization: Bearer <jwt_token>`
+- **Response `200 OK`:**
+```json
+{
+  "doctor": {
+    "id": "71c70fde-4f64-4790-9c1b-07764e26f931",
+    "name": "Dr. Adewale",
+    "email": "doctor@hospital.com",
+    "role": "doctor",
+    "hospitalName": "General Hospital"
+  },
+  "stats": {
+    "patients": 22,
+    "awaitingClarification": 12,
+    "prescriptions": 23
+  },
+  "recentPatients": [
+    {
+      "id": "...",
+      "name": "Mrs. Josephine",
+      "email": "josephine@email.com",
+      "phone": "+234...",
+      "gender": "Female",
+      "age": 42,
+      "lastPrescription": {
+        "medicationName": "Amoxicillin 500mg",
+        "date": "2026-10-16T...",
+        "status": "awaiting_clarification"
+      }
+    }
+  ],
+  "recentActivities": [
+    {
+      "id": "...",
+      "description": "Dr. Okafor dispensed medication to Mrs. Josephine",
+      "actorName": "Dr. Okafor",
+      "actorRole": "pharmacist",
+      "actionType": "dispensed",
+      "targetPatientName": "Mrs. Josephine",
+      "createdAt": "2026-10-16T..."
+    }
+  ]
+}
+```
+
+### `GET /api/doctor/patients`
+List all patients registered in the doctor's hospital with optional search query (`?search=josephine`).
+
+### `GET /api/doctor/patients/:id`
+Get full patient profile and complete prescription/formal medication history.
+
+### `POST /api/doctor/prescriptions`
+Prescribe a new medication to a patient.
+- **Body:**
+```json
+{
+  "patientId": "ca993ee9-9d5c-4dfd-bd9b-cae7a8cb0da0",
+  "medicationName": "Amoxicillin 500mg",
+  "dosage": "1 capsule 3x daily",
+  "duration": "7 days",
+  "instructions": "Take after meals"
+}
+```
+
+### `GET /api/doctor/clarifications`
+List all prescriptions where the pharmacy has raised questions or asked for clarification (`status === 'awaiting_clarification'`).
+
+### `POST /api/doctor/clarifications/:id/resolve`
+Doctor resolves the pharmacist's query with their response and confirmation.
+- **Body:**
+```json
+{
+  "response": "Confirmed dosage of 500mg is appropriate for patient."
+}
+```
+

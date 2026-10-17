@@ -8,9 +8,12 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
+import { DoctorModule } from './doctor/doctor.module';
 import { AppCacheModule } from './cache/cache.module';
 import { LoggerModule } from './logger/logger.module';
 import { User } from './users/entities/user.entity';
+import { Prescription } from './doctor/entities/prescription.entity';
+import { Activity } from './doctor/entities/activity.entity';
 
 @Module({
   imports: [
@@ -35,7 +38,7 @@ import { User } from './users/entities/user.entity';
         return {
           type: 'postgres',
           url: dbUrl,
-          entities: [User],
+          entities: [User, Prescription, Activity],
           autoLoadEntities: true,
           synchronize: configService.get<string>('NODE_ENV') !== 'production',
           ssl: isNeonOrSsl ? { rejectUnauthorized: false } : false,
@@ -61,6 +64,7 @@ import { User } from './users/entities/user.entity';
     UsersModule,
     AdminModule,
     MailModule,
+    DoctorModule,
   ],
   controllers: [AppController],
   providers: [AppService],
