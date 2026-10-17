@@ -23,6 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
+import { CheckDuplicateDto } from './dto/check-duplicate.dto';
 import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
 
 @ApiTags('Doctor')
@@ -48,20 +49,22 @@ export class DoctorController {
 
   // ── GET /api/doctor/patients ─────────────────────────────────────────────
   @Get('patients')
-  @ApiOperation({ summary: 'List all patients in the doctor hospital' })
+  @ApiOperation({ summary: 'List all patients in the doctor hospital with search and filter' })
   @ApiQuery({ name: 'search', required: false, description: 'Search by patient name, email, or phone' })
-  @ApiResponse({ status: 200, description: 'Array of hospital patients' })
+  @ApiQuery({ name: 'filter', required: false, description: 'Filter by active status (e.g. "active", "all", "female", "male")' })
+  @ApiResponse({ status: 200, description: 'Array of hospital patients with current medication counts' })
   getPatients(
     @CurrentUser() user: { sub: string },
     @Query('search') search?: string,
+    @Query('filter') filter?: string,
   ) {
-    return this.doctorService.getPatients(user.sub, search);
+    return this.doctorService.getPatients(user.sub, search, filter);
   }
 
   // ── GET /api/doctor/patients/:id ─────────────────────────────────────────
   @Get('patients/:id')
-  @ApiOperation({ summary: 'Get patient profile and full medication/prescription history' })
-  @ApiResponse({ status: 200, description: 'Patient details and past prescriptions' })
+  @ApiOperation({ summary: 'Get patient profile, current medications (active + pending), and medication history' })
+  @ApiResponse({ status: 200, description: 'Patient details and categorized medications' })
   @ApiResponse({ status: 404, description: 'Patient not found' })
   getPatientDetails(
     @CurrentUser() user: { sub: string },
@@ -70,10 +73,26 @@ export class DoctorController {
     return this.doctorService.getPatientDetails(user.sub, id);
   }
 
+  // ── POST /api/doctor/prescriptions/check-duplicate ───────────────────────
+  @Post('prescriptions/check-duplicate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check if proposed prescription is an exact duplicate of an existing active/pending medication (Frame 38/39)',
+    description: 'Checks patient existing active and pending prescriptions. If duplicate found, returns comparison cards ("in review" vs "existing") for review.',
+  })
+  @ApiResponse({ status: 200, description: 'Duplicate check result' })
+  @ApiResponse({ status: 404, description: 'Patient not found' })
+  checkDuplicate(
+    @CurrentUser() user: { sub: string },
+    @Body() dto: CheckDuplicateDto,
+  ) {
+    return this.doctorService.checkDuplicate(user.sub, dto);
+  }
+
   // ── POST /api/doctor/prescriptions ───────────────────────────────────────
   @Post('prescriptions')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Prescribe medication to a patient (sent to pharmacy for review)' })
+  @ApiOperation({ summary: 'Prescribe medication to a patient (queued as pending for pharmacy review)' })
   @ApiResponse({ status: 201, description: 'Prescription created and queued for pharmacy' })
   @ApiResponse({ status: 400, description: 'Validation error' })
   @ApiResponse({ status: 404, description: 'Patient not found' })

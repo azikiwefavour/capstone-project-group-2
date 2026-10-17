@@ -9,9 +9,12 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export enum PrescriptionStatus {
   PENDING = 'pending',
+  ACTIVE = 'active',
   AWAITING_CLARIFICATION = 'awaiting_clarification',
   CLARIFIED = 'clarified',
   DISPENSED = 'dispensed',
+  DISCONTINUED = 'discontinued',
+  COMPLETED = 'completed',
   CANCELLED = 'cancelled',
 }
 
@@ -45,17 +48,29 @@ export class Prescription {
   @Column({ type: 'varchar', length: 255 })
   doctorName: string;
 
-  @ApiProperty({ example: 'Amoxicillin 500mg' })
+  @ApiProperty({ example: 'Amoxicillin' })
   @Column({ type: 'varchar', length: 255 })
   medicationName: string;
 
-  @ApiProperty({ example: '1 tablet three times daily' })
+  @ApiProperty({ example: '500mg' })
   @Column({ type: 'varchar', length: 255 })
   dosage: string;
+
+  @ApiProperty({ example: '3 times daily', nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  frequency: string | null;
+
+  @ApiProperty({ example: '500mg, 3 times daily', nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  doseAndFrequency: string | null;
 
   @ApiProperty({ example: '7 days', nullable: true })
   @Column({ type: 'varchar', length: 100, nullable: true })
   duration: string | null;
+
+  @ApiProperty({ example: 'Bacterial infection', nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  reason: string | null;
 
   @ApiProperty({ example: 'Take after meals', nullable: true })
   @Column({ type: 'text', nullable: true })

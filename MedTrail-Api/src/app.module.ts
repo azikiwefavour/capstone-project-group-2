@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
 import { DoctorModule } from './doctor/doctor.module';
+import { PharmacyModule } from './pharmacy/pharmacy.module';
 import { AppCacheModule } from './cache/cache.module';
 import { LoggerModule } from './logger/logger.module';
 import { User } from './users/entities/user.entity';
@@ -65,6 +66,7 @@ import { Activity } from './doctor/entities/activity.entity';
     AdminModule,
     MailModule,
     DoctorModule,
+    PharmacyModule,
   ],
   controllers: [AppController],
   providers: [AppService],
