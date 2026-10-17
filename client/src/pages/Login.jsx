@@ -96,7 +96,7 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
-function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false }) {
+function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate }) {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -143,6 +143,24 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
     if (email.trim() === '' || !isEmailValid || password.trim() === '') return
     if (!role) {
       setLoginError('Please select your role before logging in.')
+      return
+    }
+
+    // Doctor-specific authentication is isolated from the existing Admin session.
+    if (onAuthenticate) {
+      loginInFlight.current = true
+      setIsLoggingIn(true)
+      try {
+        await onAuthenticate({ email: email.trim().toLowerCase(), password })
+        setPassword('')
+        setContinueClicked(false)
+        navigate('/doctor/dashboard', { replace: true })
+      } catch (error) {
+        setLoginError(error.message || 'Login could not be completed. Please try again.')
+      } finally {
+        loginInFlight.current = false
+        setIsLoggingIn(false)
+      }
       return
     }
 
@@ -211,7 +229,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
     }
   }
 
-  if (!frontendOnly && role === 'doctor') {
+  if (!frontendOnly && role === 'doctor' && !onAuthenticate) {
     return <Navigate to="/doctor/login" replace />
   }
 
