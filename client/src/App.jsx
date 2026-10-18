@@ -33,11 +33,26 @@ const DoctorFlowPreview = import.meta.env.DEV
   ? lazy(() => import('./doctor/previews/DoctorFlowPreview'))
   : null
 
+const HospitalInvitationEmailPreview = import.meta.env.DEV
+  ? lazy(() => import('./emails/previews/HospitalInvitationEmailPreview'))
+  : null
+
+const EmailVerificationEmailPreview = import.meta.env.DEV
+  ? lazy(() => import('./emails/previews/EmailVerificationEmailPreview'))
+  : null
+
+const ResetPasswordEmailPreview = import.meta.env.DEV
+  ? lazy(() => import('./emails/previews/ResetPasswordEmailPreview'))
+  : null
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        {import.meta.env.DEV && <Route path="/email-preview/hospital-invitation" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading email preview...</p>}><HospitalInvitationEmailPreview /></Suspense>} />}
+        {import.meta.env.DEV && <Route path="/email-preview/email-verification" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading email preview...</p>}><EmailVerificationEmailPreview /></Suspense>} />}
+        {import.meta.env.DEV && <Route path="/email-preview/reset-password" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading email preview...</p>}><ResetPasswordEmailPreview /></Suspense>} />}
         <Route path="/create-account" element={<CreateAccount />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/select-role" element={<RoleSelection />} />
