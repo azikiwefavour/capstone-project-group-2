@@ -71,7 +71,7 @@ export class AuthService {
       isInvited: false,
     });
 
-    await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp);
+    await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp, expiry, user.role);
     this.logger.log(`New account registered: ${user.email}`);
 
     return {
@@ -124,7 +124,7 @@ export class AuthService {
       emailOtpExpiry: expiry,
     });
 
-    await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp);
+    await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp, expiry, user.role);
 
     return { message: 'A new verification code has been sent to your email.' };
   }
@@ -222,7 +222,7 @@ export class AuthService {
       resetPasswordOtpExpiry: expiry,
     });
 
-    await this.mailService.sendPasswordResetOtp(user.email, user.name, otp);
+    await this.mailService.sendPasswordResetOtp(user.email, user.name, otp, expiry, user.role);
     this.logger.log(`Password reset OTP sent to: ${user.email}`);
 
     return { message: 'If an account exists with this email, a reset code has been sent.' };

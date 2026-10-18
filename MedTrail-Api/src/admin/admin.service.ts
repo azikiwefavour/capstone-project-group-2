@@ -166,15 +166,11 @@ export class AdminService {
       user.name,
       dto.role,
       frontendInviteUrl,
+      user.hospitalName,
+      expiry,
     );
 
-    this.logger.log(
-      `\n═══════════════════════════════════════════════════════════════════════════════\n` +
-      `📧 [INVITATION CREATED] Role: ${dto.role} | Email: ${user.email}\n` +
-      `👉 Frontend Invite Link:\n   ${frontendInviteUrl}\n` +
-      `👉 Browser Direct Link:\n   ${browserDirectUrl}\n` +
-      `═══════════════════════════════════════════════════════════════════════════════`,
-    );
+    this.logger.log(`Invitation created for ${user.email} (${dto.role})`);
 
     return {
       message: `Invitation sent successfully to ${user.email}. The account is pending activation.`,
@@ -220,17 +216,13 @@ export class AdminService {
     await this.mailService.sendInvitationEmail(
       user.email,
       user.name,
-      user.invitedRole ?? 'doctor',
+      user.invitedRole ?? user.role ?? '',
       frontendInviteUrl,
+      user.hospitalName,
+      expiry,
     );
 
-    this.logger.log(
-      `\n═══════════════════════════════════════════════════════════════════════════════\n` +
-      `📧 [INVITATION RESENT] By Admin: ${adminName} to ${user.email}\n` +
-      `👉 Frontend Invite Link:\n   ${frontendInviteUrl}\n` +
-      `👉 Browser Direct Link:\n   ${browserDirectUrl}\n` +
-      `═══════════════════════════════════════════════════════════════════════════════`,
-    );
+    this.logger.log(`Invitation resent by ${adminName} to ${user.email}`);
 
     return {
       message: `Invitation resent to ${user.email} successfully.`,

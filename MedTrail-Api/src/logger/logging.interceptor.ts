@@ -25,16 +25,18 @@ export class LoggingInterceptor implements NestInterceptor {
     const res = ctx.getResponse<Response>();
 
     const { method, url, ip } = req;
+    // Invitation tokens are carried in query parameters; never log the query string.
+    const path = url.split('?')[0];
     const userAgent = req.headers['user-agent'] ?? '';
     const start = Date.now();
 
-    this.logger.log(`→ ${method} ${url}  [${ip}]  ${userAgent}`);
+    this.logger.log(`→ ${method} ${path}  [${ip}]  ${userAgent}`);
 
     return next.handle().pipe(
       tap(() => {
         const duration = Date.now() - start;
         this.logger.log(
-          `← ${method} ${url}  ${res.statusCode}  ${duration}ms`,
+          `← ${method} ${path}  ${res.statusCode}  ${duration}ms`,
         );
       }),
     );
