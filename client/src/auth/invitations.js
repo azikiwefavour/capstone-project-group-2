@@ -1,5 +1,6 @@
 import { getTokenExpiry } from './session'
 import { setDoctorAccessToken } from './doctorSession'
+import { setPharmacistAccessToken } from './pharmacistSession'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
 const invitationRoles = ['doctor', 'pharmacist']
@@ -52,10 +53,9 @@ export async function completeInvitation({ token, password, confirmPassword, inv
     || payload?.sub !== data.user.id || payload?.role !== data.user.role || getTokenExpiry(data.accessToken) <= Date.now()) {
     throw new Error('Registration completed, but the session response could not be verified. Please log in or contact your administrator.')
   }
-  // This is a candidate server-issued token. DoctorLayout still verifies the profile.
-  // Never put a Doctor token in Admin storage or retain credentials/invitation tokens.
+  // Candidate server-issued tokens still require profile verification by their layout.
+  // Keep role sessions separate; never retain credentials or invitation tokens.
   if (data.user.role === 'doctor') setDoctorAccessToken(data.accessToken)
-  // Pharmacist account creation is supported, but its protected workspace is not
-  // implemented here. Send it to existing Login instead of an unprotected dashboard.
+  if (data.user.role === 'pharmacist') setPharmacistAccessToken(data.accessToken)
   return { role: data.user.role }
 }
