@@ -27,6 +27,8 @@ async function authApi(page, options = {}) {
       if (options.profileGate) await options.profileGate
       status = options.profileStatus || 200
       data = { id: `${role}-fixture`, role, name: 'Test pharmacist', isEmailVerified: options.verified !== false, invitationStatus: 'accepted' }
+    } else if (path === '/api/pharmacy/dashboard') {
+      data = { pharmacist: { id: 'pharmacist-fixture' }, stats: { total: 0, pending: 0, awaitingClarification: 0, dispensed: 0 }, recentPrescriptions: [] }
     } else if (['forgot-password', 'verify-reset-code', 'reset-password', 'verify-email', 'resend-email-otp'].some(action => path === `/api/auth/${action}`)) {
       data = { message: 'Request completed.' }
     } else {
@@ -71,15 +73,16 @@ test('login waits for backend profile verification, survives reload, and logout 
   await login(page)
   await expect(page).toHaveURL(/\/pharmacist\/dashboard$/)
   await expect(page.getByRole('status')).toHaveText('Checking your session...')
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Overview' })).toHaveCount(0)
   release()
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   const loginRequest = requests.find(request => request.path === '/api/auth/login')
   expect(loginRequest.body).toEqual({ email, password, role: 'pharmacist' })
   expect(requests.find(request => request.path === '/api/auth/profile').headers.authorization).toBe(`Bearer ${jwt()}`)
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   await page.getByRole('button', { name: 'Log out' }).click()
+  await page.getByRole('dialog', { name: 'LOG OUT', exact: true }).getByRole('button', { name: 'Yes, Log out', exact: true }).click()
   await expect(page).toHaveURL(/\/pharmacist\/login$/)
   expect(await page.evaluate(() => sessionStorage.getItem('medtrailPharmacistSession'))).toBeNull()
   await page.goto('/pharmacist/dashboard')
@@ -89,7 +92,7 @@ test('login waits for backend profile verification, survives reload, and logout 
 test('Pharmacist credentials cannot render protected Admin or Doctor pages', async ({ page }) => {
   const requests = await authApi(page)
   await login(page)
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   await page.goto('/admin/dashboard')
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole('form', { name: 'Login form' })).toBeVisible()
@@ -124,7 +127,7 @@ test('Admin invitation links use the Doctor setup design and establish only a Ph
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByLabel('Confirm Password', { exact: true }).fill(password)
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   expect(requests.find(request => request.path.endsWith('/complete-registration')).body).toEqual({ token: 'invitation-fixture', password, confirmPassword: password })
   expect(await page.evaluate(() => sessionStorage.getItem('medtrailDoctorSession'))).toBeNull()
   expect(await page.evaluate(() => sessionStorage.getItem('medtrailAdminSession'))).toBeNull()
@@ -216,11 +219,11 @@ test('rejected profiles return to login and server errors offer retry without re
   await authApi(page, { profileStatus: 503 })
   await login(page)
   await expect(page.getByRole('alert')).toContainText('Unable to check your session')
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Overview' })).toHaveCount(0)
   await page.unroute('**/api/**')
   await authApi(page)
   await page.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
 })
 
 test('session expiry removes access while the dashboard is open', async ({ page }) => {
@@ -228,7 +231,7 @@ test('session expiry removes access while the dashboard is open', async ({ page 
   await page.goto('/pharmacist/login')
   await page.evaluate(token => sessionStorage.setItem('medtrailPharmacistSession', JSON.stringify({ token })), jwt('pharmacist', Math.floor(Date.now() / 1000) + 3))
   await page.goto('/pharmacist/dashboard')
-  await expect(page.getByRole('heading', { name: 'Pharmacist dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
   await expect(page).toHaveURL(/\/pharmacist\/login$/, { timeout: 5000 })
   expect(await page.evaluate(() => sessionStorage.getItem('medtrailPharmacistSession'))).toBeNull()
 })

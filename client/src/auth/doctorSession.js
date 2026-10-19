@@ -74,7 +74,7 @@ export async function verifyDoctorSession(token, signal) {
     setDoctorAccessToken(null)
     return null
   }
-  return { name: typeof profile.name === 'string' ? profile.name : '' }
+  return { name: typeof profile.name === 'string' ? profile.name : '', email: typeof profile.email === 'string' ? profile.email : '' }
 }
 
 export async function loginDoctor({ email, password }) {
