@@ -41,14 +41,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : responseBody;
 
     // Log at WARN for client errors (4xx) and ERROR for server errors (5xx)
+    const logPath = req.url.split('?')[0];
     if (status >= 500) {
       this.logger.error(
-        `✗ ${status} [${req.method}] ${req.url} — ${JSON.stringify(message)}`,
+        `✗ ${status} [${req.method}] ${logPath} — ${JSON.stringify(message)}`,
         exception instanceof Error ? exception.stack : undefined,
       );
     } else {
       this.logger.warn(
-        `✗ ${status} [${req.method}] ${req.url} — ${JSON.stringify(message)}`,
+        `✗ ${status} [${req.method}] ${logPath} — ${JSON.stringify(message)}`,
       );
     }
 
