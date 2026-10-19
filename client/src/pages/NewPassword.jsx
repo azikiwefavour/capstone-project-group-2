@@ -120,7 +120,7 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
-function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
+export function NewPasswordForm({ recoveryBasePath = '', frontendOnly = false, email = '', otp = '', previewResetVerified = false, visualOnly = false }) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [password, setPassword] = useState('')
@@ -129,11 +129,7 @@ function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
   const [isResetting, setIsResetting] = useState(false)
   const [resetError, setResetError] = useState('')
   const resetInFlight = useRef(false)
-  const { state } = useLocation()
   const navigate = useNavigate()
-  const email = typeof state?.email === 'string' ? state.email.trim() : ''
-  const otp = typeof state?.otp === 'string' ? state.otp : ''
-  const [previewResetVerified] = useState(() => frontendOnly && hasVerifiedDoctorPreviewReset(email, otp))
   const hasVerificationInfo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && /^\d{6}$/.test(otp) && (!frontendOnly || previewResetVerified)
   const passwordRequirements = [
     {
@@ -174,7 +170,8 @@ function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
 
   async function handleContinue(event) {
     event.preventDefault()
-    if (resetInFlight.current) return
+    // Visual inspection never submits, even if a submit event is triggered directly.
+    if (visualOnly || resetInFlight.current) return
 
     setContinueClicked(true)
     setResetError('')
@@ -242,12 +239,9 @@ function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
     }
   }
 
-  if (!hasVerificationInfo) {
-    return <Navigate to={`${recoveryBasePath}/forgot-password`} replace state={null} />
-  }
-
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
+      {visualOnly && <p role="status" className="fixed right-3 top-3 z-10 rounded-lg border border-[#E2E5ED] bg-white px-3 py-2 text-xs text-[#7A8190] shadow-sm">Design preview. Password changes are disabled.</p>}
       <section className="relative flex min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16">
         <h4 className="mt-10 max-w-[520px] text-2xl font-semibold leading-[1.13] tracking-normal text-[#111827] sm:text-2xl lg:text-3xl">
           One medication record,
@@ -427,7 +421,7 @@ function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
-              disabled={isResetting}
+              disabled={isResetting || visualOnly}
               onClick={() => navigate(`${recoveryBasePath}/verify-reset-code`, { replace: true, state: { email } })}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
@@ -435,7 +429,7 @@ function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
             </button>
             <button
               type="submit"
-              disabled={isResetting}
+              disabled={isResetting || visualOnly}
               className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
               {isResetting ? 'Resetting password...' : 'Continue'}
@@ -445,6 +439,20 @@ function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
       </section>
     </main>
   )
+}
+
+function NewPassword({ recoveryBasePath = '', frontendOnly = false }) {
+  const { state } = useLocation()
+  const email = typeof state?.email === 'string' ? state.email.trim() : ''
+  const otp = typeof state?.otp === 'string' ? state.otp : ''
+  const [previewResetVerified] = useState(() => frontendOnly && hasVerifiedDoctorPreviewReset(email, otp))
+  const hasVerificationInfo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && /^\d{6}$/.test(otp) && (!frontendOnly || previewResetVerified)
+
+  if (!hasVerificationInfo) {
+    return <Navigate to={`${recoveryBasePath}/forgot-password`} replace state={null} />
+  }
+
+  return <NewPasswordForm recoveryBasePath={recoveryBasePath} frontendOnly={frontendOnly} email={email} otp={otp} previewResetVerified={previewResetVerified} />
 }
 
 export default NewPassword

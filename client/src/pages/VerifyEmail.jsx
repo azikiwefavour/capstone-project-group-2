@@ -4,15 +4,46 @@ import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
-function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard' }) {
+function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', backPath, allowResend = false }) {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationError, setVerificationError] = useState('')
+  const [isResending, setIsResending] = useState(false)
+  const [resendNotice, setResendNotice] = useState('')
   const verificationInFlight = useRef(false)
   const codeInputRefs = useRef([])
   const navigate = useNavigate()
   const { state } = useLocation()
   const email = typeof state?.email === 'string' ? state.email.trim() : ''
+
+  async function handleResend() {
+    if (verificationInFlight.current) return
+    setVerificationError('')
+    setResendNotice('')
+    if (!email) {
+      setVerificationError('Your email is missing. Please go back to login and enter your email.')
+      return
+    }
+    verificationInFlight.current = true
+    setIsResending(true)
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/resend-email-otp`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+      })
+      const data = await response.json().catch(() => null)
+      if (response.status !== 200) {
+        const message = Array.isArray(data?.message) ? data.message.filter(value => typeof value === 'string').join(' ') : typeof data?.message === 'string' ? data.message : ''
+        setVerificationError(message || 'Unable to resend your code. Please try again.')
+        return
+      }
+      setResendNotice('A new verification code has been sent to your email.')
+    } catch {
+      setVerificationError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      verificationInFlight.current = false
+      setIsResending(false)
+    }
+  }
 
   function handleCodeChange(index, value) {
     const digits = value.replace(/\D/g, '')
@@ -78,7 +109,7 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard' })
     }
 
     if (!email) {
-      setVerificationError('Your registration email is missing. Please go back and create your account.')
+      setVerificationError(backPath ? 'Your email is missing. Please go back to login and enter your email.' : 'Your registration email is missing. Please go back and create your account.')
       return
     }
 
@@ -101,7 +132,7 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard' })
         if (response.status === 400) {
           setVerificationError(message || 'The verification code is incorrect or expired. Please try again.')
         } else if (response.status === 404) {
-          setVerificationError(message || 'No account found with this email. Please go back and create your account.')
+          setVerificationError(message || (backPath ? 'No account found with this email. Please check your invitation or contact your administrator.' : 'No account found with this email. Please go back and create your account.'))
         } else {
           setVerificationError('Email verification could not be completed. Please try again.')
         }
@@ -138,7 +169,7 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard' })
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="Verify email form" onSubmit={handleContinue} aria-busy={isVerifying}>
+        <form className="w-full max-w-[440px]" aria-label="Verify email form" onSubmit={handleContinue} aria-busy={isVerifying || isResending}>
           <div className="text-center">
             <h2 className="text-3xl font-semibold tracking-normal text-[#111827] sm:text-[2.5rem] lg:text-4xl [@media(min-height:850px)]:lg:text-[2.5rem]">
               Verify email
@@ -183,19 +214,23 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard' })
               {verificationError}
             </p>
           )}
+          {allowResend && <div className="mt-3 text-center text-sm">
+            <button type="button" disabled={isVerifying || isResending} onClick={handleResend} className="font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20 disabled:opacity-60">{isResending ? 'Sending code...' : 'Resend code'}</button>
+            {resendNotice && <p role="status" className="mt-2 text-[#2F7D59]">{resendNotice}</p>}
+          </div>}
 
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
-              disabled={isVerifying}
-              onClick={() => navigate(frontendOnly ? '/doctor/login' : '/create-account')}
+              disabled={isVerifying || isResending}
+              onClick={() => navigate(backPath || (frontendOnly ? '/doctor/login' : '/create-account'))}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
               Go back
             </button>
             <button
               type="submit"
-              disabled={isVerifying}
+              disabled={isVerifying || isResending}
               className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
               {isVerifying ? 'Verifying...' : 'Continue'}

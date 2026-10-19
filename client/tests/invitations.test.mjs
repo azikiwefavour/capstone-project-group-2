@@ -4,7 +4,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 
 const sources = {}
-for (const name of ['session', 'doctorSession', 'invitations']) sources[name] = await readFile(new URL(`../src/auth/${name}.js`, import.meta.url), 'utf8')
+for (const name of ['session', 'doctorSession', 'pharmacistSession', 'invitations']) sources[name] = await readFile(new URL(`../src/auth/${name}.js`, import.meta.url), 'utf8')
 const invitation = { name: 'Unit test doctor', email: 'doctor@example.test', role: 'doctor' }
 const credentials = { token: 'unit-test-invitation', password: 'UnitTest!123', confirmPassword: 'UnitTest!123', invitation }
 // Backend-response fixtures are confined to tests, never application authentication.
@@ -22,9 +22,11 @@ async function load(fetch) {
   await modules.session.evaluate()
   await modules.doctorSession.link(() => modules.session)
   await modules.doctorSession.evaluate()
+  await modules.pharmacistSession.link(() => modules.session)
+  await modules.pharmacistSession.evaluate()
   await modules.invitations.link(specifier => modules[specifier.replace('./', '')])
   await modules.invitations.evaluate()
-  return { api: modules.invitations.namespace, doctor: modules.doctorSession.namespace, admin: modules.session.namespace, store, entries }
+  return { api: modules.invitations.namespace, doctor: modules.doctorSession.namespace, pharmacist: modules.pharmacistSession.namespace, admin: modules.session.namespace, store, entries }
 }
 
 test('validates the exact invitation query and accepts only supported verified invitation metadata', async () => {
@@ -99,9 +101,11 @@ test('malformed, expired, wrong-role, wrong-user, and wrong-email results cannot
 })
 
 test('Pharmacist completion does not store its token as a Doctor or Admin session', async () => {
-  const { api, doctor, admin, store } = await load(async () => response({ accessToken: jwt('pharmacist', 'pharmacist-fixture'), user: { id: 'pharmacist-fixture', role: 'pharmacist', email: 'pharmacist@example.test' } }))
+  const { api, doctor, pharmacist, admin, store } = await load(async () => response({ accessToken: jwt('pharmacist', 'pharmacist-fixture'), user: { id: 'pharmacist-fixture', role: 'pharmacist', email: 'pharmacist@example.test' } }))
   const result = await api.completeInvitation({ ...credentials, invitation: { ...invitation, role: 'pharmacist', email: 'pharmacist@example.test' } })
   assert.equal(result.role, 'pharmacist')
+  assert.equal(pharmacist.getPharmacistAccessToken(), jwt('pharmacist', 'pharmacist-fixture'))
+  assert.equal(JSON.parse(store.getItem('medtrailPharmacistSession')).token, pharmacist.getPharmacistAccessToken())
   assert.equal(doctor.getDoctorAccessToken(), null)
   assert.equal(admin.getAccessToken(), null)
   assert.equal(store.getItem('medtrailAdminSession'), null)
@@ -124,4 +128,33 @@ test('network failures are reported without starting an authenticated session', 
   await assert.rejects(api.validateInvitation('test-invitation'), /connect/)
   await assert.rejects(api.completeInvitation(credentials), /network/)
   assert.equal(doctor.getDoctorAccessToken(), null)
+})
+
+test('Pharmacist invitation setup preserves existing Doctor and Admin sessions', async () => {
+  const { api, pharmacist, doctor, admin, store } = await load(async () => response({ accessToken: jwt('pharmacist', 'pharmacist-fixture'), user: { id: 'pharmacist-fixture', role: 'pharmacist', email: 'pharmacist@example.test' } }))
+  doctor.setDoctorAccessToken(jwt())
+  admin.setAccessToken(jwt('admin', 'admin-fixture'), 'admin')
+  const savedDoctor = store.getItem('medtrailDoctorSession')
+  const savedAdmin = store.getItem('medtrailAdminSession')
+  await api.completeInvitation({ ...credentials, invitation: { ...invitation, role: 'pharmacist', email: 'pharmacist@example.test' } })
+  pharmacist.setPharmacistAccessToken(null)
+  assert.equal(store.getItem('medtrailDoctorSession'), savedDoctor)
+  assert.equal(store.getItem('medtrailAdminSession'), savedAdmin)
+})
+
+test('invalid and cancelled Pharmacist invitation results never establish a session', async () => {
+  const pharmacistCredentials = { ...credentials, invitation: { ...invitation, role: 'pharmacist' } }
+  for (const data of [registered(), registered({ accessToken: jwt('pharmacist'), user: { id: 'doctor-fixture', role: 'pharmacist', email: 'wrong@example.test' } })]) {
+    const { api, pharmacist } = await load(async () => response(data))
+    await assert.rejects(api.completeInvitation(pharmacistCredentials), /session response/)
+    assert.equal(pharmacist.getPharmacistAccessToken(), null)
+  }
+  let finish
+  const { api, pharmacist } = await load(() => new Promise(resolve => { finish = resolve }))
+  const controller = new AbortController()
+  const pending = api.completeInvitation({ ...pharmacistCredentials, signal: controller.signal })
+  controller.abort()
+  finish(response({ accessToken: jwt('pharmacist'), user: { id: 'doctor-fixture', role: 'pharmacist', email: invitation.email } }))
+  assert.equal(await pending, null)
+  assert.equal(pharmacist.getPharmacistAccessToken(), null)
 })

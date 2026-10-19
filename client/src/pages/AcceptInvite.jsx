@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { completeInvitation } from '../auth/invitations'
 import useInvitation from '../auth/useInvitation'
 import medicationImage from '../assets/medication-image.png'
@@ -119,6 +119,16 @@ function InvitationForm() {
   const prefix = roleLower === 'doctor' ? 'Dr.' : roleLower === 'pharmacist' ? 'Pharm.' : ''
   const displayName = prefix ? `${prefix} ${cleanName}` : cleanName
   const roleDisplay = roleLower.charAt(0).toUpperCase() + roleLower.slice(1)
+  // A URL role hint controls error-page navigation only, never invitation validation.
+  const loginRole = userData?.role || searchParams.get('role')
+  const loginOptions = loginRole === 'doctor' || loginRole === 'pharmacist'
+    ? [{ to: `/${loginRole}/login`, label: 'Return to Login' }]
+    : [{ to: '/doctor/login', label: 'Doctor Login' }, { to: '/pharmacist/login', label: 'Pharmacist Login' }]
+
+  // Existing invitation emails keep their shared entry point. Doctor stays on this screen.
+  if (userData?.role === 'pharmacist' && !validationError) {
+    return <Navigate to={`/pharmacist/create-password?${searchParams.toString()}`} replace />
+  }
 
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
@@ -163,13 +173,13 @@ function InvitationForm() {
               <h2 className="mt-4 text-xl font-bold text-[#111827]">Invitation Link Issue</h2>
               <p className="mt-2 text-sm text-[#52556C]">{validationError}</p>
               <div className="mt-6 flex flex-col gap-3">
-                <Link
-                  to={userData?.role === 'pharmacist' ? '/login' : '/doctor/login'}
-                  state={userData?.role === 'pharmacist' ? { selectedRole: 'Pharmacist' } : undefined}
+                {loginOptions.map(option => <Link
+                  key={option.to}
+                  to={option.to}
                   className="inline-flex h-11 items-center justify-center rounded-xl bg-[#475AA2] px-6 text-sm font-semibold text-white transition hover:bg-[#3D4F91]"
                 >
-                  Return to Login
-                </Link>
+                  {option.label}
+                </Link>)}
               </div>
             </div>
           ) : isSuccess ? (

@@ -1,0 +1,198 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+import vm from 'node:vm'
+
+const source = await readFile(new URL('../src/auth/pharmacistSession.js', import.meta.url), 'utf8')
+const sharedSource = await readFile(new URL('../src/auth/session.js', import.meta.url), 'utf8')
+const key = 'medtrailPharmacistSession'
+// Isolated unit-test fixtures only. Production access always requires backend JWT validation.
+const token = (payload = {}) => `test.${Buffer.from(JSON.stringify({ sub: 'pharmacist-fixture', role: 'pharmacist', exp: Math.floor(Date.now() / 1000) + 600, ...payload })).toString('base64url')}.test`
+const profile = { id: 'pharmacist-fixture', name: 'Pharmacist test fixture', role: 'pharmacist', isEmailVerified: true }
+const response = (body, status = 200) => new Response(JSON.stringify(body), { status })
+function storage() {
+  const entries = new Map()
+  return { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value), removeItem: key => entries.delete(key) }
+}
+async function load(store = storage(), fetch = async () => response(profile), env = {}) {
+  const context = vm.createContext({ sessionStorage: store, fetch, atob, Date, Error })
+  const shared = new vm.SourceTextModule(sharedSource, { context })
+  await shared.link(() => { throw Error('Unexpected shared import') })
+  await shared.evaluate()
+  const session = new vm.SourceTextModule(source, { context, initializeImportMeta(meta) { meta.env = env } })
+  await session.link(() => shared)
+  await session.evaluate()
+  return { session: session.namespace, shared: shared.namespace, store }
+}
+
+test('restores a Pharmacist token after reload and verifies it with the backend before granting access', async () => {
+  const store = storage(), jwt = token()
+  const original = await load(store)
+  original.session.setPharmacistAccessToken(jwt)
+  const restored = await load(store)
+  assert.equal(restored.session.getPharmacistAccessToken(), jwt)
+  assert.equal((await restored.session.verifyPharmacistSession(jwt)).name, profile.name)
+  assert.deepEqual(JSON.parse(store.getItem(key)), { token: jwt })
+  restored.session.setPharmacistAccessToken(null)
+  assert.equal((await load(store)).session.getPharmacistAccessToken(), null)
+  assert.equal(store.getItem(key), null)
+})
+
+test('Pharmacist login and logout never overwrite an Admin session', async () => {
+  const store = storage()
+  const { session, shared } = await load(store)
+  const adminToken = token({ role: 'admin' })
+  shared.setAccessToken(adminToken, 'admin')
+  const saved = store.getItem('medtrailAdminSession')
+  session.setPharmacistAccessToken(token())
+  session.setPharmacistAccessToken(null)
+  assert.equal(store.getItem('medtrailAdminSession'), saved)
+  assert.equal(shared.getAccessToken(), adminToken)
+  assert.equal(shared.getAuthenticatedRole(), 'admin')
+})
+
+test('missing, malformed, expired, non-Pharmacist or subject-less tokens are not restored', async () => {
+  for (const saved of [null, 'broken JSON', JSON.stringify({ token: 'broken' }), JSON.stringify({ token: token({ exp: 1 }) }), JSON.stringify({ token: token({ role: 'admin' }) }), JSON.stringify({ token: token({ sub: null }) })]) {
+    const store = storage()
+    if (saved) store.setItem(key, saved)
+    const { session } = await load(store)
+    assert.equal(session.getPharmacistAccessToken(), null)
+    assert.equal(store.getItem(key), null)
+  }
+})
+
+test('profile verification waits for the backend and sends only its Bearer token', async () => {
+  let finish, request
+  const { session } = await load(storage(), (url, options) => { request = { url, ...options }; return new Promise(resolve => { finish = resolve }) })
+  const jwt = token()
+  session.setPharmacistAccessToken(jwt)
+  let complete = false
+  const pending = session.verifyPharmacistSession(jwt).then(result => { complete = true; return result })
+  assert.equal(complete, false)
+  assert.equal(request.url, 'http://localhost:3000/api/auth/profile')
+  assert.equal(request.headers.Authorization, `Bearer ${jwt}`)
+  assert.equal(request.cache, 'no-store')
+  finish(response(profile))
+  assert.equal((await pending).name, profile.name)
+})
+
+test('rejected tokens, wrong roles/identities, and unverified/pending users clear Pharmacist authentication', async () => {
+  for (const [data, status] of [[{}, 401], [{}, 403], [{}, 404], [{ ...profile, role: 'admin' }, 200], [{ ...profile, id: 'different-user' }, 200], [{ ...profile, isEmailVerified: false }, 200], [{ ...profile, invitationStatus: 'pending' }, 200]]) {
+    const { session, store } = await load(storage(), async () => response(data, status))
+    const jwt = token()
+    session.setPharmacistAccessToken(jwt)
+    assert.equal(await session.verifyPharmacistSession(jwt), null)
+    assert.equal(session.getPharmacistAccessToken(), null)
+    assert.equal(store.getItem(key), null)
+  }
+})
+
+test('network/server/schema errors do not grant access or discard a candidate session', async () => {
+  for (const fetch of [async () => { throw Error('Offline') }, async () => response({}, 503), async () => response({})]) {
+    const { session, store } = await load(storage(), fetch)
+    const jwt = token()
+    session.setPharmacistAccessToken(jwt)
+    await assert.rejects(session.verifyPharmacistSession(jwt), /session/)
+    assert.equal(session.getPharmacistAccessToken(), jwt)
+    assert.ok(store.getItem(key))
+  }
+})
+
+test('late/aborted checks cannot restore a logged-out session or invalidate a newer login', async () => {
+  for (const action of ['logout', 'new-login', 'same-token-login', 'abort']) {
+    let finish
+    const { session } = await load(storage(), () => new Promise(resolve => { finish = resolve }))
+    const jwt = token(), newer = token({ exp: Math.floor(Date.now() / 1000) + 1200 })
+    session.setPharmacistAccessToken(jwt)
+    const controller = new AbortController()
+    const pending = session.verifyPharmacistSession(jwt, controller.signal)
+    if (action === 'logout') session.setPharmacistAccessToken(null)
+    if (action === 'new-login') session.setPharmacistAccessToken(newer)
+    if (action === 'same-token-login') { session.setPharmacistAccessToken(null); session.setPharmacistAccessToken(jwt) }
+    if (action === 'abort') controller.abort()
+    finish(response({}, 401))
+    assert.equal(await pending, null)
+    assert.equal(session.getPharmacistAccessToken(), action === 'logout' ? null : action === 'new-login' ? newer : jwt)
+  }
+})
+
+test('real login request uses email, password and Pharmacist role; backend response must match identity', async () => {
+  const jwt = token()
+  let request
+  const { session } = await load(storage(), async (url, options) => {
+    request = { url, ...options }
+    return response({ accessToken: jwt, user: { id: profile.id, role: 'pharmacist' } })
+  })
+  await session.loginPharmacist({ email: ' Test@Example.com ', password: 'unit-test-input' })
+  assert.equal(request.url, 'http://localhost:3000/api/auth/login')
+  assert.deepEqual(JSON.parse(request.body), { email: 'test@example.com', password: 'unit-test-input', role: 'pharmacist' })
+  assert.equal(session.getPharmacistAccessToken(), jwt)
+})
+
+test('failed login and malformed or non-Pharmacist responses never create a session', async () => {
+  for (const [data, status] of [[{ message: 'Invalid email or password' }, 401], [{ message: 'Please verify your email' }, 401], [{ message: ['Invalid email'] }, 400], [{}, 200], [{ accessToken: token(), user: { id: profile.id, role: 'admin' } }, 200], [{ accessToken: token(), user: { id: 'wrong-user', role: 'pharmacist' } }, 200]]) {
+    const { session } = await load(storage(), async () => response(data, status))
+    await assert.rejects(session.loginPharmacist({ email: 'test@example.com', password: 'unit-test-input' }))
+    assert.equal(session.getPharmacistAccessToken(), null)
+  }
+})
+
+test('logout during login prevents a late response from recreating the session', async () => {
+  let finish
+  const { session } = await load(storage(), () => new Promise(resolve => { finish = resolve }))
+  const pending = session.loginPharmacist({ email: 'test@example.com', password: 'unit-test-input' })
+  session.setPharmacistAccessToken(null)
+  finish(response({ accessToken: token(), user: { id: profile.id, role: 'pharmacist' } }))
+  await assert.rejects(pending, /no longer active/)
+  assert.equal(session.getPharmacistAccessToken(), null)
+})
+
+test('restricted storage remains memory-only and session notifications support logout', async () => {
+  const { session } = await load({ getItem() { throw Error('Disabled') }, setItem() { throw Error('Disabled') }, removeItem() { throw Error('Disabled') } })
+  let notifications = 0
+  const unsubscribe = session.subscribeToPharmacistSession(() => notifications++)
+  const jwt = token()
+  session.setPharmacistAccessToken(jwt)
+  assert.equal(session.getPharmacistAccessToken(), jwt)
+  session.setPharmacistAccessToken(null)
+  assert.equal(notifications, 2)
+  unsubscribe()
+})
+
+test('configured API base and cancellation are passed to real Pharmacist login', async () => {
+  let request
+  const { session } = await load(storage(), async (url, options) => {
+    request = { url, ...options }
+    return response({ accessToken: token(), user: { id: profile.id, role: 'pharmacist' } })
+  }, { VITE_API_BASE_URL: 'https://api.example.test///' })
+  const controller = new AbortController()
+  await session.loginPharmacist({ email: 'pharmacist@example.test', password: 'UnitTest!123', signal: controller.signal })
+  assert.equal(request.url, 'https://api.example.test/api/auth/login')
+  assert.equal(request.signal, controller.signal)
+  assert.equal(request.method, 'POST')
+})
+
+test('abandoned and superseded logins cannot create or overwrite a session', async () => {
+  for (const action of ['abort', 'new-login']) {
+    let finish
+    const { session } = await load(storage(), () => new Promise(resolve => { finish = resolve }))
+    const controller = new AbortController()
+    const pending = session.loginPharmacist({ email: 'pharmacist@example.test', password: 'UnitTest!123', signal: controller.signal })
+    const newer = token({ sub: 'new-pharmacist' })
+    if (action === 'abort') controller.abort()
+    else session.setPharmacistAccessToken(newer)
+    finish(response({ accessToken: token(), user: { id: profile.id, role: 'pharmacist' } }))
+    await assert.rejects(pending, /no longer active/)
+    assert.equal(session.getPharmacistAccessToken(), action === 'abort' ? null : newer)
+  }
+})
+
+test('Doctor, Admin, and Patient credentials cannot become Pharmacist credentials', async () => {
+  for (const role of ['doctor', 'admin', 'patient']) {
+    const { session } = await load(storage(), async () => response({ accessToken: token({ role }), user: { id: profile.id, role } }))
+    session.setPharmacistAccessToken(token({ role }))
+    assert.equal(session.getPharmacistAccessToken(), null)
+    await assert.rejects(session.loginPharmacist({ email: 'other@example.test', password: 'UnitTest!123' }))
+    assert.equal(session.getPharmacistAccessToken(), null)
+  }
+})

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
 import { isValidPreviewPassword, startDoctorPreviewSession } from '../doctor/previewAuth'
@@ -96,7 +96,7 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
-function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate }) {
+function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate, successPath = '/doctor/dashboard', invitationOnly = false }) {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -105,6 +105,8 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
   const [loginError, setLoginError] = useState('')
   const [loginNotice, setLoginNotice] = useState('')
   const loginInFlight = useRef(false)
+  const loginController = useRef(null)
+  useEffect(() => () => loginController.current?.abort(), [])
   const location = useLocation()
   const navigate = useNavigate()
   const selectedRole = authenticationRole || location.state?.selectedRole
@@ -146,17 +148,20 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       return
     }
 
-    // Doctor-specific authentication is isolated from the existing Admin session.
+    // Role-specific authentication is isolated from the existing Admin session.
     if (onAuthenticate) {
       loginInFlight.current = true
+      const controller = new AbortController()
+      loginController.current = controller
       setIsLoggingIn(true)
       try {
-        await onAuthenticate({ email: email.trim().toLowerCase(), password })
+        await onAuthenticate({ email: email.trim().toLowerCase(), password, signal: controller.signal })
+        if (controller.signal.aborted) return
         setPassword('')
         setContinueClicked(false)
-        navigate('/doctor/dashboard', { replace: true })
+        navigate(successPath, { replace: true })
       } catch (error) {
-        setLoginError(error.message || 'Login could not be completed. Please try again.')
+        if (!controller.signal.aborted) setLoginError(error.message || 'Login could not be completed. Please try again.')
       } finally {
         loginInFlight.current = false
         setIsLoggingIn(false)
@@ -231,6 +236,9 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
 
   if (!frontendOnly && role === 'doctor' && !onAuthenticate) {
     return <Navigate to="/doctor/login" replace />
+  }
+  if (role === 'pharmacist' && !onAuthenticate) {
+    return <Navigate to="/pharmacist/login" replace />
   }
 
   return (
@@ -343,6 +351,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           {loginError && (
             <div role="alert" className="mt-3">
               <FieldError id="login-error" message={loginError} />
+              {invitationOnly && isEmailValid && <button type="button" onClick={() => navigate(`${recoveryBasePath}/verify-email`, { state: { email: email.trim().toLowerCase() } })} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">Need to verify your email?</button>}
               {!role && (
                 <button type="button" onClick={() => navigate('/select-role')} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
                   Select role
@@ -363,14 +372,18 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           </button>
 
           <p className="mt-4 text-center text-sm text-[#7A8190] [@media(min-height:850px)]:lg:mt-6">
-            Don&rsquo;t have an account?{' '}
-            <button
-              type="button"
-              onClick={() => navigate(authenticationRole === 'Doctor' ? '/doctor/create-password' : '/create-account')}
-              className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
-            >
-              Create one
-            </button>
+            {invitationOnly ? 'Invited to MedTrail? Use the invitation link in your email to create your account.' : (
+              <>
+                Don&rsquo;t have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate(authenticationRole === 'Doctor' ? '/doctor/create-password' : '/create-account')}
+                  className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
+                >
+                  Create one
+                </button>
+              </>
+            )}
           </p>
         </form>
       </section>

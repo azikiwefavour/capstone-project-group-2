@@ -20,6 +20,14 @@ import NewPassword from './pages/NewPassword'
 import RoleSelection from './pages/RoleSelection'
 import VerifyEmail from './pages/VerifyEmail'
 import VerifyResetCode from './pages/VerifyResetCode'
+import PharmacistLogin from './pharmacist/pages/PharmacistLogin'
+import PharmacistCreatePassword from './pharmacist/pages/PharmacistCreatePassword'
+import PharmacistDashboard from './pharmacist/pages/PharmacistDashboard'
+import PharmacistLayout from './pharmacist/components/PharmacistLayout'
+
+const PharmacistNewPasswordPreview = import.meta.env.DEV
+  ? lazy(() => import('./pharmacist/previews/PharmacistNewPasswordPreview'))
+  : null
 
 const DoctorPatientPreview = import.meta.env.DEV
   ? lazy(() => import('./doctor/previews/DoctorPatientPreview'))
@@ -61,6 +69,17 @@ function App() {
         <Route path="/verify-reset-code" element={<VerifyResetCode />} />
         <Route path="/new-password" element={<NewPassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
+        <Route path="/pharmacist/login" element={<PharmacistLogin />} />
+        <Route path="/pharmacist/create-password" element={<PharmacistCreatePassword />} />
+        <Route path="/pharmacist/verify-email" element={<VerifyEmail successPath="/pharmacist/login" backPath="/pharmacist/login" allowResend />} />
+        <Route path="/pharmacist/forgot-password" element={<ForgotPassword recoveryBasePath="/pharmacist" />} />
+        <Route path="/pharmacist/verify-reset-code" element={<VerifyResetCode recoveryBasePath="/pharmacist" />} />
+        <Route path="/pharmacist/new-password" element={<NewPassword recoveryBasePath="/pharmacist" />} />
+        {import.meta.env.DEV && <Route path="/pharmacist/preview/new-password" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading design preview...</p>}><PharmacistNewPasswordPreview /></Suspense>} />}
+        <Route path="/pharmacist" element={<PharmacistLayout />}>
+          <Route index element={<Navigate to="/pharmacist/dashboard" replace />} />
+          <Route path="dashboard" element={<PharmacistDashboard />} />
+        </Route>
         <Route path="/doctor/create-password" element={<DoctorCreatePassword />} />
         <Route path="/doctor/login" element={<DoctorLogin />} />
         <Route path="/doctor/verify-email" element={<VerifyEmail successPath="/doctor/login" />} />
