@@ -97,7 +97,7 @@ export class AdminController {
     @Param('id') id: string,
     @CurrentUser() admin: { sub: string; email: string; name?: string },
   ) {
-    return this.adminService.resendInvitation(id, admin.name ?? admin.email);
+    return this.adminService.resendInvitation(id, admin.name ?? admin.email, admin.sub);
   }
 
   // ── DELETE /api/admin/users/:id ──────────────────────────────────────────
@@ -105,7 +105,10 @@ export class AdminController {
   @ApiOperation({ summary: 'Delete a user (admin only)' })
   @ApiResponse({ status: 200, description: 'User deleted' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  removeUser(@Param('id') id: string) {
-    return this.adminService.removeUser(id);
+  removeUser(
+    @Param('id') id: string,
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.removeUser(id, admin?.sub);
   }
 }

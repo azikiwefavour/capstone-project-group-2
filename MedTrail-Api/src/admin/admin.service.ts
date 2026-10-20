@@ -33,19 +33,41 @@ export class AdminService {
   // ─── Dashboard Stats ──────────────────────────────────────────────────────
 
   async getDashboardStats(adminId?: string) {
-    let users = await this.usersService.findAll();
-    if (adminId) {
-      const admin = await this.usersService.findById(adminId);
-      if (admin?.hospitalName) {
-        const hospitalLower = admin.hospitalName.trim().toLowerCase();
-        users = users.filter(
-          (u) =>
-            (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
-            u.id === adminId ||
-            (u.invitedBy && u.invitedBy.includes(adminId)),
+    if (!adminId) {
+      return {
+        totalUsers: 0,
+        byRole: {},
+        verified: 0,
+        unverified: 0,
+        invitedPending: 0,
+        invitedAccepted: 0,
+      };
+    }
+
+    const admin = await this.usersService.findById(adminId);
+    if (!admin) {
+      return {
+        totalUsers: 0,
+        byRole: {},
+        verified: 0,
+        unverified: 0,
+        invitedPending: 0,
+        invitedAccepted: 0,
+      };
+    }
+
+    const hospitalLower = admin.hospitalName?.trim().toLowerCase();
+    const allUsers = await this.usersService.findAll();
+
+    const users = allUsers.filter((u) => {
+      if (hospitalLower) {
+        return (
+          (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
+          u.id === adminId
         );
       }
-    }
+      return u.id === adminId || (u.invitedBy && u.invitedBy.includes(adminId));
+    });
 
     const total = users.length;
     const byRole = users.reduce(
@@ -72,37 +94,43 @@ export class AdminService {
   // ─── Get All Users ────────────────────────────────────────────────────────
 
   async getAllUsers(adminId?: string) {
-    let users = await this.usersService.findAll();
-    if (adminId) {
-      const admin = await this.usersService.findById(adminId);
-      if (admin?.hospitalName) {
-        const hospitalLower = admin.hospitalName.trim().toLowerCase();
-        users = users.filter(
-          (u) =>
-            (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
-            u.id === adminId ||
-            (u.invitedBy && u.invitedBy.includes(adminId)),
+    if (!adminId) return [];
+
+    const admin = await this.usersService.findById(adminId);
+    if (!admin) return [];
+
+    const hospitalLower = admin.hospitalName?.trim().toLowerCase();
+    const allUsers = await this.usersService.findAll();
+
+    return allUsers.filter((u) => {
+      if (hospitalLower) {
+        return (
+          (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
+          u.id === adminId
         );
       }
-    }
-    return users;
+      return u.id === adminId || (u.invitedBy && u.invitedBy.includes(adminId));
+    });
   }
 
   // ─── Get Invited Users (admin pending list) ───────────────────────────────
 
   async getInvitedUsers(adminId?: string) {
-    let users = await this.usersService.findAllInvited();
-    if (adminId) {
-      const admin = await this.usersService.findById(adminId);
-      if (admin?.hospitalName) {
-        const hospitalLower = admin.hospitalName.trim().toLowerCase();
-        users = users.filter(
-          (u) =>
-            (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
-            (u.invitedBy && u.invitedBy.includes(adminId)),
-        );
+    if (!adminId) return [];
+
+    const admin = await this.usersService.findById(adminId);
+    if (!admin) return [];
+
+    const hospitalLower = admin.hospitalName?.trim().toLowerCase();
+    const allInvited = await this.usersService.findAllInvited();
+
+    const users = allInvited.filter((u) => {
+      if (hospitalLower) {
+        return u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower;
       }
-    }
+      return u.invitedBy && u.invitedBy.includes(adminId);
+    });
+
     return users.map((u) => ({
       id: u.id,
       name: u.name,
@@ -190,9 +218,18 @@ export class AdminService {
 
   // ─── Resend Invitation ────────────────────────────────────────────────────
 
-  async resendInvitation(userId: string, adminName: string) {
+  async resendInvitation(userId: string, adminName: string, adminId?: string) {
     const user = await this.usersService.findById(userId, true);
     if (!user) throw new NotFoundException('User not found');
+
+    if (adminId) {
+      const admin = await this.usersService.findById(adminId);
+      const adminHospital = admin?.hospitalName?.trim().toLowerCase();
+      const userHospital = user.hospitalName?.trim().toLowerCase();
+      if (adminHospital && userHospital && adminHospital !== userHospital) {
+        throw new NotFoundException('User not found in your hospital');
+      }
+    }
 
     if (user.invitationStatus === 'accepted') {
       throw new ConflictException('This user has already accepted their invitation and completed registration.');
@@ -235,7 +272,19 @@ export class AdminService {
 
   // ─── Remove User ──────────────────────────────────────────────────────────
 
-  async removeUser(id: string) {
+  async removeUser(id: string, adminId?: string) {
+    const user = await this.usersService.findById(id);
+    if (!user) throw new NotFoundException('User not found');
+
+    if (adminId) {
+      const admin = await this.usersService.findById(adminId);
+      const adminHospital = admin?.hospitalName?.trim().toLowerCase();
+      const userHospital = user.hospitalName?.trim().toLowerCase();
+      if (adminHospital && userHospital && adminHospital !== userHospital) {
+        throw new NotFoundException('User not found in your hospital');
+      }
+    }
+
     await this.usersService.remove(id);
     return { message: 'User deleted successfully' };
   }

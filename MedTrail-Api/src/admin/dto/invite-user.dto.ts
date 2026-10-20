@@ -23,15 +23,15 @@ export class InviteUserDto {
   email: string;
 
   @ApiProperty({
-    enum: [UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT],
+    enum: [UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT],
     example: UserRole.DOCTOR,
-    description: 'Role to assign – doctor, pharmacist, or patient',
+    description: 'Role to assign – admin, doctor, pharmacist, or patient',
   })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
-  @IsEnum([UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT], {
-    message: 'Role must be either "doctor", "pharmacist", or "patient"',
+  @IsEnum([UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT], {
+    message: 'Role must be either "admin", "doctor", "pharmacist", or "patient"',
   })
-  role: UserRole.DOCTOR | UserRole.PHARMACIST | UserRole.PATIENT;
+  role: UserRole.ADMIN | UserRole.DOCTOR | UserRole.PHARMACIST | UserRole.PATIENT;
 
   @ApiProperty({ example: 'Lagos General Hospital', description: 'Hospital or pharmacy name', required: false })
   @IsString()

@@ -59,10 +59,10 @@ export class AuthService {
     const expiry = this.otpExpiry();
 
     const user = await this.usersService.create({
-      name: dto.name,
-      email: dto.email.toLowerCase(),
-      phone: dto.phone,
-      hospitalName: dto.hospitalName,
+      name: dto.name.trim(),
+      email: dto.email.trim().toLowerCase(),
+      phone: dto.phone?.trim() ?? null,
+      hospitalName: dto.hospitalName.trim(),
       password: hashedPassword,
       role: UserRole.ADMIN,
       emailOtp: otp,
