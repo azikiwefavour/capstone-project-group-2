@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Prescription, PrescriptionStatus } from '../doctor/entities/prescription.entity';
 import { Activity } from '../doctor/entities/activity.entity';
 import { UsersService } from '../users/users.service';
@@ -48,7 +48,7 @@ export class PharmacyService {
     const hospitalName = pharmacist.hospitalName || 'General Hospital';
 
     const prescriptions = await this.prescriptionRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
     });
 
@@ -89,7 +89,7 @@ export class PharmacyService {
     const hospitalName = pharmacist.hospitalName || 'General Hospital';
 
     let prescriptions = await this.prescriptionRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
     });
 
@@ -124,6 +124,14 @@ export class PharmacyService {
       where: { id: prescriptionId },
     });
     if (!rx) throw new NotFoundException('Prescription not found');
+
+    if (
+      pharmacist.hospitalName &&
+      rx.hospitalName &&
+      pharmacist.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
 
     if (rx.status === PrescriptionStatus.DISPENSED) {
       throw new BadRequestException('Prescription is already dispensed');
@@ -175,6 +183,14 @@ export class PharmacyService {
       where: { id: prescriptionId },
     });
     if (!rx) throw new NotFoundException('Prescription not found');
+
+    if (
+      pharmacist.hospitalName &&
+      rx.hospitalName &&
+      pharmacist.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
 
     const cleanPharmName = pharmacist.name.startsWith('Pharm.')
       ? pharmacist.name
