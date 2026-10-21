@@ -2,13 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Prescription, PrescriptionStatus } from './entities/prescription.entity';
 import { Activity } from './entities/activity.entity';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
 import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
@@ -16,6 +19,7 @@ import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
 import { ModifyPrescriptionDto } from './dto/modify-prescription.dto';
 import { DiscontinuePrescriptionDto } from './dto/discontinue-prescription.dto';
 import { ConfirmPrescriptionDto } from './dto/confirm-prescription.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 
 function formatPrescriptionDate(date: Date): string {
   if (!date) return '';
@@ -59,7 +63,91 @@ export class DoctorService {
     private readonly activityRepo: Repository<Activity>,
 
     private readonly usersService: UsersService,
+    private readonly mailService: MailService,
   ) {}
+
+  // ─── Invite Patient ───────────────────────────────────────────────────────
+
+  async invitePatient(doctorId: string, dto: InvitePatientDto) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const hospitalName = doctor.hospitalName || 'General Hospital';
+
+    const existing = await this.usersService.findByEmail(dto.email);
+    if (existing) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    const token = randomUUID();
+    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    const patient = await this.usersService.create({
+      name: dto.name,
+      email: dto.email.toLowerCase(),
+      phone: dto.phone ?? null,
+      gender: dto.gender ?? null,
+      age: dto.age ?? null,
+      hospitalName,
+      password: null,
+      role: UserRole.PATIENT,
+      invitedRole: UserRole.PATIENT,
+      isInvited: true,
+      invitationStatus: 'pending',
+      invitationToken: token,
+      invitationTokenExpiry: expiry,
+      isEmailVerified: false,
+      invitedBy: `${cleanDoctorName} (${doctor.id})`,
+    });
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+
+    try {
+      await this.mailService.sendInvitationEmail(
+        patient.email,
+        patient.name,
+        UserRole.PATIENT,
+        frontendInviteUrl,
+        hospitalName,
+        expiry,
+      );
+    } catch (err: any) {
+      this.logger.warn(`Failed to send invitation email to patient ${patient.email}: ${err.message}`);
+    }
+
+    // Record activity for audit log
+    try {
+      const activity = this.activityRepo.create({
+        hospitalName,
+        actorName: cleanDoctorName,
+        actorRole: 'doctor',
+        description: `${cleanDoctorName} registered patient ${patient.name}`,
+        actionType: 'registered',
+        targetPatientName: patient.name,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log doctor invite patient activity: ${err.message}`);
+    }
+
+    return {
+      message: `Invitation sent to patient ${patient.name} (${patient.email})`,
+      patient: {
+        id: patient.id,
+        name: patient.name,
+        email: patient.email,
+        phone: patient.phone,
+        gender: patient.gender,
+        age: patient.age,
+        hospitalName: patient.hospitalName,
+      },
+    };
+  }
 
   // ─── Doctor Dashboard ─────────────────────────────────────────────────────
 
@@ -783,15 +871,14 @@ export class DoctorService {
   // ─── Helper: Seed Demo Patients & Clarifications Matching Figma ───────────
 
   private async seedDemoDataIfEmpty(hospitalName: string, doctor: any) {
-    // Only seed mock data if the hospital is specifically 'General Hospital' or explicitly demo.
-    // Real registered hospitals created from scratch should NEVER have mock demo patients auto-seeded!
     if (!hospitalName || hospitalName.trim().toLowerCase() !== 'general hospital') {
       return;
     }
 
-    const jenniferEmail = `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-    const existingJennifer = await this.usersService.findByEmail(jenniferEmail);
-    if (existingJennifer) {
+    const existingRx = await this.prescriptionRepo.findOne({
+      where: { hospitalName: ILike(hospitalName.trim()) },
+    });
+    if (existingRx) {
       return;
     }
 

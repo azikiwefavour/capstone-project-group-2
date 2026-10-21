@@ -278,9 +278,12 @@ export class AuthService {
    * so the frontend can display the personalised welcome screen.
    */
   async validateInvitationToken(token: string) {
-    const user = await this.usersService.findByInvitationToken(token);
+    this.logger.warn(`Validating invitation token: [${token}]`);
+    const cleanToken = (token || '').trim();
+    const user = await this.usersService.findByInvitationToken(cleanToken);
 
     if (!user) {
+      this.logger.warn(`No user found for invitation token: [${token}] (clean: [${cleanToken}])`);
       throw new BadRequestException('Invalid invitation link. Please contact your administrator.');
     }
 

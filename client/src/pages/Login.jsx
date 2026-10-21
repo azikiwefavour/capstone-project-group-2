@@ -222,6 +222,8 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
         navigate('/admin/dashboard', { replace: true })
       } else if (data.user.role === 'doctor') {
         navigate('/doctor/dashboard', { replace: true })
+      } else if (data.user.role === 'patient') {
+        navigate('/patient/dashboard', { replace: true })
       } else {
         setLoginNotice('Login successful. The dashboard for your role is not available yet.')
       }

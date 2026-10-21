@@ -160,11 +160,6 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       setSubmitError('Editing users is not supported by the current admin API.')
       return
     }
-    if (isPatient) {
-      setSubmitError('The current admin API supports invitations for Doctors and Pharmacists only. Patient creation is not available yet.')
-      return
-    }
-
     submissionInFlight.current = true
     setIsSubmitting(true)
     try {
@@ -175,6 +170,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
           email: email.trim().toLowerCase(),
           phone: `+234${phoneDigits.replace(/^0/, '')}`,
           role: role.toLowerCase(),
+          ...(isPatient ? { gender, age: Number(age) } : {}),
         },
       })
       resetForm()

@@ -65,3 +65,13 @@ export async function getAdminUsers(signal) {
   }
   return [...merged.values()].map(normalizeUser)
 }
+
+export async function getAdminAuditLog(signal) {
+  const records = await adminRequest('audit-log', { signal })
+  if (!Array.isArray(records)) {
+    throw new Error('The server returned an unexpected audit log. Please try again.')
+  }
+  return records
+}
+
+

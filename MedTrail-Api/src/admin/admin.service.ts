@@ -6,15 +6,41 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { AuditLogQueryDto } from './dto/audit-log-query.dto';
+import { Activity } from '../doctor/entities/activity.entity';
+import { UserRole } from '../users/entities/user.entity';
+
+function formatActivityDate(date: Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const year = String(d.getFullYear()).slice(-2);
+  return `${month}/${day}/${year}`;
+}
+
+function formatActivityTime(date: Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
+}
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
   constructor(
+    @InjectRepository(Activity)
+    private readonly activityRepo: Repository<Activity>,
     private usersService: UsersService,
     private mailService: MailService,
     private configService: ConfigService,
@@ -41,6 +67,7 @@ export class AdminService {
         unverified: 0,
         invitedPending: 0,
         invitedAccepted: 0,
+        recentActivities: [],
       };
     }
 
@@ -53,6 +80,7 @@ export class AdminService {
         unverified: 0,
         invitedPending: 0,
         invitedAccepted: 0,
+        recentActivities: [],
       };
     }
 
@@ -81,6 +109,33 @@ export class AdminService {
     const pending = users.filter((u) => u.invitationStatus === 'pending').length;
     const accepted = users.filter((u) => u.invitationStatus === 'accepted').length;
 
+    // Fetch hospital recent activities
+    const recentActivitiesRaw = await this.activityRepo.find({
+      where: hospitalLower ? { hospitalName: ILike(admin.hospitalName?.trim() || '%') } : {},
+      order: { createdAt: 'DESC' },
+      take: 10,
+    });
+
+    const recentActivities = recentActivitiesRaw.map((a) => {
+      const dateStr = formatActivityDate(a.createdAt);
+      const timeStr = formatActivityTime(a.createdAt);
+      return {
+        id: a.id,
+        when: `${dateStr}, ${timeStr}`,
+        date: dateStr,
+        time: timeStr,
+        who: a.actorName,
+        actorName: a.actorName,
+        actorRole: a.actorRole,
+        event: a.description,
+        description: a.description,
+        patient: a.targetPatientName || '-',
+        targetPatientName: a.targetPatientName,
+        actionType: a.actionType,
+        createdAt: a.createdAt,
+      };
+    });
+
     return {
       totalUsers: total,
       byRole,
@@ -88,6 +143,7 @@ export class AdminService {
       unverified: total - verified,
       invitedPending: pending,
       invitedAccepted: accepted,
+      recentActivities,
     };
   }
 
@@ -198,6 +254,21 @@ export class AdminService {
       expiry,
     );
 
+    const cleanRole = dto.role ? dto.role.charAt(0).toUpperCase() + dto.role.slice(1).toLowerCase() : 'User';
+    try {
+      const activity = this.activityRepo.create({
+        hospitalName: resolvedHospital || 'General Hospital',
+        actorName: adminName,
+        actorRole: 'admin',
+        description: `${adminName} invited ${user.name} as ${cleanRole}`,
+        actionType: 'invited',
+        targetPatientName: dto.role === UserRole.PATIENT ? user.name : null,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log admin invite activity: ${err.message}`);
+    }
+
     this.logger.log(`Invitation created for ${user.email} (${dto.role})`);
 
     return {
@@ -259,6 +330,21 @@ export class AdminService {
       expiry,
     );
 
+    try {
+      const cleanRole = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'User';
+      const activity = this.activityRepo.create({
+        hospitalName: user.hospitalName || 'General Hospital',
+        actorName: adminName,
+        actorRole: 'admin',
+        description: `${adminName} resent invitation to ${user.name} (${cleanRole})`,
+        actionType: 'invited',
+        targetPatientName: user.role === UserRole.PATIENT ? user.name : null,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log admin resend invite activity: ${err.message}`);
+    }
+
     this.logger.log(`Invitation resent by ${adminName} to ${user.email}`);
 
     return {
@@ -276,8 +362,10 @@ export class AdminService {
     const user = await this.usersService.findById(id);
     if (!user) throw new NotFoundException('User not found');
 
+    let adminName = 'Admin';
     if (adminId) {
       const admin = await this.usersService.findById(adminId);
+      if (admin) adminName = admin.name || admin.email;
       const adminHospital = admin?.hospitalName?.trim().toLowerCase();
       const userHospital = user.hospitalName?.trim().toLowerCase();
       if (adminHospital && userHospital && adminHospital !== userHospital) {
@@ -285,7 +373,123 @@ export class AdminService {
       }
     }
 
+    try {
+      const cleanRole = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'User';
+      const activity = this.activityRepo.create({
+        hospitalName: user.hospitalName || 'General Hospital',
+        actorName: adminName,
+        actorRole: 'admin',
+        description: `${adminName} removed account for ${user.name} (${cleanRole})`,
+        actionType: 'deleted',
+        targetPatientName: user.role === UserRole.PATIENT ? user.name : null,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log admin remove user activity: ${err.message}`);
+    }
+
     await this.usersService.remove(id);
     return { message: 'User deleted successfully' };
   }
+
+  // ─── Hospital Audit Log ───────────────────────────────────────────────────
+
+  async getAuditLog(adminId?: string, query?: AuditLogQueryDto) {
+    if (!adminId) {
+      return query?.paginate === 'true'
+        ? { data: [], records: [], total: 0, page: 1, limit: 50, totalPages: 1 }
+        : [];
+    }
+
+    const admin = await this.usersService.findById(adminId);
+    if (!admin) {
+      return query?.paginate === 'true'
+        ? { data: [], records: [], total: 0, page: 1, limit: 50, totalPages: 1 }
+        : [];
+    }
+
+    const hospitalName = admin.hospitalName?.trim() || 'General Hospital';
+
+    const qb = this.activityRepo
+      .createQueryBuilder('a')
+      .where('LOWER(a.hospitalName) = LOWER(:hospitalName)', { hospitalName });
+
+    if (query?.search && query.search.trim()) {
+      const term = `%${query.search.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(a.description) LIKE :term OR LOWER(a.actorName) LIKE :term OR LOWER(COALESCE(a.targetPatientName, \'\')) LIKE :term OR LOWER(COALESCE(a.actionType, \'\')) LIKE :term)',
+        { term },
+      );
+    }
+
+    const filterVal = (query?.actionType || query?.filter || '').trim().toLowerCase();
+    if (filterVal && filterVal !== 'all') {
+      qb.andWhere(
+        '(LOWER(COALESCE(a.actionType, \'\')) LIKE :filterVal OR LOWER(a.description) LIKE :filterVal)',
+        { filterVal: `%${filterVal}%` },
+      );
+    }
+
+    switch (query?.sortBy) {
+      case 'Oldest':
+        qb.orderBy('a.createdAt', 'ASC');
+        break;
+      case 'Who':
+        qb.orderBy('a.actorName', 'ASC');
+        break;
+      case 'Event':
+        qb.orderBy('a.description', 'ASC');
+        break;
+      case 'Patient':
+        qb.orderBy('a.targetPatientName', 'ASC');
+        break;
+      default:
+        qb.orderBy('a.createdAt', 'DESC');
+        break;
+    }
+
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = query?.limit ? Math.max(1, Number(query.limit)) : 50;
+
+    if (query?.paginate === 'true' || query?.page) {
+      qb.skip((page - 1) * limit).take(limit);
+    }
+
+    const [activities, total] = await qb.getManyAndCount();
+
+    const formatted = activities.map((a) => {
+      const dateStr = formatActivityDate(a.createdAt);
+      const timeStr = formatActivityTime(a.createdAt);
+      return {
+        id: a.id,
+        when: `${dateStr}, ${timeStr}`,
+        date: dateStr,
+        time: timeStr,
+        who: a.actorName,
+        actorName: a.actorName,
+        actorRole: a.actorRole,
+        event: a.description,
+        description: a.description,
+        patient: a.targetPatientName || '-',
+        targetPatientName: a.targetPatientName,
+        actionType: a.actionType,
+        hospitalName: a.hospitalName,
+        createdAt: a.createdAt,
+      };
+    });
+
+    if (query?.paginate === 'true') {
+      return {
+        data: formatted,
+        records: formatted,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      };
+    }
+
+    return formatted;
+  }
 }
+

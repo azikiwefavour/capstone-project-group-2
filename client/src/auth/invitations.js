@@ -1,9 +1,9 @@
-import { getTokenExpiry } from './session'
+import { getTokenExpiry, setAccessToken } from './session'
 import { setDoctorAccessToken } from './doctorSession'
 import { setPharmacistAccessToken } from './pharmacistSession'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
-const invitationRoles = ['doctor', 'pharmacist']
+const invitationRoles = ['doctor', 'pharmacist', 'patient']
 
 function responseMessage(data, fallback) {
   return Array.isArray(data?.message) ? data.message.filter(value => typeof value === 'string').join(' ') || fallback : typeof data?.message === 'string' && data.message ? data.message : fallback
@@ -57,5 +57,6 @@ export async function completeInvitation({ token, password, confirmPassword, inv
   // Keep role sessions separate; never retain credentials or invitation tokens.
   if (data.user.role === 'doctor') setDoctorAccessToken(data.accessToken)
   if (data.user.role === 'pharmacist') setPharmacistAccessToken(data.accessToken)
+  if (data.user.role === 'patient') setAccessToken(data.accessToken, 'patient')
   return { role: data.user.role }
 }

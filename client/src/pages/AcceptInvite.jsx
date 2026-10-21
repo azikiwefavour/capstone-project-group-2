@@ -67,7 +67,8 @@ function InvitationForm() {
     if (!isSuccess) return
     const timer = window.setTimeout(() => {
       if (successRole === 'doctor') navigate('/doctor/dashboard', { replace: true })
-      else navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+      else if (successRole === 'pharmacist') navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+      else navigate('/login', { replace: true, state: { selectedRole: 'Patient' } })
     }, 1500)
     return () => window.clearTimeout(timer)
   }, [isSuccess, successRole, navigate])
@@ -121,8 +122,8 @@ function InvitationForm() {
   const roleDisplay = roleLower.charAt(0).toUpperCase() + roleLower.slice(1)
   // A URL role hint controls error-page navigation only, never invitation validation.
   const loginRole = userData?.role || searchParams.get('role')
-  const loginOptions = loginRole === 'doctor' || loginRole === 'pharmacist'
-    ? [{ to: `/${loginRole}/login`, label: 'Return to Login' }]
+  const loginOptions = loginRole === 'doctor' || loginRole === 'pharmacist' || loginRole === 'patient'
+    ? [{ to: loginRole === 'patient' ? '/login' : `/${loginRole}/login`, label: 'Return to Login' }]
     : [{ to: '/doctor/login', label: 'Doctor Login' }, { to: '/pharmacist/login', label: 'Pharmacist Login' }]
 
   // Existing invitation emails keep their shared entry point. Doctor stays on this screen.
