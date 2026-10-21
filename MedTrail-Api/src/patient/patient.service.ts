@@ -61,10 +61,15 @@ export class PatientService {
     });
 
     const pending = prescriptions.filter(
-      (p) => p.status === PrescriptionStatus.PENDING || p.status === PrescriptionStatus.AWAITING_CLARIFICATION,
+      (p) =>
+        p.status === PrescriptionStatus.PENDING ||
+        p.status === PrescriptionStatus.AWAITING_CLARIFICATION ||
+        p.status === PrescriptionStatus.CLARIFIED,
     ).length;
     const active = prescriptions.filter(
-      (p) => p.status === PrescriptionStatus.ACTIVE,
+      (p) =>
+        p.status === PrescriptionStatus.ACTIVE ||
+        p.status === PrescriptionStatus.DISPENSED,
     ).length;
     const discontinued = prescriptions.filter(
       (p) => p.status === PrescriptionStatus.DISCONTINUED,
@@ -73,7 +78,7 @@ export class PatientService {
 
     // Active prescriptions cards (matching Figma design)
     const activeList = prescriptions
-      .filter((p) => p.status === PrescriptionStatus.ACTIVE)
+      .filter((p) => p.status === PrescriptionStatus.ACTIVE || p.status === PrescriptionStatus.DISPENSED)
       .map((p) => ({
         id: p.id,
         medicationTitle: p.dosage ? `${p.medicationName} ${p.dosage}` : p.medicationName,
@@ -85,6 +90,7 @@ export class PatientService {
         status: 'Active',
         doctorName: p.doctorName,
         date: formatOrdinalDate(p.createdAt),
+        createdAt: p.createdAt ? (typeof p.createdAt === 'string' ? p.createdAt : p.createdAt.toISOString()) : null,
         instructions: p.instructions,
         doseAndFrequency: p.doseAndFrequency || (p.frequency && p.dosage ? `${p.dosage}, ${p.frequency}` : p.dosage || p.frequency),
       }));
@@ -95,15 +101,47 @@ export class PatientService {
       .map((p) => ({
         id: p.id,
         diagnosis: p.reason,
-        firstRecorded: formatTableDate(p.createdAt),
+        firstRecorded: p.createdAt ? (typeof p.createdAt === 'string' ? p.createdAt : p.createdAt.toISOString()) : null,
+        formattedFirstRecorded: formatTableDate(p.createdAt),
         treatedWith: p.medicationName,
         status:
-          p.status === PrescriptionStatus.ACTIVE || p.status === PrescriptionStatus.PENDING
+          p.status === PrescriptionStatus.ACTIVE ||
+          p.status === PrescriptionStatus.DISPENSED ||
+          p.status === PrescriptionStatus.PENDING ||
+          p.status === PrescriptionStatus.AWAITING_CLARIFICATION ||
+          p.status === PrescriptionStatus.CLARIFIED
+            ? 'active'
+            : 'Past treatment',
+        displayStatus:
+          p.status === PrescriptionStatus.ACTIVE ||
+          p.status === PrescriptionStatus.DISPENSED ||
+          p.status === PrescriptionStatus.PENDING ||
+          p.status === PrescriptionStatus.AWAITING_CLARIFICATION ||
+          p.status === PrescriptionStatus.CLARIFIED
             ? 'Current treatment'
             : 'Past treatment',
         rawStatus: p.status,
         date: p.createdAt,
       }));
+
+    // Normalized prescriptions list for counts & cards
+    const normalizedPrescriptions = prescriptions.map((p) => ({
+      id: p.id,
+      medicationName: p.medicationName,
+      dosage: p.dosage,
+      frequency: p.frequency,
+      duration: p.duration,
+      reason: p.reason,
+      doctorName: p.doctorName,
+      status:
+        p.status === PrescriptionStatus.ACTIVE || p.status === PrescriptionStatus.DISPENSED
+          ? 'active'
+          : p.status === PrescriptionStatus.DISCONTINUED
+          ? 'discontinued'
+          : 'pending',
+      rawStatus: p.status,
+      createdAt: p.createdAt ? (typeof p.createdAt === 'string' ? p.createdAt : p.createdAt.toISOString()) : null,
+    }));
 
     return {
       patient: {
@@ -126,6 +164,7 @@ export class PatientService {
         discontinued,
         discontinuedPrescriptions: discontinued,
       },
+      prescriptions: normalizedPrescriptions,
       activePrescriptions: activeList,
       diagnoses,
     };
