@@ -79,7 +79,14 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+    app.enableCors({
+     origin: [
+       'http://localhost:5173',
+       'https://medtrail-frontend.vercel.app',
+     ],
+     credentials: true,
+   });
+ await app.listen(port);
 
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   logger.log(`🚀 MedTrail API running at http://localhost:${port}/api`, 'Bootstrap');
