@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { adminRequest } from '../api'
+import { patientRegistrationTestUrl } from '../invitationLinks'
 
 const roleOptions = ['Doctor', 'Pharmacist', 'Patient']
 
@@ -46,6 +47,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   const [submitClicked, setSubmitClicked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [patientTestLink, setPatientTestLink] = useState(null)
   const submissionInFlight = useRef(false)
   const isEditing = Boolean(initialUser)
 
@@ -128,6 +130,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setAge('')
     setTouchedFields({})
     setSubmitClicked(false)
+    setPatientTestLink(null)
   }
 
   function handleRoleChange(nextRole) {
@@ -163,20 +166,22 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     submissionInFlight.current = true
     setIsSubmitting(true)
     try {
-      await adminRequest('invite-user', {
+      const result = await adminRequest('invite-user', {
         method: 'POST',
         body: {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           phone: `+234${phoneDigits.replace(/^0/, '')}`,
           role: role.toLowerCase(),
-          ...(isPatient ? { gender, age: Number(age) } : {}),
+          ...(isPatient ? { gender, age: numericAge } : {}),
         },
       })
+      const testLink = import.meta.env.DEV && isPatient ? patientRegistrationTestUrl(result, window.location.origin) : null
       resetForm()
       // The current API does not report mail delivery failures.
       onSuccess('Invitation created successfully.')
-      onClose()
+      if (testLink) setPatientTestLink(testLink)
+      else onClose()
     } catch (error) {
       setSubmitError(error.message)
     } finally {
@@ -206,10 +211,10 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
               id="add-user-title"
               className="text-2xl font-semibold tracking-normal text-[#111827]"
             >
-              {isEditing ? 'Edit user' : 'Add new user'}
+              {patientTestLink ? 'Patient invitation created' : isEditing ? 'Edit user' : 'Add new user'}
             </h2>
             <p id="add-user-description" className="mt-2 text-base text-[#7A8190]">
-              Fill in the users details
+              {patientTestLink ? 'Email delivery has not been confirmed.' : 'Fill in the users details'}
             </p>
           </div>
 
@@ -236,6 +241,12 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
           </button>
         </div>
 
+        {patientTestLink ? <div className="mt-7 space-y-4 text-sm text-[#7A8190]">
+          <p>For local testing, open Patient registration on this frontend. The invitation token remains in this browser link only.</p>
+          <a href={patientTestLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl bg-[#475AA2] px-4 font-semibold text-white focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">Open Patient registration</a>
+          <p>Email links use the backend’s FRONTEND_URL setting. This testing link does not change email configuration.</p>
+          <button type="button" onClick={handleClose} className="block rounded-lg px-3 py-2 font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15">Done</button>
+        </div> : <>
         <div className="mt-7 space-y-4">
           <div>
             <label htmlFor="new-user-name" className="mb-2 block text-sm font-medium text-[#111827]">
@@ -397,6 +408,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
             {isSubmitting ? 'Sending invitation...' : isEditing ? 'Save changes' : 'Create user'}
           </button>
         </div>
+        </>}
       </form>
     </div>
   )

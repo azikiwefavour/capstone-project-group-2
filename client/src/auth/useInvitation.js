@@ -9,7 +9,7 @@ export default function useInvitation(token, errorParam = '', expectedRole = nul
     const controller = new AbortController()
     validateInvitation(token, controller.signal).then(data => {
       if (controller.signal.aborted) return
-      if (expectedRole && data.role !== expectedRole) throw new Error(`This invitation is not for a ${expectedRole === 'pharmacist' ? 'Pharmacist' : 'Doctor'} account. Please use the original invitation link.`)
+      if (expectedRole && data.role !== expectedRole) throw new Error(`This invitation is not for a ${expectedRole.charAt(0).toUpperCase() + expectedRole.slice(1)} account. Please use the original invitation link.`)
       setSnapshot({ token, expectedRole, data })
     }).catch(error => {
       if (!controller.signal.aborted) setSnapshot({ token, expectedRole, error: error.message })

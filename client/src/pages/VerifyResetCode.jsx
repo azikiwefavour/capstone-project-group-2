@@ -221,10 +221,10 @@ function VerifyResetCode({ recoveryBasePath = '', frontendOnly = false }) {
         >
           <div className="text-center">
             <h2 className="text-xl font-semibold tracking-normal text-[#111827] sm:text-xl lg:text-2xl">
-              Verify email
+              {recoveryBasePath === '/patient' ? 'Verify reset code' : 'Verify email'}
             </h2>
             <p className="mt-3 text-base text-[#7A8190]">
-              Enter the code sent to your email
+              {recoveryBasePath === '/patient' ? 'If an account exists for your email, use the reset code from your inbox.' : 'Enter the code sent to your email'}
             </p>
           </div>
 

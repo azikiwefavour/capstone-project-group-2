@@ -1,0 +1,143 @@
+/* Scope responsive overrides to Patient routes so existing role layouts stay intact. */
+.patient-auth main > section:last-child {
+  overflow-y: auto;
+  align-items: safe center;
+}
+
+/* Desktop inherits the Doctor design from Login.jsx, including its image panel.
+   Keep the Patient-only mobile form wrapper transparent to that shared layout. */
+@media (min-width: 1024px) {
+  .patient-auth form[data-patient-login] {
+    display: block;
+    min-height: 0;
+    max-width: 440px;
+    margin: 0;
+  }
+
+  .patient-auth form[data-patient-login] > .patient-login-fields {
+    display: contents;
+  }
+}
+
+@media (max-width: 1023px) {
+  .patient-auth,
+  .patient-auth main {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .patient-auth main > section:first-child {
+    display: none;
+  }
+
+  .patient-auth main > section:last-child {
+    min-height: 100dvh;
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2rem 1.25rem;
+    border-radius: 0;
+  }
+
+  .patient-auth form {
+    width: 100%;
+    min-width: 0;
+    max-width: 440px;
+    margin-inline: auto;
+  }
+
+  .patient-auth form > *,
+  .patient-auth form input,
+  .patient-auth form button {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .patient-auth form input {
+    font-size: 1rem;
+  }
+
+  .patient-auth form p {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .patient-auth form[aria-label="Reset password form"] > div:first-child {
+    margin-bottom: 32px;
+    text-align: left;
+  }
+
+  .patient-auth form[aria-label="Reset password form"] > div:first-child > p {
+    margin-top: 16px;
+  }
+
+  .patient-auth form[aria-label="Reset password form"] label {
+    margin-bottom: 8px;
+  }
+
+  .patient-auth form[aria-label="Reset password form"] > div:last-child {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    margin-top: 32px;
+  }
+
+  .patient-auth form[aria-label="Verify reset code form"] > div:last-child {
+    row-gap: 28px;
+  }
+
+  .patient-auth main:has(form[data-patient-login]) {
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .patient-auth main > section:has(> form[data-patient-login]) {
+    min-height: 100dvh;
+    padding-block: 1.5rem max(1.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .patient-auth form[data-patient-login] {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+    min-height: calc(100dvh - 1.5rem - max(1.5rem, env(safe-area-inset-bottom, 0px)));
+    max-width: none;
+  }
+
+  .patient-auth .patient-login-fields {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 1 0 auto;
+    padding-block: 56px 2rem;
+  }
+
+  .patient-auth .patient-login-fields > div:first-child {
+    margin-bottom: 42px;
+  }
+
+  .patient-auth .patient-login-fields > div:first-child > p {
+    margin-top: 16px;
+  }
+
+  .patient-auth .patient-login-fields > .space-y-3 > :not(:last-child) {
+    margin-bottom: 35px;
+  }
+
+  .patient-auth .patient-login-recovery {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 17px;
+    text-align: right;
+  }
+
+  .patient-auth .patient-login-fields > button[type="submit"] {
+    margin-top: 50px;
+  }
+
+  .patient-auth form[data-patient-login] > p:last-child {
+    flex-shrink: 0;
+    margin-block: 0;
+  }
+}

@@ -96,6 +96,10 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
+function LoginFields({ isPatient, children }) {
+  return isPatient ? <div className="contents patient-login-fields">{children}</div> : children
+}
+
 function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate, successPath = '/doctor/dashboard', invitationOnly = false }) {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
@@ -222,8 +226,6 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
         navigate('/admin/dashboard', { replace: true })
       } else if (data.user.role === 'doctor') {
         navigate('/doctor/dashboard', { replace: true })
-      } else if (data.user.role === 'patient') {
-        navigate('/patient/dashboard', { replace: true })
       } else {
         setLoginNotice('Login successful. The dashboard for your role is not available yet.')
       }
@@ -238,6 +240,9 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
 
   if (!frontendOnly && role === 'doctor' && !onAuthenticate) {
     return <Navigate to="/doctor/login" replace />
+  }
+  if (role === 'patient' && !onAuthenticate) {
+    return <Navigate to="/patient/login" replace />
   }
   if (role === 'pharmacist' && !onAuthenticate) {
     return <Navigate to="/pharmacist/login" replace />
@@ -264,7 +269,8 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="Login form" onSubmit={handleContinue} noValidate aria-busy={isLoggingIn}>
+        <form className="w-full max-w-[440px]" data-patient-login={authenticationRole === 'Patient' ? '' : undefined} aria-label="Login form" onSubmit={handleContinue} noValidate aria-busy={isLoggingIn}>
+          <LoginFields isPatient={authenticationRole === 'Patient'}>
           <div className="mb-5 [@media(min-height:850px)]:lg:mb-9">
             <h2 className="text-3xl font-semibold tracking-normal text-[#111827] sm:text-[2.5rem] lg:text-4xl [@media(min-height:850px)]:lg:text-[2.5rem]">
               Welcome back
@@ -340,7 +346,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
             </div>
           </div>
 
-          <div className="mt-3 text-left [@media(min-height:850px)]:lg:mt-4">
+          <div className={`mt-3 text-left [@media(min-height:850px)]:lg:mt-4${authenticationRole === 'Patient' ? ' patient-login-recovery' : ''}`}>
             <button
               type="button"
               onClick={() => navigate(`${recoveryBasePath}/forgot-password`)}
@@ -372,6 +378,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           >
             {isLoggingIn ? 'Logging in...' : 'Continue'}
           </button>
+          </LoginFields>
 
           <p className="mt-4 text-center text-sm text-[#7A8190] [@media(min-height:850px)]:lg:mt-6">
             {invitationOnly ? 'Invited to MedTrail? Use the invitation link in your email to create your account.' : (

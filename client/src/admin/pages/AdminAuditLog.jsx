@@ -96,8 +96,6 @@ function AdminAuditLog() {
 
   useEffect(() => {
     const controller = new AbortController()
-    setLoading(true)
-    setError('')
     getAdminAuditLog(controller.signal)
       .then((records) => {
         setAuditRecords(Array.isArray(records) ? records : [])
@@ -292,7 +290,11 @@ function AdminAuditLog() {
                       <p className="text-sm font-medium text-[#E5484D]">{error}</p>
                       <button
                         type="button"
-                        onClick={() => setReloadKey((k) => k + 1)}
+                        onClick={() => {
+                          setLoading(true)
+                          setError('')
+                          setReloadKey((k) => k + 1)
+                        }}
                         className="mt-3 text-sm font-semibold text-[#475AA2] hover:underline"
                       >
                         Try again
