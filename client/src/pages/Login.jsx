@@ -210,7 +210,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       }
 
       if (authenticationRole && data.user.role !== role) {
-        setLoginError('This account cannot access the doctor workspace.')
+        setLoginError(`This account cannot access the ${role || authenticationRole} workspace.`)
         return
       }
 

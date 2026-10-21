@@ -48,6 +48,6 @@ export function pharmacistGet(path, signal, resource = 'prescriptions') {
   return pharmacistRequest(path, signal, resource)
 }
 
-export function pharmacistPost(path, body, signal) {
-  return pharmacistRequest(path, signal, 'clarification request', 'POST', body)
+export function pharmacistPost(path, body, signal, resource = 'clarification request') {
+  return pharmacistRequest(path, signal, resource, 'POST', body)
 }

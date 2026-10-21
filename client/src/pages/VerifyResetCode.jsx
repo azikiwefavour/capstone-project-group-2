@@ -38,6 +38,8 @@ function VerifyResetCode({ recoveryBasePath = '', frontendOnly = false }) {
   const [continueClicked, setContinueClicked] = useState(false)
   const [backendError, setBackendError] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
+  const [isResending, setIsResending] = useState(false)
+  const [resendNotice, setResendNotice] = useState('')
   const verificationInFlight = useRef(false)
   const codeInputRefs = useRef([])
   const navigate = useNavigate()
@@ -52,6 +54,36 @@ function VerifyResetCode({ recoveryBasePath = '', frontendOnly = false }) {
         ? 'Please enter the complete 6-digit code.'
         : '')
   const visibleCodeError = backendError || codeError
+
+  async function handleResend() {
+    if (isResending || !email) return
+    setIsResending(true)
+    setBackendError('')
+    setResendNotice('')
+
+    if (frontendOnly) {
+      setResendNotice('A new preview code has been generated.')
+      setIsResending(false)
+      return
+    }
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (response.status === 200) {
+        setResendNotice('A new reset code has been sent to your email.')
+      } else {
+        setBackendError('Unable to resend reset code. Please try again.')
+      }
+    } catch {
+      setBackendError('Unable to connect. Please check your connection and try again.')
+    } finally {
+      setIsResending(false)
+    }
+  }
 
   function handleCodeChange(index, value) {
     const digits = value.replace(/\D/g, '')
@@ -235,12 +267,28 @@ function VerifyResetCode({ recoveryBasePath = '', frontendOnly = false }) {
                 <FieldError id="reset-code-error" message={visibleCodeError} />
               </div>
             )}
+
+            <div className="mt-3 text-center text-sm">
+              <button
+                type="button"
+                disabled={isVerifying || isResending}
+                onClick={handleResend}
+                className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20 disabled:opacity-60"
+              >
+                {isResending ? 'Sending code...' : 'Resend code'}
+              </button>
+              {resendNotice && (
+                <p role="status" className="mt-2 text-sm font-medium text-[#2F7D59]">
+                  {resendNotice}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 [@media(min-height:850px)]:lg:mt-10">
             <button
               type="button"
-              disabled={isVerifying}
+              disabled={isVerifying || isResending}
               onClick={() => navigate(`${recoveryBasePath}/forgot-password`)}
               className="h-11 rounded-xl border border-[#D8DCE5] bg-[#F7F8FB] text-base font-semibold text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 [@media(min-height:850px)]:lg:h-13"
             >
@@ -248,7 +296,7 @@ function VerifyResetCode({ recoveryBasePath = '', frontendOnly = false }) {
             </button>
             <button
               type="submit"
-              disabled={isVerifying}
+              disabled={isVerifying || isResending}
               className="h-11 rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:h-13"
             >
               {isVerifying ? 'Verifying...' : 'Continue'}

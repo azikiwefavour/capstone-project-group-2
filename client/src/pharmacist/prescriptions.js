@@ -1,5 +1,5 @@
 import { formatMedicationTimestamp } from '../doctor/medicationDates'
-import { pharmacistGet } from './api'
+import { pharmacistGet, pharmacistPost } from './api'
 
 const text = value => typeof value === 'string' ? value.trim() : ''
 
@@ -111,3 +111,11 @@ export async function getDispensedMedications(signal) {
     dispensedOn: null,
   }))
 }
+
+export async function verifyAndDispensePrescription(prescriptionId, signal) {
+  if (typeof prescriptionId !== 'string' || !prescriptionId.trim()) {
+    throw new Error('Please select a prescription to verify.')
+  }
+  return pharmacistPost(`prescriptions/${encodeURIComponent(prescriptionId.trim())}/verify`, undefined, signal, 'prescription verification')
+}
+

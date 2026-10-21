@@ -9,6 +9,8 @@ import {
   renderResetPasswordEmail,
 } from './templates/medtrail-email';
 
+import { existsSync } from 'node:fs';
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -16,10 +18,26 @@ export class MailService {
   constructor(private mailerService: MailerService) {}
 
   private logoAttachments() {
+    const candidatePaths = [
+      join(__dirname, 'assets', 'medtrail-logo.png'),
+      join(__dirname, '..', 'assets', 'medtrail-logo.png'),
+      join(process.cwd(), 'src', 'mail', 'assets', 'medtrail-logo.png'),
+      join(process.cwd(), 'dist', 'mail', 'assets', 'medtrail-logo.png'),
+    ];
+    const validPath = candidatePaths.find((p) => {
+      try {
+        return existsSync(p);
+      } catch {
+        return false;
+      }
+    });
+
+    if (!validPath) return [];
+
     return [
       {
         filename: 'medtrail-logo.png',
-        path: join(__dirname, 'assets', 'medtrail-logo.png'),
+        path: validPath,
         cid: MEDTRAIL_LOGO_CID,
         contentType: 'image/png',
         contentDisposition: 'inline' as const,
@@ -34,22 +52,34 @@ export class MailService {
     expiresAt: Date,
     role?: string | null,
   ): Promise<void> {
+    const html = renderEmailVerificationEmail({
+      name,
+      role,
+      verificationCode: otp,
+      expirationTimeline: expirationTimeline(expiresAt),
+    });
+    const attachments = this.logoAttachments();
+
     try {
       await this.mailerService.sendMail({
         to,
         subject: 'MedTrail – Verify Your Email',
-        html: renderEmailVerificationEmail({
-          name,
-          role,
-          verificationCode: otp,
-          expirationTimeline: expirationTimeline(expiresAt),
-        }),
-        attachments: this.logoAttachments(),
+        html,
+        attachments: attachments.length ? attachments : undefined,
       });
       this.logger.log(`Verification email sent to ${to}`);
-    } catch {
-      // SMTP errors may contain the message payload; do not log credentials, codes or links.
-      this.logger.error('Failed to send verification email');
+    } catch (err: any) {
+      this.logger.error(`Failed to send verification email with attachments to ${to}: ${err?.message || err}`);
+      try {
+        await this.mailerService.sendMail({
+          to,
+          subject: 'MedTrail – Verify Your Email',
+          html,
+        });
+        this.logger.log(`Verification email sent to ${to} (fallback without attachments)`);
+      } catch (fallbackErr: any) {
+        this.logger.error(`Verification email fallback failed for ${to}: ${fallbackErr?.message || fallbackErr}`);
+      }
     }
   }
 
@@ -60,21 +90,34 @@ export class MailService {
     expiresAt: Date,
     role?: string | null,
   ): Promise<void> {
+    const html = renderResetPasswordEmail({
+      name,
+      role,
+      resetCode: otp,
+      expirationTimeline: expirationTimeline(expiresAt),
+    });
+    const attachments = this.logoAttachments();
+
     try {
       await this.mailerService.sendMail({
         to,
         subject: 'MedTrail – Reset Your Password',
-        html: renderResetPasswordEmail({
-          name,
-          role,
-          resetCode: otp,
-          expirationTimeline: expirationTimeline(expiresAt),
-        }),
-        attachments: this.logoAttachments(),
+        html,
+        attachments: attachments.length ? attachments : undefined,
       });
       this.logger.log(`Password reset email sent to ${to}`);
-    } catch {
-      this.logger.error('Failed to send password reset email');
+    } catch (err: any) {
+      this.logger.error(`Failed to send password reset email with attachments to ${to}: ${err?.message || err}`);
+      try {
+        await this.mailerService.sendMail({
+          to,
+          subject: 'MedTrail – Reset Your Password',
+          html,
+        });
+        this.logger.log(`Password reset email sent to ${to} (fallback without attachments)`);
+      } catch (fallbackErr: any) {
+        this.logger.error(`Password reset email fallback failed for ${to}: ${fallbackErr?.message || fallbackErr}`);
+      }
     }
   }
 
@@ -93,6 +136,16 @@ export class MailService {
         : roleLower === 'pharmacist'
           ? 'Pharmacist'
           : 'Patient';
+
+    const html = renderHospitalInvitationEmail({
+      name,
+      role,
+      hospitalName,
+      invitationUrl: invitationLink,
+      expirationTimeline: expirationTimeline(expiresAt),
+    });
+    const attachments = this.logoAttachments();
+
     try {
       await this.mailerService.sendMail({
         to,
@@ -100,18 +153,25 @@ export class MailService {
           roleLower === 'patient'
             ? 'MedTrail – Complete Your Patient Registration'
             : `MedTrail – You've been invited as a ${roleFull}`,
-        html: renderHospitalInvitationEmail({
-          name,
-          role,
-          hospitalName,
-          invitationUrl: invitationLink,
-          expirationTimeline: expirationTimeline(expiresAt),
-        }),
-        attachments: this.logoAttachments(),
+        html,
+        attachments: attachments.length ? attachments : undefined,
       });
       this.logger.log(`Invitation email sent to ${to}`);
-    } catch {
-      this.logger.error('Failed to send invitation email');
+    } catch (err: any) {
+      this.logger.error(`Failed to send invitation email with attachments to ${to}: ${err?.message || err}`);
+      try {
+        await this.mailerService.sendMail({
+          to,
+          subject:
+            roleLower === 'patient'
+              ? 'MedTrail – Complete Your Patient Registration'
+              : `MedTrail – You've been invited as a ${roleFull}`,
+          html,
+        });
+        this.logger.log(`Invitation email sent to ${to} (fallback without attachments)`);
+      } catch (fallbackErr: any) {
+        this.logger.error(`Invitation email fallback failed for ${to}: ${fallbackErr?.message || fallbackErr}`);
+      }
     }
   }
 }

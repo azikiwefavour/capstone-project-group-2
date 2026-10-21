@@ -78,15 +78,52 @@ export class AuthController {
   @Post('resend-email-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Resend email verification OTP',
-    description: 'Sends a fresh 6-digit OTP to the email if the previous one expired.',
+    summary: 'Resend email verification or reset OTP',
+    description: 'Sends a fresh 6-digit OTP to the email.',
   })
   @ApiResponse({ status: 200, description: 'New OTP sent' })
-  @ApiResponse({ status: 400, description: 'Email already verified' })
   @ApiResponse({ status: 404, description: 'Email not found' })
   resendEmailOtp(@Body() body: { email: string }) {
     return this.authService.resendEmailOtp(body.email);
   }
+
+  // ── POST /api/auth/resend-reset-code ────────────────────────────────────
+  @Public()
+  @Post('resend-reset-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend password reset OTP',
+    description: 'Sends a fresh 6-digit password reset code to the user email.',
+  })
+  @ApiResponse({ status: 200, description: 'Reset code sent' })
+  resendResetCode(@Body() body: { email: string }) {
+    return this.authService.resendResetCode(body.email);
+  }
+
+  // ── POST /api/auth/resend-code ──────────────────────────────────────────
+  @Public()
+  @Post('resend-code')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend OTP code (universal)',
+    description: 'Universal resend endpoint supporting both verification and reset codes.',
+  })
+  @ApiResponse({ status: 200, description: 'Code sent' })
+  resendCode(@Body() body: { email: string; type?: 'email' | 'reset' }) {
+    return this.authService.resendAnyCode(body.email, body.type);
+  }
+
+  // ── POST /api/auth/resend-otp ───────────────────────────────────────────
+  @Public()
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend OTP code (alias)',
+  })
+  resendOtp(@Body() body: { email: string; type?: 'email' | 'reset' }) {
+    return this.authService.resendAnyCode(body.email, body.type);
+  }
+
 
   // ── POST /api/auth/login ─────────────────────────────────────────────────
   @Public()

@@ -93,9 +93,9 @@ function App() {
         <Route path="/doctor/create-password" element={<DoctorCreatePassword />} />
         <Route path="/doctor/login" element={<DoctorLogin />} />
         <Route path="/doctor/verify-email" element={<VerifyEmail successPath="/doctor/login" />} />
-        <Route path="/doctor/forgot-password" element={<ForgotPassword recoveryBasePath="/doctor" frontendOnly />} />
-        <Route path="/doctor/verify-reset-code" element={<VerifyResetCode recoveryBasePath="/doctor" frontendOnly />} />
-        <Route path="/doctor/new-password" element={<NewPassword recoveryBasePath="/doctor" frontendOnly />} />
+        <Route path="/doctor/forgot-password" element={<ForgotPassword recoveryBasePath="/doctor" />} />
+        <Route path="/doctor/verify-reset-code" element={<VerifyResetCode recoveryBasePath="/doctor" />} />
+        <Route path="/doctor/new-password" element={<NewPassword recoveryBasePath="/doctor" />} />
         <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
         {import.meta.env.DEV && <Route path="/doctor/preview/*" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading development preview...</p>}><DoctorFlowPreview /></Suspense>} />}
         <Route path="/doctor/clarifications" element={<DoctorClarificationRoutes />}>

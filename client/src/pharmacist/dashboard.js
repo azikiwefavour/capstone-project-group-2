@@ -22,16 +22,17 @@ function normalizeDashboard(data, token) {
       patients.set(record.patientId, { id: record.patientId, name: text(record.patientName), email: text(record.patientEmail) })
     }
   }
+  const verifiedRaw = data.stats?.verifiedPrescriptions ?? data.stats?.verified
+  const verifiedCount = verifiedRaw !== undefined && Number.isSafeInteger(verifiedRaw) && verifiedRaw >= 0 ? verifiedRaw : null
+
   return {
     stats: {
       awaitingClarification: data.stats.awaitingClarification,
       dispensedMedications: data.stats.dispensed,
-      // No verified count or activity feed is exposed by the current pharmacy API.
-      // Never infer verification from total, pending, or prescription statuses.
-      verifiedPrescriptions: null,
+      verifiedPrescriptions: verifiedCount,
     },
     recentPatients: [...patients.values()],
-    recentActivities: null,
+    recentActivities: Array.isArray(data.recentActivities) ? data.recentActivities : null,
   }
 }
 

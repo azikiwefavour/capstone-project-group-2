@@ -86,6 +86,8 @@ export class DoctorService {
       ? doctor.name
       : `Dr. ${doctor.name}`;
 
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
     const patient = await this.usersService.create({
       name: dto.name,
       email: dto.email.toLowerCase(),
@@ -100,6 +102,8 @@ export class DoctorService {
       invitationStatus: 'pending',
       invitationToken: token,
       invitationTokenExpiry: expiry,
+      emailOtp: otp,
+      emailOtpExpiry: expiry,
       isEmailVerified: false,
       invitedBy: `${cleanDoctorName} (${doctor.id})`,
     });

@@ -53,12 +53,12 @@ export default function PharmacistDashboard() {
       {statistics.map(statistic => {
         const value = data?.stats[statistic.key]
         const available = Number.isSafeInteger(value) && value >= 0
-        const waiting = loading && statistic.key !== 'verifiedPrescriptions'
+        const waiting = loading && !available
         return <article key={statistic.key} className="flex min-h-[112px] items-center justify-between gap-3 rounded-2xl border border-[#E2E5ED] bg-white p-5 shadow-sm shadow-[#111827]/[0.03] lg:min-h-[110px]">
           <div className="min-w-0">
             <p aria-label={waiting ? `Loading ${statistic.label}` : available ? `${value} ${statistic.label}` : `${statistic.label} count unavailable`} className="text-3xl font-semibold tracking-normal text-[#111827]">{waiting ? '...' : available ? value : '—'}</p>
             <h2 className="mt-1.5 text-sm font-medium text-[#7A8190]">{statistic.label}</h2>
-            {statistic.key === 'verifiedPrescriptions' && <p className="mt-1 text-xs text-[#7A8190]">Not available yet</p>}
+            {statistic.key === 'verifiedPrescriptions' && !available && !loading && <p className="mt-1 text-xs text-[#7A8190]">Not available yet</p>}
           </div>
           <div className={`flex h-[53px] w-[53px] shrink-0 items-center justify-center rounded-[6px] ${statistic.color}`}><DoctorIcon type={statistic.icon} /></div>
         </article>
@@ -83,9 +83,24 @@ export default function PharmacistDashboard() {
       <section aria-labelledby="recent-activities-title" className="flex min-h-[240px] flex-col rounded-2xl border border-[#E2E5ED] bg-white p-5 shadow-sm shadow-[#111827]/[0.03] lg:h-[clamp(240px,calc(100vh-331px),455px)] lg:min-h-0">
         <div className="flex items-center justify-between gap-4">
           <h2 id="recent-activities-title" className="text-base font-semibold text-[#111827]">Recent Activities</h2>
-          <button type="button" disabled title="Recent activities are not available yet" className="shrink-0 cursor-not-allowed text-sm font-semibold text-[#7A8190]">View All</button>
         </div>
-        <EmptyState icon="activity" message="Recent activities are not available yet." />
+        {data?.recentActivities && data.recentActivities.length > 0 ? (
+          <ul aria-label="Recent activities" className="mt-4 min-h-0 flex-1 divide-y divide-[#E2E5ED] overflow-y-auto">
+            {data.recentActivities.map(activity => (
+              <li key={activity.id} className="flex items-start gap-3 py-3 text-sm">
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59]">
+                  <DoctorIcon type="activity" className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-[#111827]">{activity.description || 'Activity details unavailable'}</p>
+                  <p className="mt-1 text-xs text-[#7A8190]">{activity.date || activity.createdAt || ''}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState icon="activity" message={loading ? 'Loading activities...' : 'No recent activities recorded yet.'} />
+        )}
       </section>
     </section>
   </div>
