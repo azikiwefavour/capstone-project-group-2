@@ -1,5 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './admin/AdminLayout'
+import PatientAuthLayout from './patient/components/PatientAuthLayout'
+import PatientLayout from './patient/components/PatientLayout'
+import PatientLogin from './patient/pages/PatientLogin'
+import PatientCreatePassword from './patient/pages/PatientCreatePassword'
+import PatientDashboard from './patient/pages/PatientDashboard'
 import AdminAuditLog from './admin/pages/AdminAuditLog'
 import AdminDashboard from './admin/pages/AdminDashboard'
 import AdminUsers from './admin/pages/AdminUsers'
@@ -24,6 +29,10 @@ import PharmacistLogin from './pharmacist/pages/PharmacistLogin'
 import PharmacistCreatePassword from './pharmacist/pages/PharmacistCreatePassword'
 import PharmacistDashboard from './pharmacist/pages/PharmacistDashboard'
 import PharmacistLayout from './pharmacist/components/PharmacistLayout'
+
+const PatientDashboardPreview = import.meta.env.DEV
+  ? lazy(() => import('./patient/previews/PatientDashboardPreview'))
+  : null
 
 const PharmacistNewPasswordPreview = import.meta.env.DEV
   ? lazy(() => import('./pharmacist/previews/PharmacistNewPasswordPreview'))
@@ -69,6 +78,20 @@ function App() {
         <Route path="/verify-reset-code" element={<VerifyResetCode />} />
         <Route path="/new-password" element={<NewPassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/patient/preview/dashboard" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading design preview...</p>}><PatientDashboardPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/patient/preview/diagnoses-pagination" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading pagination preview...</p>}><PatientDashboardPreview key="pagination-preview" paginationPreview /></Suspense>} />}
+        <Route path="/patient" element={<PatientAuthLayout />}>
+          <Route path="login" element={<PatientLogin />} />
+          <Route path="create-password" element={<PatientCreatePassword />} />
+          <Route path="verify-email" element={<VerifyEmail successPath="/patient/login" backPath="/patient/login" allowResend resendSuccessMessage="Your request was accepted. Check your inbox for a verification code." />} />
+          <Route path="forgot-password" element={<ForgotPassword recoveryBasePath="/patient" />} />
+          <Route path="verify-reset-code" element={<VerifyResetCode recoveryBasePath="/patient" />} />
+          <Route path="new-password" element={<NewPassword recoveryBasePath="/patient" />} />
+        </Route>
+        <Route path="/patient" element={<PatientLayout />}>
+          <Route index element={<Navigate to="/patient/dashboard" replace />} />
+          <Route path="dashboard" element={<PatientDashboard />} />
+        </Route>
         <Route path="/pharmacist/login" element={<PharmacistLogin />} />
         <Route path="/pharmacist/create-password" element={<PharmacistCreatePassword />} />
         <Route path="/pharmacist/verify-email" element={<VerifyEmail successPath="/pharmacist/login" backPath="/pharmacist/login" allowResend />} />

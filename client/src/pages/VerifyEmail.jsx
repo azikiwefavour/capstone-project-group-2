@@ -4,7 +4,7 @@ import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
-function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', backPath, allowResend = false }) {
+function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', backPath, allowResend = false, resendSuccessMessage = 'A new verification code has been sent to your email.' }) {
   const [codeValues, setCodeValues] = useState(['', '', '', '', '', ''])
   const [isVerifying, setIsVerifying] = useState(false)
   const [verificationError, setVerificationError] = useState('')
@@ -36,7 +36,7 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', b
         setVerificationError(message || 'Unable to resend your code. Please try again.')
         return
       }
-      setResendNotice('A new verification code has been sent to your email.')
+      setResendNotice(resendSuccessMessage)
     } catch {
       setVerificationError('Unable to connect. Please check your connection and try again.')
     } finally {

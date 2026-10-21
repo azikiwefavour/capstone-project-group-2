@@ -121,19 +121,21 @@ function InvitationForm() {
   const roleDisplay = roleLower.charAt(0).toUpperCase() + roleLower.slice(1)
   // A URL role hint controls error-page navigation only, never invitation validation.
   const loginRole = userData?.role || searchParams.get('role')
-  const loginOptions = loginRole === 'doctor' || loginRole === 'pharmacist'
+  // A role hint scopes presentation only; authorization still uses the server.
+  const patientPresentation = loginRole === 'patient'
+  const loginOptions = ['doctor', 'pharmacist', 'patient'].includes(loginRole)
     ? [{ to: `/${loginRole}/login`, label: 'Return to Login' }]
-    : [{ to: '/doctor/login', label: 'Doctor Login' }, { to: '/pharmacist/login', label: 'Pharmacist Login' }]
+    : [{ to: '/doctor/login', label: 'Doctor Login' }, { to: '/pharmacist/login', label: 'Pharmacist Login' }, { to: '/patient/login', label: 'Patient Login' }]
 
   // Existing invitation emails keep their shared entry point. Doctor stays on this screen.
-  if (userData?.role === 'pharmacist' && !validationError) {
-    return <Navigate to={`/pharmacist/create-password?${searchParams.toString()}`} replace />
+  if (['pharmacist', 'patient'].includes(userData?.role) && !validationError) {
+    return <Navigate to={`/${userData.role}/create-password?${searchParams.toString()}`} replace />
   }
 
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
       {/* Left side brand banner */}
-      <section className="relative flex min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16">
+      <section className={`relative ${patientPresentation ? 'hidden lg:flex' : 'flex'} min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16`}>
         <h4 className="mt-10 max-w-[520px] text-2xl font-semibold leading-[1.13] tracking-normal text-[#111827] sm:text-2xl lg:text-3xl">
           One medication record,
           <br />
@@ -152,7 +154,7 @@ function InvitationForm() {
       </section>
 
       {/* Right side form */}
-      <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:px-14">
+      <section className={`flex ${patientPresentation ? 'min-h-screen overflow-y-auto' : ''} w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:px-14`}>
         <div className="w-full max-w-[440px]">
           {isValidating ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">

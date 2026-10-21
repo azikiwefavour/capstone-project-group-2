@@ -1,5 +1,24 @@
 import { test, expect } from '@playwright/test'
 
+for (const role of ['patient', 'doctor', 'pharmacist', 'admin', '']) {
+  test(`shared invitation error styling is scoped correctly for ${role || 'unknown role'}`, async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.route('**/api/**', route => route.abort())
+    await page.goto(`/accept-invite?error=Invitation%20expired${role ? `&role=${role}` : ''}`)
+    const illustrationPanel = page.locator('main > section').first()
+    if (role === 'patient') await expect(illustrationPanel).toBeHidden()
+    else await expect(illustrationPanel).toBeVisible()
+    const computed = await page.locator('main > section').last().evaluate(element => {
+      const style = getComputedStyle(element)
+      return { minHeight: style.minHeight, overflowY: style.overflowY }
+    })
+    if (role === 'patient') expect(computed).toEqual({ minHeight: '667px', overflowY: 'auto' })
+    else expect(computed).toEqual({ minHeight: 'auto', overflowY: 'visible' })
+    await page.setViewportSize({ width: 1440, height: 929 })
+    await expect(illustrationPanel).toBeVisible()
+  })
+}
+
 // Error fixtures exercise navigation only; no authentication or account setup is performed.
 for (const message of ['Invalid invitation link.', 'This invitation link has expired.']) {
   test(`Pharmacist invitation returns to Pharmacist login after ${message}`, async ({ page }) => {

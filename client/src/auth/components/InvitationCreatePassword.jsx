@@ -68,7 +68,7 @@ function PasswordField({ id, label, value, onChange, onBlur, isVisible, onToggle
 }
 
 function InvitationPasswordForm({ role }) {
-  const roleLabel = role === 'pharmacist' ? 'Pharmacist' : 'Doctor'
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1)
   const basePath = `/${role}`
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
