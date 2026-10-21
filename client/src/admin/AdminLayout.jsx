@@ -1,14 +1,17 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Navigate, Outlet, useNavigate } from 'react-router-dom'
+import SettingsProfileContext from '../auth/SettingsProfileContext'
 import { getAccessToken, getAuthenticatedRole, getTokenExpiry, setAccessToken, subscribeToSession } from '../auth/session'
 import { verifyAdminSession } from '../auth/adminSession'
 import AdminSidebar from './components/AdminSidebar'
+import LogoutConfirmationModal from '../components/LogoutConfirmationModal'
 
 function AdminLayout() {
   const navigate = useNavigate()
   const token = useSyncExternalStore(subscribeToSession, getAccessToken)
   const [verification, setVerification] = useState(null)
   const [attempt, setAttempt] = useState(0)
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const checked = verification?.token === token && verification?.attempt === attempt
   const adminName = checked && verification.status === 'verified' ? verification.name : ''
 
@@ -19,7 +22,7 @@ function AdminLayout() {
       try {
         const profile = await verifyAdminSession(token, controller.signal)
         if (!controller.signal.aborted && profile && getAccessToken() === token) {
-          setVerification({ token, attempt, status: 'verified', name: profile.name })
+          setVerification({ token, attempt, status: 'verified', name: profile.name, email: profile.email })
         }
       } catch (error) {
         if (!controller.signal.aborted && getAccessToken() === token) {
@@ -61,8 +64,9 @@ function AdminLayout() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
-      <AdminSidebar adminName={adminName} onLogout={handleLogout} />
+    <SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
+      <AdminSidebar adminName={adminName} onLogout={() => setLogoutOpen(true)} />
+      {logoutOpen && <LogoutConfirmationModal onClose={() => setLogoutOpen(false)} onConfirm={handleLogout} />}
       <section
         data-admin-content
         className="min-h-screen flex-1 px-5 py-6 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-8 lg:py-5 xl:px-10"
@@ -73,7 +77,7 @@ function AdminLayout() {
             <button type="button" onClick={() => setAttempt((current) => current + 1)} className="h-10 rounded-xl bg-[#475AA2] px-4 font-semibold text-white hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">Try again</button>
           </div> : <Outlet context={{ adminName }} />}
       </section>
-    </main>
+    </main></SettingsProfileContext.Provider>
   )
 }
 

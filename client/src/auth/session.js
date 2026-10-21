@@ -1,4 +1,6 @@
-// Only Admin sessions survive reloads, within this tab. Never use localStorage or navigation state.
+// This module owns only Admin persistence. Patient persistence and verification
+// belong to patientSession.js; never read, overwrite or clear its storage here.
+// Never use localStorage or navigation state.
 // Bearer-only backend: sessionStorage is JS-accessible; HttpOnly sessions need backend support.
 const adminSessionKey = 'medtrailAdminSession'
 let accessToken = null

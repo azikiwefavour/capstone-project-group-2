@@ -2,13 +2,16 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Prescription, PrescriptionStatus } from './entities/prescription.entity';
 import { Activity } from './entities/activity.entity';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
 import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
@@ -16,6 +19,7 @@ import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
 import { ModifyPrescriptionDto } from './dto/modify-prescription.dto';
 import { DiscontinuePrescriptionDto } from './dto/discontinue-prescription.dto';
 import { ConfirmPrescriptionDto } from './dto/confirm-prescription.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 
 function formatPrescriptionDate(date: Date): string {
   if (!date) return '';
@@ -59,7 +63,91 @@ export class DoctorService {
     private readonly activityRepo: Repository<Activity>,
 
     private readonly usersService: UsersService,
+    private readonly mailService: MailService,
   ) {}
+
+  // ─── Invite Patient ───────────────────────────────────────────────────────
+
+  async invitePatient(doctorId: string, dto: InvitePatientDto) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const hospitalName = doctor.hospitalName || 'General Hospital';
+
+    const existing = await this.usersService.findByEmail(dto.email);
+    if (existing) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    const token = randomUUID();
+    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    const patient = await this.usersService.create({
+      name: dto.name,
+      email: dto.email.toLowerCase(),
+      phone: dto.phone ?? null,
+      gender: dto.gender ?? null,
+      age: dto.age ?? null,
+      hospitalName,
+      password: null,
+      role: UserRole.PATIENT,
+      invitedRole: UserRole.PATIENT,
+      isInvited: true,
+      invitationStatus: 'pending',
+      invitationToken: token,
+      invitationTokenExpiry: expiry,
+      isEmailVerified: false,
+      invitedBy: `${cleanDoctorName} (${doctor.id})`,
+    });
+
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+
+    try {
+      await this.mailService.sendInvitationEmail(
+        patient.email,
+        patient.name,
+        UserRole.PATIENT,
+        frontendInviteUrl,
+        hospitalName,
+        expiry,
+      );
+    } catch (err: any) {
+      this.logger.warn(`Failed to send invitation email to patient ${patient.email}: ${err.message}`);
+    }
+
+    // Record activity for audit log
+    try {
+      const activity = this.activityRepo.create({
+        hospitalName,
+        actorName: cleanDoctorName,
+        actorRole: 'doctor',
+        description: `${cleanDoctorName} registered patient ${patient.name}`,
+        actionType: 'registered',
+        targetPatientName: patient.name,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log doctor invite patient activity: ${err.message}`);
+    }
+
+    return {
+      message: `Invitation sent to patient ${patient.name} (${patient.email})`,
+      patient: {
+        id: patient.id,
+        name: patient.name,
+        email: patient.email,
+        phone: patient.phone,
+        gender: patient.gender,
+        age: patient.age,
+        hospitalName: patient.hospitalName,
+      },
+    };
+  }
 
   // ─── Doctor Dashboard ─────────────────────────────────────────────────────
 
@@ -71,17 +159,19 @@ export class DoctorService {
 
     await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
+    const hospitalLower = hospitalName.trim().toLowerCase();
+
     // 1. Hospital patients
     const allUsers = await this.usersService.findAll();
     const hospitalPatients = allUsers.filter(
       (u) =>
         u.role === UserRole.PATIENT &&
-        u.hospitalName?.toLowerCase() === hospitalName.toLowerCase(),
+        u.hospitalName?.trim().toLowerCase() === hospitalLower,
     );
 
     // 2. Hospital prescriptions
     const allPrescriptions = await this.prescriptionRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
     });
 
@@ -91,7 +181,7 @@ export class DoctorService {
 
     // 3. Recent activities
     const recentActivities = await this.activityRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
       take: 10,
     });
@@ -156,15 +246,17 @@ export class DoctorService {
 
     await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
+    const hospitalLower = hospitalName.trim().toLowerCase();
+
     const allUsers = await this.usersService.findAll();
     let patients = allUsers.filter(
       (u) =>
         u.role === UserRole.PATIENT &&
-        u.hospitalName?.toLowerCase() === hospitalName.toLowerCase(),
+        u.hospitalName?.trim().toLowerCase() === hospitalLower,
     );
 
     const allHospitalPrescriptions = await this.prescriptionRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
     });
 
@@ -238,6 +330,14 @@ export class DoctorService {
     const patient = await this.usersService.findById(patientId);
     if (!patient || patient.role !== UserRole.PATIENT) {
       throw new NotFoundException('Patient not found');
+    }
+
+    if (
+      doctor.hospitalName &&
+      patient.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== patient.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Patient not found in your hospital');
     }
 
     const prescriptions = await this.prescriptionRepo.find({
@@ -327,6 +427,14 @@ export class DoctorService {
       throw new NotFoundException('Selected patient does not exist');
     }
 
+    if (
+      doctor.hospitalName &&
+      patient.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== patient.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Selected patient does not exist in your hospital');
+    }
+
     const proposedMedName = dto.medicationName.trim().toLowerCase();
     const proposedDose = (dto.dosage || dto.dose || '').trim().toLowerCase();
 
@@ -399,6 +507,14 @@ export class DoctorService {
       throw new NotFoundException('Selected patient does not exist');
     }
 
+    if (
+      doctor.hospitalName &&
+      patient.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== patient.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Selected patient does not exist in your hospital');
+    }
+
     const hospitalName = doctor.hospitalName || patient.hospitalName || 'General Hospital';
 
     const cleanDoctorName = doctor.name.startsWith('Dr.')
@@ -464,6 +580,14 @@ export class DoctorService {
     });
     if (!rx) throw new NotFoundException('Prescription not found');
 
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
@@ -527,6 +651,14 @@ export class DoctorService {
     });
     if (!rx) throw new NotFoundException('Prescription not found');
 
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
@@ -569,7 +701,7 @@ export class DoctorService {
 
     const items = await this.prescriptionRepo.find({
       where: {
-        hospitalName,
+        hospitalName: ILike(hospitalName.trim()),
         status: PrescriptionStatus.AWAITING_CLARIFICATION,
       },
       order: { updatedAt: 'DESC' },
@@ -606,6 +738,14 @@ export class DoctorService {
       where: { id: prescriptionId },
     });
     if (!rx) throw new NotFoundException('Clarification not found');
+
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Clarification request not found in your hospital');
+    }
 
     const patient = await this.usersService.findById(rx.patientId);
 
@@ -673,6 +813,14 @@ export class DoctorService {
     });
     if (!rx) throw new NotFoundException('Prescription not found');
 
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
@@ -723,11 +871,18 @@ export class DoctorService {
   // ─── Helper: Seed Demo Patients & Clarifications Matching Figma ───────────
 
   private async seedDemoDataIfEmpty(hospitalName: string, doctor: any) {
-    const jenniferEmail = `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-    const existingJennifer = await this.usersService.findByEmail(jenniferEmail);
+    if (!hospitalName || hospitalName.trim().toLowerCase() !== 'general hospital') {
+      return;
+    }
 
-    if (!existingJennifer) {
-      this.logger.log(`Seeding initial clinical data for hospital "${hospitalName}"...`);
+    const existingRx = await this.prescriptionRepo.findOne({
+      where: { hospitalName: ILike(hospitalName.trim()) },
+    });
+    if (existingRx) {
+      return;
+    }
+
+    this.logger.log(`Seeding initial clinical data for hospital "${hospitalName}"...`);
 
       const demoPatientsData = [
         { name: 'Miss. Jennifer', email: `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Female', age: 34, phone: '08123456789' },
@@ -891,6 +1046,5 @@ export class DoctorService {
       for (const act of sampleActivities) {
         await this.activityRepo.save(this.activityRepo.create({ ...act, hospitalName }));
       }
-    }
   }
 }

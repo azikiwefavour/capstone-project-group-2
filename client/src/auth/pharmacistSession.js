@@ -74,7 +74,7 @@ export async function verifyPharmacistSession(token, signal) {
     setPharmacistAccessToken(null)
     return null
   }
-  return { name: typeof profile.name === 'string' ? profile.name : '' }
+  return { name: typeof profile.name === 'string' ? profile.name : '', email: typeof profile.email === 'string' ? profile.email : '' }
 }
 
 export async function loginPharmacist({ email, password, signal }) {

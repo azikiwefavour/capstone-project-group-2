@@ -20,8 +20,10 @@ existing Patient-only logout handler. Other roles are untouched.
 
 ## Current data limitation
 
-The checked backend source, including the local backend checkout, has no Patient
-dashboard, prescription-list, or diagnosis-list endpoint. Doctor prescription reads
+The latest origin/main source now declares Patient dashboard, prescription,
+diagnosis and profile endpoints. Clinical integration is intentionally deferred
+in this resolution worktree; see PATIENT_API_REVIEW.md for the required mappings
+and diagnosis-semantics question. Doctor prescription reads
 require Doctor permissions; Pharmacy reads require Pharmacist or Admin permissions.
 The shared authenticated profile endpoint supplies identity, not clinical records.
 The frontend therefore makes no unconfirmed clinical requests and shows unavailable
@@ -35,8 +37,8 @@ searching diagnoses. Its props are a presentation interface, not an invented bac
 contract. Populated fixtures are isolated to tests and the explicitly labeled localhost-only
 pagination preview; they never populate the protected dashboard or empty preview.
 Diagnoses must come from authoritative diagnosis records, not inferred prescription
-reasons. A future integration needs confirmed Patient-authorized reads scoped by the
-server to the authenticated patient before these props can be supplied.
+reasons. A future adapter must validate and map the confirmed Patient-authorized reads
+before these props can be supplied. No clinical fetches are added here.
 
 ## Design scope
 

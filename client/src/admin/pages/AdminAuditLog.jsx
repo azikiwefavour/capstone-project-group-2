@@ -1,10 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import AdminHeader from '../components/AdminHeader'
 import AdminPagination from '../components/AdminPagination'
-
-// Backend audit integration is pending; never seed this list with example activities.
-const auditRecords = []
+import { getAdminAuditLog } from '../api'
 
 function SearchIcon() {
   return (
@@ -85,50 +83,76 @@ function SortArrowIcon() {
 
 function AdminAuditLog() {
   const { adminName } = useOutletContext()
+  const [auditRecords, setAuditRecords] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+
   const [searchQuery, setSearchQuery] = useState('')
   const [activityFilter, setActivityFilter] = useState('All')
   const [sortBy, setSortBy] = useState('Newest')
   const rowsPerPage = 7
   const [currentPage, setCurrentPage] = useState(1)
 
+  useEffect(() => {
+    const controller = new AbortController()
+    getAdminAuditLog(controller.signal)
+      .then((records) => {
+        setAuditRecords(Array.isArray(records) ? records : [])
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return
+        setError(err.message || 'Failed to load audit activities.')
+        setLoading(false)
+      })
+    return () => controller.abort()
+  }, [reloadKey])
+
   const visibleRecords = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
     return [...auditRecords]
-      .filter(
-        (record) =>
-          activityFilter === 'All' ||
-          record.event.toLowerCase().includes(activityFilter.toLowerCase()),
-      )
+      .filter((record) => {
+        if (activityFilter === 'All') return true
+        const act = (record.actionType || '').toLowerCase()
+        const ev = (record.event || '').toLowerCase()
+        const filt = activityFilter.toLowerCase()
+        return act.includes(filt) || ev.includes(filt)
+      })
       .filter((record) => {
         if (!normalizedQuery) {
           return true
         }
 
-        return [record.when, record.who, record.event, record.patient].some(
-          (value) => value.toLowerCase().includes(normalizedQuery),
-        )
+        return [
+          record.when || '',
+          record.who || '',
+          record.event || '',
+          record.patient || '',
+        ].some((value) => value.toLowerCase().includes(normalizedQuery))
       })
       .sort((firstRecord, secondRecord) => {
         if (sortBy === 'Oldest') {
-          return firstRecord.id - secondRecord.id
+          return new Date(firstRecord.createdAt || 0) - new Date(secondRecord.createdAt || 0)
         }
 
         if (sortBy === 'Who') {
-          return firstRecord.who.localeCompare(secondRecord.who)
+          return (firstRecord.who || '').localeCompare(secondRecord.who || '')
         }
 
         if (sortBy === 'Event') {
-          return firstRecord.event.localeCompare(secondRecord.event)
+          return (firstRecord.event || '').localeCompare(secondRecord.event || '')
         }
 
         if (sortBy === 'Patient') {
-          return firstRecord.patient.localeCompare(secondRecord.patient)
+          return (firstRecord.patient || '').localeCompare(secondRecord.patient || '')
         }
 
-        return firstRecord.id - secondRecord.id
+        // Default Newest
+        return new Date(secondRecord.createdAt || 0) - new Date(firstRecord.createdAt || 0)
       })
-  }, [activityFilter, searchQuery, sortBy])
+  }, [activityFilter, auditRecords, searchQuery, sortBy])
 
   const totalPages = Math.max(1, Math.ceil(visibleRecords.length / rowsPerPage))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -249,20 +273,50 @@ function AdminAuditLog() {
               </tr>
             </thead>
             <tbody>
-              {paginatedRecords.map((record) => (
-                <tr
-                  key={record.id}
-                  className="border-b border-[#E2E5ED] text-sm font-medium text-[#111827] last:border-b-0"
-                >
-                  <td className="px-4 py-3 text-[#7A8190]">{record.when}</td>
-                  <td className="px-4 py-3">{record.who}</td>
-                  <td className="px-4 py-3 text-[#7A8190]">{record.event}</td>
-                  <td className="px-4 py-3 text-[#7A8190]">
-                    {record.patient}
+              {loading ? (
+                <tr>
+                  <td colSpan="4" className="h-full p-0">
+                    <div className="flex min-h-[300px] flex-col items-center justify-center px-5 py-10 text-center">
+                      <p className="text-sm font-medium text-[#7A8190]">
+                        Loading audit activities...
+                      </p>
+                    </div>
                   </td>
                 </tr>
-              ))}
-              {visibleRecords.length === 0 && (
+              ) : error ? (
+                <tr>
+                  <td colSpan="4" className="h-full p-0">
+                    <div className="flex min-h-[300px] flex-col items-center justify-center px-5 py-10 text-center">
+                      <p className="text-sm font-medium text-[#E5484D]">{error}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLoading(true)
+                          setError('')
+                          setReloadKey((k) => k + 1)
+                        }}
+                        className="mt-3 text-sm font-semibold text-[#475AA2] hover:underline"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedRecords.length > 0 ? (
+                paginatedRecords.map((record) => (
+                  <tr
+                    key={record.id}
+                    className="border-b border-[#E2E5ED] text-sm font-medium text-[#111827] last:border-b-0 hover:bg-[#F9FAFC]"
+                  >
+                    <td className="px-4 py-3 text-[#7A8190]">{record.when}</td>
+                    <td className="px-4 py-3 text-[#111827]">{record.who}</td>
+                    <td className="px-4 py-3 text-[#7A8190]">{record.event}</td>
+                    <td className="px-4 py-3 text-[#7A8190]">
+                      {record.patient}
+                    </td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
                   <td colSpan="4" className="h-full p-0">
                     <div className="flex min-h-[300px] flex-col items-center justify-center px-5 py-10 text-center lg:h-full lg:min-h-0">

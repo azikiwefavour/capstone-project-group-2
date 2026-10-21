@@ -84,4 +84,29 @@ export class PharmacyController {
   ) {
     return this.pharmacyService.raiseClarification(user.sub, id, dto);
   }
+
+  // ── GET /api/pharmacy/prescriptions/:id ──────────────────────────────────
+  @Get('prescriptions/:id')
+  @ApiOperation({ summary: 'Get single prescription details, patient profile, and current medications' })
+  @ApiResponse({ status: 200, description: 'Prescription details, patient profile, and current medications' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  getPrescriptionDetails(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.pharmacyService.getPrescriptionDetails(user.sub, id);
+  }
+
+  // ── POST /api/pharmacy/prescriptions/:id/verify ──────────────────────────
+  @Post('prescriptions/:id/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify and dispense prescription' })
+  @ApiResponse({ status: 200, description: 'Prescription verified and dispensed' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  verifyPrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.pharmacyService.verifyPrescription(user.sub, id);
+  }
 }

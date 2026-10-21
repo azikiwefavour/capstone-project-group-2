@@ -25,6 +25,34 @@ async function load(store = storage(), fetch = async () => response(profile), en
   return { session: session.namespace, shared: shared.namespace, store }
 }
 
+test('shared authentication preserves both Patient storage formats when no Admin session exists', async () => {
+  for (const withRole of [false, true]) {
+    const store = storage(), jwt = token()
+    store.setItem(key, JSON.stringify({ token: jwt, ...(withRole ? { role: 'patient' } : {}) }))
+    const current = await load(store)
+    assert.equal(current.shared.getAccessToken(), null)
+    assert.equal(current.session.getPatientAccessToken(), jwt)
+    assert.equal((await current.session.verifyPatientSession(jwt)).name, profile.name)
+    assert.notEqual(store.getItem(key), null)
+  }
+})
+
+test('Admin logout and invalid Admin storage cannot delete a valid Patient session', async () => {
+  const store = storage(), jwt = token()
+  const current = await load(store)
+  current.shared.setAccessToken(token({ role: 'admin' }), 'admin')
+  current.session.setPatientAccessToken(jwt)
+  const saved = store.getItem(key)
+  current.shared.setAccessToken(null)
+  assert.equal(store.getItem(key), saved)
+  assert.equal(current.session.getPatientAccessToken(), jwt)
+  store.setItem('medtrailAdminSession', 'invalid-json')
+  const restored = await load(store)
+  assert.equal(restored.shared.getAccessToken(), null)
+  assert.equal(restored.session.getPatientAccessToken(), jwt)
+  assert.equal(store.getItem(key), saved)
+})
+
 test('restores a Patient token after reload and verifies it with the backend before granting access', async () => {
   const store = storage(), jwt = token()
   const original = await load(store)

@@ -59,10 +59,10 @@ export class AuthService {
     const expiry = this.otpExpiry();
 
     const user = await this.usersService.create({
-      name: dto.name,
-      email: dto.email.toLowerCase(),
-      phone: dto.phone,
-      hospitalName: dto.hospitalName,
+      name: dto.name.trim(),
+      email: dto.email.trim().toLowerCase(),
+      phone: dto.phone?.trim() ?? null,
+      hospitalName: dto.hospitalName.trim(),
       password: hashedPassword,
       role: UserRole.ADMIN,
       emailOtp: otp,
@@ -278,9 +278,12 @@ export class AuthService {
    * so the frontend can display the personalised welcome screen.
    */
   async validateInvitationToken(token: string) {
-    const user = await this.usersService.findByInvitationToken(token);
+    this.logger.warn(`Validating invitation token: [${token}]`);
+    const cleanToken = (token || '').trim();
+    const user = await this.usersService.findByInvitationToken(cleanToken);
 
     if (!user) {
+      this.logger.warn(`No user found for invitation token: [${token}] (clean: [${cleanToken}])`);
       throw new BadRequestException('Invalid invitation link. Please contact your administrator.');
     }
 

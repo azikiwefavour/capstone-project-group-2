@@ -89,6 +89,7 @@ the frontend cannot confirm email delivery from a successful reset request.
 Patient recovery therefore uses conditional account-existence wording and only
 advances after the API accepts each request. The responsive dashboard UI, search,
 sorting, pagination and logout modal are implemented. Patient prescription and
-diagnosis API integration remains pending; the protected dashboard makes no
+diagnosis API integration remains pending despite the new endpoints on main
+(reviewed in PATIENT_API_REVIEW.md); the protected dashboard makes no
 unconfirmed clinical API requests. See PATIENT_DASHBOARD.md for the data boundary
 and local preview routes.

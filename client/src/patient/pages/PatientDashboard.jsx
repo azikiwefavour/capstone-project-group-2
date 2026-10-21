@@ -4,7 +4,7 @@ import PatientDashboardContent from '../components/PatientDashboardContent'
 export default function PatientDashboard() {
   const { patientName } = useOutletContext()
 
-  // No Patient-scoped prescription/diagnosis reads exist in the current backend.
-  // Unavailable records must not appear as successfully loaded empty lists.
+  // origin/main declares Patient clinical APIs. Integration is deliberately
+  // deferred pending contract review; unavailable data is not a verified empty list.
   return <PatientDashboardContent patientName={patientName} />
 }

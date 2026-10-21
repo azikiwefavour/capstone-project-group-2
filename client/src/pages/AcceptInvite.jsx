@@ -67,7 +67,8 @@ function InvitationForm() {
     if (!isSuccess) return
     const timer = window.setTimeout(() => {
       if (successRole === 'doctor') navigate('/doctor/dashboard', { replace: true })
-      else navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+      else if (successRole === 'pharmacist') navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+      else navigate('/patient/login', { replace: true })
     }, 1500)
     return () => window.clearTimeout(timer)
   }, [isSuccess, successRole, navigate])
