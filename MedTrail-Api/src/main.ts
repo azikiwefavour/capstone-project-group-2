@@ -54,14 +54,14 @@ async function bootstrap() {
     .setTitle('MedTrail API')
     .setDescription(
       'One medication record, from prescription to patient.\n\n' +
-        '## Authentication Flow\n' +
-        '1. **Register** – `POST /api/auth/register`\n' +
-        '2. **Verify Email OTP** – `POST /api/auth/verify-email`\n' +
-        '3. **Select Role & Login** – `POST /api/auth/login`\n' +
-        '4. **Forgot Password** – `POST /api/auth/forgot-password`\n' +
-        '5. **Verify Reset Code** – `POST /api/auth/verify-reset-code`\n' +
-        '6. **Reset Password** – `POST /api/auth/reset-password`\n\n' +
-        'Use the 🔒 Authorize button with `Bearer <token>` for protected routes.',
+      '## Authentication Flow\n' +
+      '1. **Register** – `POST /api/auth/register`\n' +
+      '2. **Verify Email OTP** – `POST /api/auth/verify-email`\n' +
+      '3. **Select Role & Login** – `POST /api/auth/login`\n' +
+      '4. **Forgot Password** – `POST /api/auth/forgot-password`\n' +
+      '5. **Verify Reset Code** – `POST /api/auth/verify-reset-code`\n' +
+      '6. **Reset Password** – `POST /api/auth/reset-password`\n\n' +
+      'Use the 🔒 Authorize button with `Bearer <token>` for protected routes.',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -79,14 +79,14 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT ?? 3000;
-    app.enableCors({
-     origin: [
-       'http://localhost:5173',
-       'https://medtrail-frontend.vercel.app',
-     ],
-     credentials: true,
-   });
- await app.listen(port);
+  app.enableCors({
+    origin: [
+      'http://localhost:5173',
+      'https://medtrail-frontend.vercel.app',
+    ],
+    credentials: true,
+  });
+  await app.listen(port);
 
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   logger.log(`🚀 MedTrail API running at http://localhost:${port}/api`, 'Bootstrap');

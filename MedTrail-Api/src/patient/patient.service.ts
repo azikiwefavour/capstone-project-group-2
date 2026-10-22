@@ -60,6 +60,17 @@ export class PatientService {
       order: { createdAt: 'DESC' },
     });
 
+    // Auto-complete any prescriptions whose duration has elapsed
+    for (const rx of prescriptions) {
+      if (
+        (rx.status === PrescriptionStatus.ACTIVE || rx.status === PrescriptionStatus.DISPENSED) &&
+        this.isPrescriptionDurationCompleted(rx)
+      ) {
+        rx.status = PrescriptionStatus.COMPLETED;
+        await this.prescriptionRepo.save(rx);
+      }
+    }
+
     const pending = prescriptions.filter(
       (p) =>
         p.status === PrescriptionStatus.PENDING ||
@@ -73,6 +84,9 @@ export class PatientService {
     ).length;
     const discontinued = prescriptions.filter(
       (p) => p.status === PrescriptionStatus.DISCONTINUED,
+    ).length;
+    const completed = prescriptions.filter(
+      (p) => p.status === PrescriptionStatus.COMPLETED,
     ).length;
     const total = prescriptions.length;
 
@@ -138,6 +152,8 @@ export class PatientService {
           ? 'active'
           : p.status === PrescriptionStatus.DISCONTINUED
           ? 'discontinued'
+          : p.status === PrescriptionStatus.COMPLETED
+          ? 'completed'
           : 'pending',
       rawStatus: p.status,
       createdAt: p.createdAt ? (typeof p.createdAt === 'string' ? p.createdAt : p.createdAt.toISOString()) : null,
@@ -264,5 +280,65 @@ export class PatientService {
       isEmailVerified: patient.isEmailVerified,
       createdAt: patient.createdAt,
     };
+  }
+
+  // ─── Complete Prescription (Patient marks medicine finished) ─────────────
+
+  async completePrescription(patientId: string, prescriptionId: string) {
+    const rx = await this.prescriptionRepo.findOne({
+      where: { id: prescriptionId, patientId },
+    });
+    if (!rx) throw new NotFoundException('Prescription not found');
+
+    rx.status = PrescriptionStatus.COMPLETED;
+    const saved = await this.prescriptionRepo.save(rx);
+
+    this.logger.log(`Patient [${patientId}] finished medication [${rx.id}] (${rx.medicationName})`);
+
+    return {
+      message: 'Medication marked as completed and moved out of active medications',
+      prescription: {
+        ...saved,
+        date: formatOrdinalDate(saved.updatedAt || saved.createdAt),
+      },
+    };
+  }
+
+  // ─── Helper: Check duration expiry ───────────────────────────────────────
+
+  isPrescriptionDurationCompleted(rx: Prescription): boolean {
+    if (
+      rx.status !== PrescriptionStatus.ACTIVE &&
+      rx.status !== PrescriptionStatus.DISPENSED
+    ) {
+      return false;
+    }
+    if (!rx.duration) return false;
+    const dur = rx.duration.trim().toLowerCase();
+    if (dur === 'ongoing' || dur === 'as directed') return false;
+
+    let days = 0;
+    const dayMatch = dur.match(/^(\d+)\s*day/i);
+    if (dayMatch) {
+      days = parseInt(dayMatch[1], 10);
+    } else {
+      const weekMatch = dur.match(/^(\d+)\s*week/i);
+      if (weekMatch) {
+        days = parseInt(weekMatch[1], 10) * 7;
+      } else {
+        const monthMatch = dur.match(/^(\d+)\s*month/i);
+        if (monthMatch) {
+          days = parseInt(monthMatch[1], 10) * 30;
+        }
+      }
+    }
+
+    if (days <= 0) return false;
+
+    const start = rx.updatedAt || rx.createdAt;
+    if (!start) return false;
+    const startTime = new Date(start).getTime();
+    const elapsed = Date.now() - startTime;
+    return elapsed >= days * 24 * 60 * 60 * 1000;
   }
 }

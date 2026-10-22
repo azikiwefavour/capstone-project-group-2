@@ -162,6 +162,19 @@ export class DoctorController {
     return this.doctorService.discontinuePrescription(user.sub, id, dto);
   }
 
+  // ── POST /api/doctor/prescriptions/:id/complete ──────────────────────────
+  @Post('prescriptions/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark prescription treatment as completed' })
+  @ApiResponse({ status: 200, description: 'Prescription marked as completed and moved to medication history' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  completePrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.doctorService.completePrescription(user.sub, id);
+  }
+
   // ── GET /api/doctor/clarifications ───────────────────────────────────────
   @Get('clarifications')
   @ApiOperation({ summary: 'List prescriptions flagged by pharmacy awaiting doctor clarification (Figma: Clarifications table)' })

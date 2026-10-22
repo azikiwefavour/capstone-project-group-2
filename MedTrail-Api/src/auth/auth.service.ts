@@ -182,9 +182,7 @@ export class AuthService {
 
     // Users with no password yet must set one first
     if (!user.password) {
-      throw new UnauthorizedException(
-        'Please complete your registration first by clicking the invitation link sent to your email or resetting your password.',
-      );
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const passwordMatch = await bcrypt.compare(dto.password, user.password);
@@ -193,9 +191,7 @@ export class AuthService {
     }
 
     if (!user.isEmailVerified) {
-      throw new UnauthorizedException(
-        'Please verify your email before logging in. Check your inbox for the verification code.',
-      );
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     // Strict Role Enforcement:
@@ -204,27 +200,19 @@ export class AuthService {
 
     if (userRole) {
       if (userRole === UserRole.ADMIN && dto.role && dto.role !== UserRole.ADMIN) {
-        throw new UnauthorizedException(
-          'Administrator accounts can only log in as Admin. You cannot log in as a doctor, pharmacist, or patient.',
-        );
+        throw new UnauthorizedException('Invalid email or password');
       }
 
       if (userRole !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
-        throw new UnauthorizedException(
-          `Access denied. Your account is registered as a ${userRole}, not an administrator.`,
-        );
+        throw new UnauthorizedException('Invalid email or password');
       }
 
       if (dto.role && userRole !== dto.role) {
-        throw new UnauthorizedException(
-          `Your account is registered as a ${userRole}. Please select the ${userRole} role to log in.`,
-        );
+        throw new UnauthorizedException('Invalid email or password');
       }
     } else {
       if (dto.role === UserRole.ADMIN) {
-        throw new UnauthorizedException(
-          'Access denied. This account does not have administrator privileges.',
-        );
+        throw new UnauthorizedException('Invalid email or password');
       }
       const initialRole = dto.role || UserRole.PATIENT;
       await this.usersService.updateById(String(user.id), { role: initialRole });

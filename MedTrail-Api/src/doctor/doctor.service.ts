@@ -272,7 +272,10 @@ export class DoctorService {
       const activeOrPending = patientPrescriptions.filter(
         (rx) =>
           rx.status === PrescriptionStatus.ACTIVE ||
-          rx.status === PrescriptionStatus.PENDING,
+          rx.status === PrescriptionStatus.DISPENSED ||
+          rx.status === PrescriptionStatus.PENDING ||
+          rx.status === PrescriptionStatus.CLARIFIED ||
+          rx.status === PrescriptionStatus.AWAITING_CLARIFICATION,
       );
 
       const lastPrescription = patientPrescriptions[0] ?? null;
@@ -378,21 +381,36 @@ export class DoctorService {
       };
     };
 
-    // Current medications = active medications + pending prescriptions awaiting pharmacy approval
+    // Auto-complete any prescriptions whose duration has finished
+    for (const rx of prescriptions) {
+      if (
+        (rx.status === PrescriptionStatus.ACTIVE || rx.status === PrescriptionStatus.DISPENSED) &&
+        this.isPrescriptionDurationCompleted(rx)
+      ) {
+        rx.status = PrescriptionStatus.COMPLETED;
+        await this.prescriptionRepo.save(rx);
+      }
+    }
+
+    // Current medications = active + dispensed + pending + clarified + awaiting clarification
     const currentMedications = prescriptions
       .filter(
         (rx) =>
           rx.status === PrescriptionStatus.ACTIVE ||
-          rx.status === PrescriptionStatus.PENDING,
+          rx.status === PrescriptionStatus.DISPENSED ||
+          rx.status === PrescriptionStatus.PENDING ||
+          rx.status === PrescriptionStatus.CLARIFIED ||
+          rx.status === PrescriptionStatus.AWAITING_CLARIFICATION,
       )
       .map(formatRx);
 
-    // Medication history = discontinued, completed, dispensed, awaiting_clarification, clarified, cancelled
+    // Medication history = discontinued, completed, cancelled
     const medicationHistory = prescriptions
       .filter(
         (rx) =>
-          rx.status !== PrescriptionStatus.ACTIVE &&
-          rx.status !== PrescriptionStatus.PENDING,
+          rx.status === PrescriptionStatus.DISCONTINUED ||
+          rx.status === PrescriptionStatus.COMPLETED ||
+          rx.status === PrescriptionStatus.CANCELLED,
       )
       .map(formatRx);
 
@@ -691,6 +709,91 @@ export class DoctorService {
         date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
       },
     };
+  }
+
+  // ─── Complete Prescription (Mark medication as finished) ─────────────────
+
+  async completePrescription(doctorId: string, prescriptionId: string) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const rx = await this.prescriptionRepo.findOne({
+      where: { id: prescriptionId },
+    });
+    if (!rx) throw new NotFoundException('Prescription not found');
+
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    rx.status = PrescriptionStatus.COMPLETED;
+    const saved = await this.prescriptionRepo.save(rx);
+
+    const activity = this.activityRepo.create({
+      hospitalName: rx.hospitalName,
+      actorName: cleanDoctorName,
+      actorRole: 'doctor',
+      description: `${cleanDoctorName} completed medication treatment for ${rx.patientName}`,
+      actionType: 'completed',
+      targetPatientName: rx.patientName,
+    });
+    await this.activityRepo.save(activity);
+
+    this.logger.log(`Prescription [${rx.id}] completed by ${cleanDoctorName}`);
+
+    return {
+      message: 'Prescription completed successfully and moved to history',
+      prescription: {
+        ...saved,
+        date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
+      },
+    };
+  }
+
+  // ─── Helper: Check if prescription duration has elapsed ─────────────────
+
+  isPrescriptionDurationCompleted(rx: Prescription): boolean {
+    if (
+      rx.status !== PrescriptionStatus.ACTIVE &&
+      rx.status !== PrescriptionStatus.DISPENSED
+    ) {
+      return false;
+    }
+    if (!rx.duration) return false;
+    const dur = rx.duration.trim().toLowerCase();
+    if (dur === 'ongoing' || dur === 'as directed') return false;
+
+    let days = 0;
+    const dayMatch = dur.match(/^(\d+)\s*day/i);
+    if (dayMatch) {
+      days = parseInt(dayMatch[1], 10);
+    } else {
+      const weekMatch = dur.match(/^(\d+)\s*week/i);
+      if (weekMatch) {
+        days = parseInt(weekMatch[1], 10) * 7;
+      } else {
+        const monthMatch = dur.match(/^(\d+)\s*month/i);
+        if (monthMatch) {
+          days = parseInt(monthMatch[1], 10) * 30;
+        }
+      }
+    }
+
+    if (days <= 0) return false;
+
+    const start = rx.updatedAt || rx.createdAt;
+    if (!start) return false;
+    const startTime = new Date(start).getTime();
+    const elapsed = Date.now() - startTime;
+    return elapsed >= days * 24 * 60 * 60 * 1000;
   }
 
   // ─── Get Clarifications List (Image 2 Left Frame) ─────────────────────────

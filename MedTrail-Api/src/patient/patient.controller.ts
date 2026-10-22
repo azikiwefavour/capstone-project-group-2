@@ -1,9 +1,12 @@
 import {
   Controller,
   Get,
+  Post,
   Param,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -57,6 +60,19 @@ export class PatientController {
     @Param('id') id: string,
   ) {
     return this.patientService.getPrescriptionDetails(user.sub, id);
+  }
+
+  // ── POST /api/patient/prescriptions/:id/complete ─────────────────────────
+  @Post('prescriptions/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Patient marks medication treatment as completed / finished' })
+  @ApiResponse({ status: 200, description: 'Prescription marked as completed' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  completePrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.patientService.completePrescription(user.sub, id);
   }
 
   // ── GET /api/patient/diagnoses ───────────────────────────────────────────

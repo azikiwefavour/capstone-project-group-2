@@ -214,6 +214,17 @@ export class PharmacyService {
     const freq = rx.frequency || '';
     const doseAndFreq = rx.doseAndFrequency || (freq && dose ? `${dose}, ${freq}` : dose || freq);
 
+    // Auto-complete any prescriptions whose duration has elapsed
+    for (const m of patientMedications) {
+      if (
+        (m.status === PrescriptionStatus.ACTIVE || m.status === PrescriptionStatus.DISPENSED) &&
+        this.isPrescriptionDurationCompleted(m)
+      ) {
+        m.status = PrescriptionStatus.COMPLETED;
+        await this.prescriptionRepo.save(m);
+      }
+    }
+
     return {
       prescription: {
         ...rx,
@@ -240,10 +251,19 @@ export class PharmacyService {
         email: patient?.email || rx.patientEmail || '',
         phone: patient?.phone || '',
       },
-      currentMedications: patientMedications.map((m) => ({
-        ...m,
-        date: formatPrescriptionDate(m.createdAt),
-      })),
+      currentMedications: patientMedications
+        .filter(
+          (m) =>
+            m.status === PrescriptionStatus.ACTIVE ||
+            m.status === PrescriptionStatus.DISPENSED ||
+            m.status === PrescriptionStatus.PENDING ||
+            m.status === PrescriptionStatus.CLARIFIED ||
+            m.status === PrescriptionStatus.AWAITING_CLARIFICATION,
+        )
+        .map((m) => ({
+          ...m,
+          date: formatPrescriptionDate(m.createdAt),
+        })),
     };
   }
 
@@ -368,6 +388,44 @@ export class PharmacyService {
         date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
       },
     };
+  }
+
+  // ─── Helper: Check duration expiry ───────────────────────────────────────
+
+  isPrescriptionDurationCompleted(rx: Prescription): boolean {
+    if (
+      rx.status !== PrescriptionStatus.ACTIVE &&
+      rx.status !== PrescriptionStatus.DISPENSED
+    ) {
+      return false;
+    }
+    if (!rx.duration) return false;
+    const dur = rx.duration.trim().toLowerCase();
+    if (dur === 'ongoing' || dur === 'as directed') return false;
+
+    let days = 0;
+    const dayMatch = dur.match(/^(\d+)\s*day/i);
+    if (dayMatch) {
+      days = parseInt(dayMatch[1], 10);
+    } else {
+      const weekMatch = dur.match(/^(\d+)\s*week/i);
+      if (weekMatch) {
+        days = parseInt(weekMatch[1], 10) * 7;
+      } else {
+        const monthMatch = dur.match(/^(\d+)\s*month/i);
+        if (monthMatch) {
+          days = parseInt(monthMatch[1], 10) * 30;
+        }
+      }
+    }
+
+    if (days <= 0) return false;
+
+    const start = rx.updatedAt || rx.createdAt;
+    if (!start) return false;
+    const startTime = new Date(start).getTime();
+    const elapsed = Date.now() - startTime;
+    return elapsed >= days * 24 * 60 * 60 * 1000;
   }
 
   // ─── Helper: Seed Demo Patients, Prescriptions & Activities for Hospital ───
