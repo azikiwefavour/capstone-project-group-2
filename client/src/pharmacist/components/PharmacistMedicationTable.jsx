@@ -14,15 +14,18 @@ export default function PharmacistMedicationTable({ records, onOpenPrescription,
             {['Medication', 'Dose and frequency', 'Duration', 'Prescribed by', 'Status', 'Date', 'Actions'].map(label => <th key={label} scope="col" className={`px-4 py-3 ${compact ? 'lg:py-2' : ''}`}>{label}</th>)}
           </tr></thead>
           <tbody>
-            {records?.map(record => <tr key={record.id} className={`border-b border-[#E2E5ED] text-sm text-[#111827] last:border-b-0 ${compact ? 'lg:text-[13px]' : ''}`}>
-              <td className={`max-w-[220px] break-words px-4 py-3 ${cellSpacing}`}><p className="font-medium">{record.medicationName || 'Medication unavailable'}</p>{record.reason && <p className="mt-1 text-xs text-[#7A8190]">{record.reason}</p>}</td>
-              <td className={`max-w-[200px] break-words px-4 py-3 ${cellSpacing}`}>{record.dosage || record.frequency ? <><p>{record.dosage || '—'}</p><p className="mt-1 text-xs text-[#7A8190]">{record.frequency || '—'}</p></> : record.doseAndFrequency || '—'}</td>
-              <td className={`max-w-[180px] break-words px-4 py-3 ${cellSpacing}`}>{record.duration || '—'}</td>
-              <td className={`max-w-[220px] break-words px-4 py-3 ${cellSpacing}`}>{record.doctorName || '—'}</td>
-              <td className={`px-4 py-3 ${cellSpacing}`}><span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium ${record.status === 'active' ? 'border-[#D0E7DC] bg-[#EDF7F0] text-[#2F7D59]' : 'border-[#F8D6DD] bg-[#FFF1F3] text-[#B83F5C]'}`}><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${record.status === 'active' ? 'bg-[#2F7D59]' : 'bg-[#B83F5C]'}`} />{record.status === 'active' ? 'Active' : 'Unverified'}</span></td>
-              <td className={`whitespace-nowrap px-4 py-3 text-xs text-[#7A8190] ${cellSpacing}`}>{record.timestamp ? <time dateTime={record.timestamp.dateTime}>{record.timestamp.label}</time> : '—'}</td>
-              <td className={`px-4 py-3 ${cellSpacing}`}><PrescriptionActions label={`Medication actions for ${record.medicationName || 'unnamed medication'}`} open={openRecord === record.id} onToggle={() => setOpenRecord(current => current === record.id ? null : record.id)} onClose={closeActions} onReview={() => onOpenPrescription(record.id)} /></td>
-            </tr>)}
+            {records?.map(record => {
+              const isActive = record.status === 'active' || record.status === 'dispensed'
+              return <tr key={record.id} className={`border-b border-[#E2E5ED] text-sm text-[#111827] last:border-b-0 ${compact ? 'lg:text-[13px]' : ''}`}>
+                <td className={`max-w-[220px] break-words px-4 py-3 ${cellSpacing}`}><p className="font-medium">{record.medicationName || 'Medication unavailable'}</p>{record.reason && <p className="mt-1 text-xs text-[#7A8190]">{record.reason}</p>}</td>
+                <td className={`max-w-[200px] break-words px-4 py-3 ${cellSpacing}`}>{record.dosage || record.frequency ? <><p>{record.dosage || '—'}</p><p className="mt-1 text-xs text-[#7A8190]">{record.frequency || '—'}</p></> : record.doseAndFrequency || '—'}</td>
+                <td className={`max-w-[180px] break-words px-4 py-3 ${cellSpacing}`}>{record.duration || '—'}</td>
+                <td className={`max-w-[220px] break-words px-4 py-3 ${cellSpacing}`}>{record.doctorName || '—'}</td>
+                <td className={`px-4 py-3 ${cellSpacing}`}><span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium ${isActive ? 'border-[#D0E7DC] bg-[#EDF7F0] text-[#2F7D59]' : 'border-[#F8D6DD] bg-[#FFF1F3] text-[#B83F5C]'}`}><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-[#2F7D59]' : 'bg-[#B83F5C]'}`} />{isActive ? 'Active' : 'Unverified'}</span></td>
+                <td className={`whitespace-nowrap px-4 py-3 text-xs text-[#7A8190] ${cellSpacing}`}>{record.timestamp ? <time dateTime={record.timestamp.dateTime}>{record.timestamp.label}</time> : '—'}</td>
+                <td className={`px-4 py-3 ${cellSpacing}`}><PrescriptionActions label={`Medication actions for ${record.medicationName || 'unnamed medication'}`} open={openRecord === record.id} onToggle={() => setOpenRecord(current => current === record.id ? null : record.id)} onClose={closeActions} onReview={() => onOpenPrescription(record.id)} /></td>
+              </tr>
+            })}
           </tbody>
         </table>
       </div>
