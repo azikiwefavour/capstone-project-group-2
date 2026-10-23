@@ -101,20 +101,21 @@ function LoginFields({ isPatient, children }) {
 }
 
 function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate, successPath = '/doctor/dashboard', invitationOnly = false }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selectedRole = authenticationRole || location.state?.selectedRole || 'Admin'
+  const role = Object.hasOwn(backendRoles, selectedRole) ? backendRoles[selectedRole] : null
+
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => (typeof location.state?.email === 'string' ? location.state.email : ''))
   const [password, setPassword] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loginError, setLoginError] = useState('')
-  const [loginNotice, setLoginNotice] = useState('')
+  const [loginNotice, setLoginNotice] = useState(() => (typeof location.state?.notice === 'string' ? location.state.notice : ''))
   const loginInFlight = useRef(false)
   const loginController = useRef(null)
   useEffect(() => () => loginController.current?.abort(), [])
-  const location = useLocation()
-  const navigate = useNavigate()
-  const selectedRole = authenticationRole || location.state?.selectedRole
-  const role = Object.hasOwn(backendRoles, selectedRole) ? backendRoles[selectedRole] : null
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
     continueClicked &&

@@ -241,6 +241,7 @@ function CreateAccount() {
           phone: `+234${phoneDigits.replace(/^0/, '')}`,
           hospitalName: hospitalName.trim(),
           password,
+          role: 'admin',
         }),
       })
 

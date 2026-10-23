@@ -88,13 +88,12 @@ export class AdminService {
     const allUsers = await this.usersService.findAll();
 
     const users = allUsers.filter((u) => {
-      if (hospitalLower) {
-        return (
-          (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
-          u.id === adminId
-        );
-      }
-      return u.id === adminId || (u.invitedBy && u.invitedBy.includes(adminId));
+      if (!hospitalLower) return false;
+      return (
+        u.role !== UserRole.ADMIN &&
+        u.hospitalName &&
+        u.hospitalName.trim().toLowerCase() === hospitalLower
+      );
     });
 
     const total = users.length;
@@ -109,12 +108,14 @@ export class AdminService {
     const pending = users.filter((u) => u.invitationStatus === 'pending').length;
     const accepted = users.filter((u) => u.invitationStatus === 'accepted').length;
 
-    // Fetch hospital recent activities
-    const recentActivitiesRaw = await this.activityRepo.find({
-      where: hospitalLower ? { hospitalName: ILike(admin.hospitalName?.trim() || '%') } : {},
-      order: { createdAt: 'DESC' },
-      take: 10,
-    });
+    // Fetch hospital recent activities strictly for this hospital
+    const recentActivitiesRaw = hospitalLower
+      ? await this.activityRepo.find({
+          where: { hospitalName: ILike(admin.hospitalName?.trim() || '') },
+          order: { createdAt: 'DESC' },
+          take: 10,
+        })
+      : [];
 
     const recentActivities = recentActivitiesRaw.map((a) => {
       const dateStr = formatActivityDate(a.createdAt);
@@ -156,16 +157,16 @@ export class AdminService {
     if (!admin) return [];
 
     const hospitalLower = admin.hospitalName?.trim().toLowerCase();
+    if (!hospitalLower) return [];
+
     const allUsers = await this.usersService.findAll();
 
     return allUsers.filter((u) => {
-      if (hospitalLower) {
-        return (
-          (u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower) ||
-          u.id === adminId
-        );
-      }
-      return u.id === adminId || (u.invitedBy && u.invitedBy.includes(adminId));
+      return (
+        u.role !== UserRole.ADMIN &&
+        u.hospitalName &&
+        u.hospitalName.trim().toLowerCase() === hospitalLower
+      );
     });
   }
 
@@ -178,13 +179,12 @@ export class AdminService {
     if (!admin) return [];
 
     const hospitalLower = admin.hospitalName?.trim().toLowerCase();
+    if (!hospitalLower) return [];
+
     const allInvited = await this.usersService.findAllInvited();
 
     const users = allInvited.filter((u) => {
-      if (hospitalLower) {
-        return u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower;
-      }
-      return u.invitedBy && u.invitedBy.includes(adminId);
+      return u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalLower;
     });
 
     return users.map((u) => ({
@@ -408,7 +408,12 @@ export class AdminService {
         : [];
     }
 
-    const hospitalName = admin.hospitalName?.trim() || 'General Hospital';
+    const hospitalName = admin.hospitalName?.trim();
+    if (!hospitalName) {
+      return query?.paginate === 'true'
+        ? { data: [], records: [], total: 0, page: 1, limit: 50, totalPages: 1 }
+        : [];
+    }
 
     const qb = this.activityRepo
       .createQueryBuilder('a')

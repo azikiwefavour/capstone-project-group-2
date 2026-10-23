@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { setAccessToken } from '../auth/session'
 import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
@@ -123,8 +124,9 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', b
         body: JSON.stringify({ email, otp }),
       })
 
+      const data = await response.json().catch(() => null)
+
       if (response.status !== 200) {
-        const data = await response.json().catch(() => null)
         const message = Array.isArray(data?.message)
           ? data.message.filter((value) => typeof value === 'string').join(' ')
           : typeof data?.message === 'string' ? data.message : ''
@@ -139,7 +141,28 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', b
         return
       }
 
-      navigate(successPath)
+      if (data?.accessToken && data?.user?.role) {
+        setAccessToken(data.accessToken, data.user.role)
+        if (data.user.role === 'admin') {
+          sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : '')
+          navigate('/admin/dashboard', { replace: true })
+          return
+        }
+        if (data.user.role === 'doctor') {
+          navigate('/doctor/dashboard', { replace: true })
+          return
+        }
+        if (data.user.role === 'pharmacist') {
+          navigate('/pharmacist/dashboard', { replace: true })
+          return
+        }
+        if (data.user.role === 'patient') {
+          navigate('/patient/dashboard', { replace: true })
+          return
+        }
+      }
+
+      navigate(successPath, { replace: true })
     } catch {
       setVerificationError('Unable to connect. Please check your connection and try again.')
     } finally {

@@ -29,7 +29,7 @@ export class AuthService {
     private jwtService: JwtService,
     private mailService: MailService,
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -59,13 +59,15 @@ export class AuthService {
     const otp = this.generateOtp();
     const expiry = this.otpExpiry();
 
+    const assignedRole = dto.role ?? UserRole.ADMIN;
+
     const user = await this.usersService.create({
       name: dto.name.trim(),
       email: cleanEmail,
       phone: dto.phone?.trim() ?? null,
       hospitalName: dto.hospitalName?.trim() || 'General Hospital',
       password: hashedPassword,
-      role: dto.role ?? null,
+      role: assignedRole,
       emailOtp: otp,
       emailOtpExpiry: expiry,
       isEmailVerified: false,
@@ -73,7 +75,7 @@ export class AuthService {
     });
 
     await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp, expiry, user.role);
-    this.logger.log(`New account registered: ${user.email} (role: ${user.role || 'pending-selection'})`);
+    this.logger.log(`New account registered: ${user.email} (role: ${user.role || 'admin'})`);
 
     return {
       message: 'Account created. A 6-digit verification code has been sent to your email.',
@@ -90,7 +92,24 @@ export class AuthService {
     if (!user) throw new NotFoundException('No account found with this email');
 
     if (user.isEmailVerified) {
-      return { message: 'Email is already verified. You can now log in.' };
+      const currentRole = user.role || user.invitedRole || (!user.isInvited ? UserRole.ADMIN : UserRole.PATIENT);
+      const token = this.signToken({
+        sub: String(user.id),
+        email: user.email,
+        role: currentRole,
+      });
+      return {
+        message: 'Email is already verified.',
+        accessToken: token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: currentRole,
+          hospitalName: user.hospitalName,
+          phone: user.phone,
+        },
+      };
     }
 
     const matchesEmail = user.emailOtp && user.emailOtp === cleanOtp;
@@ -105,18 +124,40 @@ export class AuthService {
       throw new BadRequestException('Verification code has expired. Please request a new one.');
     }
 
+    const resolvedRole = user.role || user.invitedRole || (!user.isInvited ? UserRole.ADMIN : UserRole.PATIENT);
+
     await this.usersService.updateById(String(user.id), {
       isEmailVerified: true,
       invitationStatus: user.invitationStatus === 'pending' ? 'accepted' : user.invitationStatus,
-      role: user.role || user.invitedRole,
+      role: resolvedRole,
       emailOtp: null,
       emailOtpExpiry: null,
       resetPasswordOtp: null,
       resetPasswordOtpExpiry: null,
     });
 
-    this.logger.log(`Email verified: ${user.email}`);
-    return { message: 'Email verified successfully. You can now log in.' };
+    user.role = resolvedRole;
+    user.isEmailVerified = true;
+
+    const token = this.signToken({
+      sub: String(user.id),
+      email: user.email,
+      role: resolvedRole,
+    });
+
+    this.logger.log(`Email verified and logged in: ${user.email} (role: ${resolvedRole})`);
+    return {
+      message: 'Email verified successfully.',
+      accessToken: token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: resolvedRole,
+        hospitalName: user.hospitalName,
+        phone: user.phone,
+      },
+    };
   }
 
   // ─── Resend Email / Reset OTP ─────────────────────────────────────────────
@@ -196,7 +237,14 @@ export class AuthService {
 
     // Strict Role Enforcement:
     // A user can ONLY log into their assigned role.
-    const userRole = user.role || user.invitedRole;
+    let userRole = user.role || user.invitedRole;
+
+    // Self-registered hospital creator whose role was not yet explicitly populated
+    if (!userRole && !user.isInvited) {
+      userRole = UserRole.ADMIN;
+      await this.usersService.updateById(String(user.id), { role: UserRole.ADMIN });
+      user.role = UserRole.ADMIN;
+    }
 
     if (userRole) {
       if (userRole === UserRole.ADMIN && dto.role && dto.role !== UserRole.ADMIN) {
