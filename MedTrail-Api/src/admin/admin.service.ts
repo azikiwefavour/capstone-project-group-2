@@ -211,9 +211,9 @@ export class AdminService {
       );
     }
 
-    // Resolve hospital name from DTO or the logged-in admin's hospital
+    // Resolve hospital name from the logged-in admin's hospital or DTO
     const adminUser = adminId ? await this.usersService.findById(adminId) : null;
-    const resolvedHospital = dto.hospitalName || adminUser?.hospitalName || null;
+    const resolvedHospital = adminUser?.hospitalName || dto.hospitalName || null;
 
     // 2. Generate a secure invitation token (UUID) and set 48h expiry
     const token = randomUUID();
@@ -242,7 +242,10 @@ export class AdminService {
     const port = process.env.PORT ?? 3000;
     const browserDirectUrl = `http://localhost:${port}/api/auth/accept-invite?token=${token}`;
     const frontendUrl = this.getFrontendUrl();
-    const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+    const isPatientRole = dto.role === UserRole.PATIENT;
+    const frontendInviteUrl = isPatientRole
+      ? `${frontendUrl}/patient/create-password?token=${token}`
+      : `${frontendUrl}/accept-invite?token=${token}`;
 
     // 5. Send the invitation email with the frontend link
     await this.mailService.sendInvitationEmail(
@@ -319,12 +322,16 @@ export class AdminService {
     const port = process.env.PORT ?? 3000;
     const browserDirectUrl = `http://localhost:${port}/api/auth/accept-invite?token=${token}`;
     const frontendUrl = this.getFrontendUrl();
-    const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+    const targetRole = user.invitedRole ?? user.role;
+    const isPatientRole = targetRole === UserRole.PATIENT;
+    const frontendInviteUrl = isPatientRole
+      ? `${frontendUrl}/patient/create-password?token=${token}`
+      : `${frontendUrl}/accept-invite?token=${token}`;
 
     await this.mailService.sendInvitationEmail(
       user.email,
       user.name,
-      user.invitedRole ?? user.role ?? '',
+      targetRole ?? '',
       frontendInviteUrl,
       user.hospitalName,
       expiry,

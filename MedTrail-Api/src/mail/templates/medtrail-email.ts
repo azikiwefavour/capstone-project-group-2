@@ -115,10 +115,15 @@ export function renderHospitalInvitationEmail(
 ): string {
   const hospitalName = data.hospitalName?.trim() || 'your hospital';
   const url = invitationUrl(data.invitationUrl);
+  const isPatient = (data.role || '').toLowerCase() === 'patient';
+  const bodyText = isPatient
+    ? `${escapeHtml(recipientGreeting(data.name, data.role))} You have been registered as a patient at ${escapeHtml(hospitalName)}. Please use this link to set up your password and access your patient welcome portal on MedTrailNG:`
+    : `${escapeHtml(recipientGreeting(data.name, data.role))} You have been invited to use MedTrailNG with ${escapeHtml(hospitalName)}, use this link to accept your invitation to the platform:`;
+
   return emailLayout(
     `Welcome to ${hospitalName}`,
     `
-<p style="${paragraphStyle}">${escapeHtml(recipientGreeting(data.name, data.role))} You have been invited to use MedTrailNG with ${escapeHtml(hospitalName)}, use this link to accept your invitation to the platform</p>
+<p style="${paragraphStyle}">${bodyText}</p>
 <p style="margin:30px 0;font-size:19px;line-height:1.6;word-break:break-all;overflow-wrap:anywhere;"><a href="${url}" style="color:#6979D7;text-decoration:none;word-break:break-all;overflow-wrap:anywhere;">${url}</a></p>
 <p style="${expirationStyle}">This link will expire in ${escapeHtml(data.expirationTimeline)}</p>`,
   );
