@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import PatientDashboardContent from '../components/PatientDashboardContent'
-import { fetchPatientDashboard } from '../api'
+import { fetchPatientDashboard, completePatientPrescription } from '../api'
 
 export default function PatientDashboard() {
   const { patientName } = useOutletContext()
@@ -31,11 +31,18 @@ export default function PatientDashboard() {
     return () => controller.abort()
   }, [])
 
+  async function handleCompletePrescription(prescriptionId) {
+    await completePatientPrescription(prescriptionId)
+    const updated = await fetchPatientDashboard()
+    setData(updated)
+  }
+
   return (
     <PatientDashboardContent
       patientName={data?.patient?.name || patientName}
       prescriptions={data?.prescriptions || null}
       diagnoses={data?.diagnoses || null}
+      onCompletePrescription={handleCompletePrescription}
     />
   )
 }

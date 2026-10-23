@@ -89,7 +89,7 @@ export async function getPharmacistPrescriptionDetails(prescriptionId, signal) {
     // Match the Doctor backend definition: current = active + pending. Never
     // group by name, or confuse unavailable patient identity with an empty list.
     currentMedications: patientId ? records.filter(candidate => candidate.patientId === patientId
-      && ['active', 'pending'].includes(text(candidate.status).toLowerCase())).map(prescriptionDetails) : null,
+      && ['active', 'pending', 'dispensed', 'clarified', 'awaiting_clarification'].includes(text(candidate.status).toLowerCase())).map(prescriptionDetails) : null,
   }
 }
 

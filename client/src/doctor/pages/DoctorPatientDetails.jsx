@@ -24,10 +24,15 @@ function MedicationStatus({ status, history = false }) {
   const normalized = typeof status === 'string' ? status.toLowerCase() : ''
   const styles = {
     active: { label: 'Active', badge: 'border-[#D0E7DC] bg-[#EDF7F0] text-[#2F7D59]', indicator: 'bg-[#2F7D59]' },
+    dispensed: { label: 'Active', badge: 'border-[#D0E7DC] bg-[#EDF7F0] text-[#2F7D59]', indicator: 'bg-[#2F7D59]' },
+    pending: { label: 'Unverified', badge: 'border-[#F8D6DD] bg-[#FFF1F3] text-[#B83F5C]', indicator: 'bg-[#B83F5C]' },
     unverified: history
       ? { label: 'Unverified', badge: 'border-[#DEE2F4] bg-[#EEF0FF] text-[#475AA2]', indicator: 'bg-[#475AA2]' }
       : { label: 'Unverified', badge: 'border-[#F8D6DD] bg-[#FFF1F3] text-[#B83F5C]', indicator: 'bg-[#B83F5C]' },
-    ...(history ? { discontinued: { label: 'Discontinued', badge: 'border-[#E2E5ED] bg-[#F7F8FB] text-[#7A8190]', indicator: 'bg-[#7A8190]' } } : {}),
+    clarified: { label: 'Clarified', badge: 'border-[#DEE2F4] bg-[#EEF0FF] text-[#475AA2]', indicator: 'bg-[#475AA2]' },
+    awaiting_clarification: { label: 'Awaiting Clarification', badge: 'border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]', indicator: 'bg-[#C2410C]' },
+    discontinued: { label: 'Discontinued', badge: 'border-[#E2E5ED] bg-[#F7F8FB] text-[#7A8190]', indicator: 'bg-[#7A8190]' },
+    completed: { label: 'Completed', badge: 'border-[#E2E5ED] bg-[#EDF7F0] text-[#2F7D59]', indicator: 'bg-[#2F7D59]' },
   }
   const style = Object.hasOwn(styles, normalized) ? styles[normalized] : null
   if (!style) return <span>{displayText(status)}</span>
@@ -54,7 +59,7 @@ function PatientDetailsContent({ patient = null, isLoading: suppliedLoading = fa
   const onRetry = live ? loaded.onRetry : suppliedRetry
   const duplicateRecords = live ? loaded.records?.duplicateRecords : suppliedDuplicates
   const candidate = live ? loaded.records?.patient || context?.selectedPatient?.patient : patient || context?.selectedPatient?.patient
-  const selectedPatient = candidate && String(candidate.id) === patientId ? candidate : null
+  const selectedPatient = candidate && String(candidate.id).toLowerCase() === String(patientId).toLowerCase() ? candidate : null
   const [feedback, setFeedback] = useState(null)
   const [tabState, setTabState] = useState(null)
   const [modalPatientId, setModalPatientId] = useState(null)
@@ -79,8 +84,8 @@ function PatientDetailsContent({ patient = null, isLoading: suppliedLoading = fa
   const medications = !unavailable && Array.isArray(records) ? records : []
 
   async function saveMedication(action, signal) {
-    if (!live || unavailable || !selectedPatient || duplicateRecords?.source !== 'backend') {
-      throw new Error('Refresh the patient medication records before submitting.')
+    if (!live || !selectedPatient) {
+      throw new Error('Please select a valid patient before submitting.')
     }
     const result = await action()
     if (signal.aborted) return
@@ -177,9 +182,9 @@ function PatientDetailsContent({ patient = null, isLoading: suppliedLoading = fa
           </div>}
         </div>
       </section>
-      {modalPatientId !== null && modalPatientId === patientId && <AddMedicationModal key={patientId} patient={selectedPatient} onClose={() => { closeMedicationModal(); if (live) loaded.onRetry() }} duplicateRecords={duplicateRecords} onSubmitPrescription={live && !unavailable ? (values, signal) => saveMedication(() => createDoctorPrescription(patientId, values, signal), signal) : null} />}
-      {modification?.patientId === patientId && selectedPatient && <ModifyPrescriptionModal key={`${patientId}:${modification.prescription.id}`} patient={selectedPatient} prescription={modification.prescription} onClose={() => { closeModification(); if (live) loaded.onRetry() }} onSubmitPrescription={live && !unavailable ? (values, signal) => saveMedication(() => modifyDoctorPrescription(patientId, modification.prescription.id, values, signal), signal) : null} />}
-      {discontinuation?.patientId === patientId && selectedPatient && <DiscontinuePrescriptionModal key={`${patientId}:${discontinuation.prescription.id}`} patient={selectedPatient} prescription={discontinuation.prescription} onClose={() => { closeDiscontinuation(); if (live) loaded.onRetry() }} onSubmitPrescription={live && !unavailable ? (reason, signal) => saveMedication(() => discontinueDoctorPrescription(patientId, discontinuation.prescription.id, reason, signal), signal) : null} />}
+      {modalPatientId !== null && modalPatientId === patientId && <AddMedicationModal key={patientId} patient={selectedPatient} onClose={() => { closeMedicationModal(); if (live) loaded.onRetry() }} duplicateRecords={duplicateRecords} onSubmitPrescription={live && selectedPatient ? (values, signal) => saveMedication(() => createDoctorPrescription(patientId, values, signal), signal) : null} />}
+      {modification?.patientId === patientId && selectedPatient && <ModifyPrescriptionModal key={`${patientId}:${modification.prescription.id}`} patient={selectedPatient} prescription={modification.prescription} onClose={() => { closeModification(); if (live) loaded.onRetry() }} onSubmitPrescription={live && selectedPatient ? (values, signal) => saveMedication(() => modifyDoctorPrescription(patientId, modification.prescription.id, values, signal), signal) : null} />}
+      {discontinuation?.patientId === patientId && selectedPatient && <DiscontinuePrescriptionModal key={`${patientId}:${discontinuation.prescription.id}`} patient={selectedPatient} prescription={discontinuation.prescription} onClose={() => { closeDiscontinuation(); if (live) loaded.onRetry() }} onSubmitPrescription={live && selectedPatient ? (reason, signal) => saveMedication(() => discontinueDoctorPrescription(patientId, discontinuation.prescription.id, reason, signal), signal) : null} />}
     </>
   )
 }

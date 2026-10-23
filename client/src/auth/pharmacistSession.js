@@ -98,7 +98,7 @@ export async function loginPharmacist({ email, password, signal }) {
   checkCurrent()
   if (response.status !== 200) {
     const message = Array.isArray(data?.message) ? data.message.filter(value => typeof value === 'string').join(' ') : typeof data?.message === 'string' ? data.message : ''
-    throw new Error(message || 'Login could not be completed. Please check your credentials and email verification.')
+    throw new Error(message || 'Invalid email or password.')
   }
   if (data?.user?.role !== 'pharmacist' || typeof data.user.id !== 'string' || tokenSubject(data.accessToken) !== data.user.id) {
     throw new Error('Login returned an unexpected response. Please try again.')

@@ -39,7 +39,22 @@ function EmptyPrescriptions({ available }) {
   </div>
 }
 
-function PrescriptionCard({ prescription }) {
+function PrescriptionCard({ prescription, onComplete = null }) {
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleComplete() {
+    if (submitting || !onComplete) return
+    setSubmitting(true)
+    setError('')
+    try {
+      await onComplete(prescription.id)
+    } catch (err) {
+      setError(err.message || 'Unable to complete medication.')
+      setSubmitting(false)
+    }
+  }
+
   return <article className="min-w-0 rounded-2xl border border-[#E2E5ED] bg-white p-5 shadow-sm shadow-[#111827]/[0.03]">
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 flex-col items-start gap-3 lg:flex-row lg:items-center">
@@ -49,17 +64,30 @@ function PrescriptionCard({ prescription }) {
       <ActiveStatus />
     </div>
     <dl className="mt-5 grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 text-sm">
-      {[['Dosage', prescription.dosage], ['Frequency', prescription.frequency], ['Reason', prescription.reason], ['Prescribed by', prescription.doctorName]].map(([label, value], index) => <div key={label} className={`min-w-0 ${index > 1 ? 'col-span-2 lg:col-span-1' : ''}`}>
+      {[['Dosage', prescription.dosage], ['Frequency', prescription.frequency], ['Duration', prescription.duration], ['Reason', prescription.reason], ['Prescribed by', prescription.doctorName]].map(([label, value], index) => <div key={label} className={`min-w-0 ${index > 2 ? 'col-span-2 lg:col-span-1' : ''}`}>
         <dt className="text-xs text-[#7A8190]">{label}</dt><dd className="mt-1 break-words">{text(value)}</dd>
       </div>)}
     </dl>
-    <p className="mt-5 border-t border-[#E2E5ED] pt-3 text-xs text-[#7A8190]">Prescribed <RecordDate value={prescription.createdAt} /></p>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-[#E2E5ED] pt-3">
+      <p className="text-xs text-[#7A8190]">Prescribed <RecordDate value={prescription.createdAt} /></p>
+      {onComplete && (
+        <button
+          type="button"
+          onClick={handleComplete}
+          disabled={submitting}
+          className="inline-flex h-8 items-center rounded-lg border border-[#D0E7DC] bg-[#EDF7F0] px-2.5 text-xs font-semibold text-[#2F7D59] hover:bg-[#D0E7DC] focus:outline-none focus:ring-2 focus:ring-[#2F7D59]/30 disabled:opacity-50"
+        >
+          {submitting ? 'Updating...' : 'Mark as finished'}
+        </button>
+      )}
+    </div>
+    {error && <p className="mt-2 text-xs text-[#E5484D]">{error}</p>}
   </article>
 }
 
 // Presentation only. A future Patient API adapter must verify ownership and
 // completeness before supplying data. No inferred diagnoses or cross-role calls.
-export default function PatientDashboardContent({ patientName = '', prescriptions = null, diagnoses = null }) {
+export default function PatientDashboardContent({ patientName = '', prescriptions = null, diagnoses = null, onCompletePrescription = null }) {
   const [query, setQuery] = useState('')
   const [requestedPage, setRequestedPage] = useState(1)
   const [sort, setSort] = useState({ key: null, direction: 'ascending' })
@@ -93,7 +121,7 @@ export default function PatientDashboardContent({ patientName = '', prescription
     <section aria-labelledby="patient-active-prescriptions" className="mt-[38px] lg:mt-0">
       <h2 id="patient-active-prescriptions" className="text-base font-semibold">Active prescriptions</h2>
       <div className="mt-4 grid gap-4 lg:mt-3 lg:gap-[22px] xl:grid-cols-3">
-        {active.length ? active.map(prescription => <PrescriptionCard key={prescription.id} prescription={prescription} />)
+        {active.length ? active.map(prescription => <PrescriptionCard key={prescription.id} prescription={prescription} onComplete={onCompletePrescription} />)
           : <div className="col-span-full"><EmptyPrescriptions available={counts !== null} /></div>}
       </div>
     </section>

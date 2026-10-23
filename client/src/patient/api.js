@@ -57,3 +57,7 @@ export function fetchPatientPrescriptions(signal, status) {
 export function fetchPatientDiagnoses(signal) {
   return patientRequest('diagnoses', signal, 'diagnoses')
 }
+
+export function completePatientPrescription(prescriptionId, signal) {
+  return patientRequest(`prescriptions/${encodeURIComponent(prescriptionId)}/complete`, signal, 'prescription completion', 'POST')
+}

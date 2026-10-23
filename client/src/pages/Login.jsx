@@ -198,7 +198,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           ? data.message.filter((value) => typeof value === 'string').join(' ')
           : typeof data?.message === 'string' ? data.message : ''
         if (response.status === 401) {
-          setLoginError(message || 'Invalid email or password. Please check your details and verify your email.')
+          setLoginError(message || 'Invalid email or password.')
         } else if (response.status === 400) {
           setLoginError(message || 'Please check your email, password, and selected role.')
         } else {
@@ -214,7 +214,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       }
 
       if (authenticationRole && data.user.role !== role) {
-        setLoginError(`This account cannot access the ${role || authenticationRole} workspace.`)
+        setLoginError('Invalid email or password.')
         return
       }
 
@@ -359,7 +359,6 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           {loginError && (
             <div role="alert" className="mt-3">
               <FieldError id="login-error" message={loginError} />
-              {invitationOnly && isEmailValid && <button type="button" onClick={() => navigate(`${recoveryBasePath}/verify-email`, { state: { email: email.trim().toLowerCase() } })} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">Need to verify your email?</button>}
               {!role && (
                 <button type="button" onClick={() => navigate('/select-role')} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
                   Select role

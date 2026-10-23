@@ -11,15 +11,15 @@ export default function useDoctorRecords(loadRecords, enabled) {
     if (!enabled || !token) return
     const controller = new AbortController()
     loadRecords(controller.signal).then(records => {
-      if (!controller.signal.aborted && getDoctorAccessToken() === token) setSnapshot({ token, attempt, loader: loadRecords, records })
+      if (!controller.signal.aborted) setSnapshot({ token, attempt, loader: loadRecords, records })
     }).catch(error => {
-      if (!controller.signal.aborted && error.name !== 'AbortError' && getDoctorAccessToken() === token) setSnapshot({ token, attempt, loader: loadRecords, error: error.message })
+      if (!controller.signal.aborted) setSnapshot({ token, attempt, loader: loadRecords, error: error.message || 'Unable to load records.' })
     })
     return () => controller.abort()
   }, [enabled, token, attempt, loadRecords])
   return {
     records: enabled && checked ? snapshot.records || [] : [],
-    isLoading: enabled && !checked,
+    isLoading: Boolean(enabled && token && !checked),
     error: enabled && checked ? snapshot.error || '' : '',
     onRetry: () => setAttempt(current => current + 1),
   }

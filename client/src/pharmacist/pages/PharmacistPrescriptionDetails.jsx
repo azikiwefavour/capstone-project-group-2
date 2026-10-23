@@ -31,7 +31,7 @@ export default function PharmacistPrescriptionDetails({ view = 'queue' }) {
   const data = checked && !error ? snapshot.data : null
   const patient = data?.patient
   const prescription = data?.prescription
-  const canRequestClarification = ['pending', 'active', 'clarified'].includes(prescription?.status)
+  const canRequestClarification = ['pending', 'active', 'clarified', 'awaiting_clarification'].includes(prescription?.status)
 
   useEffect(() => {
     if (!token) return
@@ -73,18 +73,24 @@ export default function PharmacistPrescriptionDetails({ view = 'queue' }) {
       {data && <>
         <PharmacistPatientProfile patient={patient} compact={clarificationView} />
         <PharmacistPrescriptionInformation prescription={prescription} compact={clarificationView} />
-        {clarificationView ? <ClarificationStatusBanner key={`${prescriptionId}:${attempt}`} clarification={data.clarification} doctorName={prescription.doctorName} /> : <><div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" disabled={!canRequestClarification} onClick={() => { setFeedback(null); setConfirmation(null); setClarification(snapshot) }} aria-haspopup="dialog" aria-describedby={!canRequestClarification ? 'prescription-actions-unavailable' : undefined} className="inline-flex h-9 items-center justify-center rounded-xl bg-[#DEE2F4] px-3 text-[13px] font-semibold text-[#475AA2] hover:bg-[#CCD2FF] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:cursor-not-allowed disabled:opacity-50">Request clarification</button>
+        {data.clarification && (
+          <ClarificationStatusBanner key={`${prescriptionId}:${attempt}`} clarification={data.clarification} doctorName={prescription.doctorName} />
+        )}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" disabled={!canRequestClarification} onClick={() => { setFeedback(null); setConfirmation(null); setClarification(snapshot) }} aria-haspopup="dialog" aria-describedby={!canRequestClarification ? 'prescription-actions-unavailable' : undefined} className="inline-flex h-9 items-center justify-center rounded-xl bg-[#DEE2F4] px-3.5 text-[13px] font-semibold text-[#475AA2] hover:bg-[#CCD2FF] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:cursor-not-allowed disabled:opacity-50">
+            {prescription.status === 'clarified' ? 'Question back / Request clarification' : 'Request clarification'}
+          </button>
           {prescription.status === 'dispensed' ? (
             <span className="inline-flex h-9 items-center justify-center rounded-xl bg-[#D0E7DC] px-3.5 text-[13px] font-semibold text-[#2F7D59]">
               ✓ Dispensed
             </span>
           ) : (
-            <button type="button" onClick={() => { setFeedback(null); setClarification(null); setConfirmation(snapshot) }} aria-haspopup="dialog" className="inline-flex h-9 items-center justify-center rounded-xl bg-[#475AA2] px-3 text-[13px] font-semibold text-white hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">Verify prescription</button>
+            <button type="button" onClick={() => { setFeedback(null); setClarification(null); setConfirmation(snapshot) }} aria-haspopup="dialog" className="inline-flex h-9 items-center justify-center rounded-xl bg-[#475AA2] px-3.5 text-[13px] font-semibold text-white hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">
+              {prescription.status === 'clarified' ? 'Approve & Dispense' : 'Verify & Dispense'}
+            </button>
           )}
         </div>
-        {!canRequestClarification && prescription.status !== 'dispensed' && <p id="prescription-actions-unavailable" className="mt-2 text-xs text-[#7A8190]">{prescription.status === 'awaiting_clarification' ? 'Clarification has already been requested for this prescription.' : 'Clarification is not available for this prescription status.'}</p>}
-        </>}
+        {!canRequestClarification && prescription.status !== 'dispensed' && <p id="prescription-actions-unavailable" className="mt-2 text-xs text-[#7A8190]">Clarification is not available for this prescription status.</p>}
         <PharmacistMedicationTable key={prescriptionId} records={data.currentMedications} compact={clarificationView} onOpenPrescription={id => navigate(`/pharmacist/verification-queue/${encodeURIComponent(id)}`)} />
         {confirmation === snapshot && <VerifyPrescriptionModal patient={patient} prescription={prescription} onClose={closeConfirmation} onVerify={submitVerification} />}
         {clarification === snapshot && <RequestClarificationModal patient={patient} onClose={closeClarification} onSubmit={submitClarification} />}
