@@ -32,6 +32,7 @@ import { renderAcceptInviteHtml, renderInvalidInviteHtml } from './templates/acc
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @UseGuards(JwtAuthGuard)
@@ -44,6 +45,7 @@ export class AuthController {
 
   // ── POST /api/auth/register ─────────────────────────────────────────────
   @Public()
+  @Throttle({ long: { limit: 5, ttl: 60000 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -75,6 +77,7 @@ export class AuthController {
 
   // ── POST /api/auth/resend-email-otp ─────────────────────────────────────
   @Public()
+  @Throttle({ long: { limit: 3, ttl: 60000 } })
   @Post('resend-email-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -89,6 +92,7 @@ export class AuthController {
 
   // ── POST /api/auth/resend-reset-code ────────────────────────────────────
   @Public()
+  @Throttle({ long: { limit: 3, ttl: 60000 } })
   @Post('resend-reset-code')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -102,6 +106,7 @@ export class AuthController {
 
   // ── POST /api/auth/resend-code ──────────────────────────────────────────
   @Public()
+  @Throttle({ long: { limit: 3, ttl: 60000 } })
   @Post('resend-code')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -115,6 +120,7 @@ export class AuthController {
 
   // ── POST /api/auth/resend-otp ───────────────────────────────────────────
   @Public()
+  @Throttle({ long: { limit: 3, ttl: 60000 } })
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -127,6 +133,7 @@ export class AuthController {
 
   // ── POST /api/auth/login ─────────────────────────────────────────────────
   @Public()
+  @Throttle({ short: { limit: 2, ttl: 1000 }, long: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -145,6 +152,7 @@ export class AuthController {
 
   // ── POST /api/auth/forgot-password ──────────────────────────────────────
   @Public()
+  @Throttle({ long: { limit: 3, ttl: 60000 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

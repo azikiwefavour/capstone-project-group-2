@@ -12,6 +12,7 @@ import { Prescription, PrescriptionStatus } from './entities/prescription.entity
 import { Activity } from './entities/activity.entity';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
+import { SmsService } from '../sms/sms.service';
 import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
@@ -64,9 +65,10 @@ export class DoctorService {
 
     private readonly usersService: UsersService,
     private readonly mailService: MailService,
+    private readonly smsService: SmsService,
   ) {}
 
-  // ─── Invite Patient ───────────────────────────────────────────────────────
+  // ─── Invite / Register Patient ──────────────────────────────────────────
 
   async invitePatient(doctorId: string, dto: InvitePatientDto) {
     const doctor = await this.usersService.findById(doctorId);
@@ -74,9 +76,27 @@ export class DoctorService {
 
     const hospitalName = doctor.hospitalName || 'General Hospital';
 
-    const existing = await this.usersService.findByEmail(dto.email);
+    let effectiveEmail = dto.email ? dto.email.trim().toLowerCase() : '';
+    const cleanPhone = dto.phone ? dto.phone.trim() : null;
+    const isOffline = !effectiveEmail;
+
+    if (!effectiveEmail && !cleanPhone) {
+      throw new BadRequestException('Either an email or phone number is required to register a patient');
+    }
+
+    if (!effectiveEmail && cleanPhone) {
+      // Auto-generate placeholder email for offline/SMS-only patient so DB constraints are satisfied
+      const digits = cleanPhone.replace(/\D/g, '');
+      effectiveEmail = `${digits}@patient.medtrail.ng`;
+    }
+
+    const existing = await this.usersService.findByEmail(effectiveEmail);
     if (existing) {
-      throw new ConflictException('A user with this email already exists');
+      throw new ConflictException(
+        isOffline
+          ? 'A patient with this phone number is already registered'
+          : 'A user with this email already exists',
+      );
     }
 
     const token = randomUUID();
@@ -87,11 +107,12 @@ export class DoctorService {
       : `Dr. ${doctor.name}`;
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const patientCode = dto.patientCode?.trim() || `MT-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const patient = await this.usersService.create({
       name: dto.name,
-      email: dto.email.toLowerCase(),
-      phone: dto.phone ?? null,
+      email: effectiveEmail,
+      phone: cleanPhone,
       gender: dto.gender ?? null,
       age: dto.age ?? null,
       hospitalName,
@@ -99,29 +120,52 @@ export class DoctorService {
       role: UserRole.PATIENT,
       invitedRole: UserRole.PATIENT,
       isInvited: true,
-      invitationStatus: 'pending',
+      invitationStatus: isOffline ? 'accepted' : 'pending',
       invitationToken: token,
       invitationTokenExpiry: expiry,
       emailOtp: otp,
       emailOtpExpiry: expiry,
-      isEmailVerified: false,
+      isEmailVerified: isOffline,
+      patientCode,
+      caregiverPhone: dto.caregiverPhone?.trim() ?? null,
+      caregiverName: dto.caregiverName?.trim() ?? null,
+      isOfflinePatient: isOffline,
       invitedBy: `${cleanDoctorName} (${doctor.id})`,
     });
 
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-    const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+    // If patient has a real email, send invitation email
+    if (!isOffline) {
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+      const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
 
-    try {
-      await this.mailService.sendInvitationEmail(
-        patient.email,
-        patient.name,
-        UserRole.PATIENT,
-        frontendInviteUrl,
-        hospitalName,
-        expiry,
-      );
-    } catch (err: any) {
-      this.logger.warn(`Failed to send invitation email to patient ${patient.email}: ${err.message}`);
+      try {
+        await this.mailService.sendInvitationEmail(
+          patient.email,
+          patient.name,
+          UserRole.PATIENT,
+          frontendInviteUrl,
+          hospitalName,
+          expiry,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to send invitation email to patient ${patient.email}: ${err.message}`);
+      }
+    }
+
+    // If patient has a phone number, send Welcome SMS (to patient and caregiver)
+    if (cleanPhone) {
+      try {
+        await this.smsService.sendWelcomePatientSms({
+          name: patient.name,
+          phone: cleanPhone,
+          hospitalName,
+          patientCode,
+          caregiverPhone: dto.caregiverPhone?.trim(),
+          caregiverName: dto.caregiverName?.trim(),
+        });
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to send welcome SMS to patient ${cleanPhone}: ${smsErr.message}`);
+      }
     }
 
     // Record activity for audit log
@@ -140,12 +184,18 @@ export class DoctorService {
     }
 
     return {
-      message: `Invitation sent to patient ${patient.name} (${patient.email})`,
+      message: isOffline
+        ? `Patient ${patient.name} registered successfully. Notification SMS sent to ${cleanPhone}`
+        : `Invitation sent to patient ${patient.name} (${patient.email})`,
       patient: {
         id: patient.id,
         name: patient.name,
         email: patient.email,
         phone: patient.phone,
+        patientCode: patient.patientCode,
+        caregiverPhone: patient.caregiverPhone,
+        caregiverName: patient.caregiverName,
+        isOfflinePatient: patient.isOfflinePatient,
         gender: patient.gender,
         age: patient.age,
         hospitalName: patient.hospitalName,
@@ -552,6 +602,7 @@ export class DoctorService {
       patientId: patient.id,
       patientName: patient.name,
       patientEmail: patient.email,
+      patientPhone: patient.phone || null,
       doctorId: doctor.id,
       doctorName: cleanDoctorName,
       medicationName: dto.medicationName,
@@ -565,6 +616,26 @@ export class DoctorService {
     });
 
     const saved = await this.prescriptionRepo.save(prescription);
+
+    // Send SMS notification with instructions to patient and caregiver
+    if (patient.phone) {
+      try {
+        await this.smsService.sendPrescriptionSms({
+          patientName: patient.name,
+          phone: patient.phone,
+          medicationName: saved.medicationName,
+          dosage: saved.dosage,
+          frequency: saved.frequency ?? undefined,
+          duration: saved.duration ?? undefined,
+          instructions: saved.instructions ?? undefined,
+          prescriberName: cleanDoctorName,
+          hospitalName,
+          caregiverPhone: patient.caregiverPhone ?? undefined,
+        });
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to dispatch prescription SMS to patient ${patient.phone}: ${smsErr.message}`);
+      }
+    }
 
     const activity = this.activityRepo.create({
       hospitalName,

@@ -12,6 +12,7 @@ export enum UserRole {
   PHARMACIST = 'pharmacist',
   PATIENT = 'patient',
   ADMIN = 'admin',
+  SUPER_ADMIN = 'super_admin',
 }
 
 @Entity('users')
@@ -43,6 +44,22 @@ export class User {
   @ApiProperty({ example: 34, nullable: true, required: false })
   @Column({ type: 'int', nullable: true, default: null })
   age: number | null;
+
+  @ApiProperty({ example: 'MT-4921', nullable: true, required: false, description: 'Short unique patient ID for offline reference' })
+  @Column({ type: 'varchar', length: 50, nullable: true, default: null })
+  patientCode: string | null;
+
+  @ApiProperty({ example: '+2348098765432', nullable: true, required: false, description: 'Caregiver or Next-of-Kin phone number' })
+  @Column({ type: 'varchar', length: 50, nullable: true, default: null })
+  caregiverPhone: string | null;
+
+  @ApiProperty({ example: 'Emeka (Son)', nullable: true, required: false, description: 'Caregiver or Next-of-Kin name' })
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  caregiverName: string | null;
+
+  @ApiProperty({ example: false, description: 'True when patient is an offline/SMS-only patient without portal email login' })
+  @Column({ type: 'boolean', default: false })
+  isOfflinePatient: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true, select: false, default: null })
   password: string | null;

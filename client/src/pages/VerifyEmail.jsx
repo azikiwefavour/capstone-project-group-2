@@ -145,7 +145,16 @@ function VerifyEmail({ frontendOnly = false, successPath = '/admin/dashboard', b
         setAccessToken(data.accessToken, data.user.role)
         if (data.user.role === 'admin') {
           sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : '')
-          navigate('/admin/dashboard', { replace: true })
+          sessionStorage.setItem('medtrailAdminEmail', data.user.email || email)
+          sessionStorage.setItem('medtrailAdminHospital', data.user.hospitalName || '')
+          navigate('/select-plan', {
+            replace: true,
+            state: {
+              email: data.user.email || email,
+              hospitalName: data.user.hospitalName || '',
+              name: data.user.name || '',
+            },
+          })
           return
         }
         if (data.user.role === 'doctor') {

@@ -23,6 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { RaiseClarificationDto } from './dto/raise-clarification.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 
 @ApiTags('Pharmacy')
 @ApiBearerAuth('JWT')
@@ -108,5 +109,19 @@ export class PharmacyController {
     @Param('id') id: string,
   ) {
     return this.pharmacyService.verifyPrescription(user.sub, id);
+  }
+
+  // ── POST /api/pharmacy/patients ──────────────────────────────────────────
+  @Post('patients')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Pharmacist registers a walk-in patient (supports offline/phone-only patients)' })
+  @ApiResponse({ status: 201, description: 'Patient registered successfully and welcome SMS sent' })
+  @ApiResponse({ status: 400, description: 'Either phone or email required' })
+  @ApiResponse({ status: 409, description: 'Patient already exists' })
+  addPatient(
+    @CurrentUser() user: { sub: string },
+    @Body() dto: InvitePatientDto,
+  ) {
+    return this.pharmacyService.addPatient(user.sub, dto);
   }
 }

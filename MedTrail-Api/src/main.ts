@@ -22,7 +22,7 @@ async function bootstrap() {
     res.redirect('/api/docs');
   });
 
-  // CORS – allow frontend dev servers and production Render URLs
+  // CORS – allow frontend dev servers, Vercel, and production Render URLs
   const frontendUrl = process.env.FRONTEND_URL?.replace(/\/+$/, '');
   app.enableCors({
     origin: (origin: any, callback: any) => {
@@ -30,6 +30,7 @@ async function bootstrap() {
         !origin ||
         origin.includes('localhost') ||
         origin.includes('onrender.com') ||
+        origin.includes('vercel.app') ||
         (frontendUrl && origin === frontendUrl)
       ) {
         callback(null, true);
@@ -71,6 +72,7 @@ async function bootstrap() {
     .addTag('Auth', 'Registration, login, OTP & password reset')
     .addTag('Users', 'User profile management')
     .addTag('Admin', 'Admin-only operations')
+    .addTag('Super Admin', 'Platform health telemetry, server strength, and multi-hospital overview')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
@@ -79,13 +81,6 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT ?? 3000;
-  app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'https://medtrail-frontend.vercel.app',
-    ],
-    credentials: true,
-  });
   await app.listen(port);
 
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);

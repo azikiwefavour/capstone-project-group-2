@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,7 +25,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { SubscriptionService } from './subscription.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT')
@@ -32,7 +35,10 @@ import { UserRole } from '../users/entities/user.entity';
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
   // ── GET /api/admin/dashboard ─────────────────────────────────────────────
   @Get('dashboard')
@@ -139,5 +145,74 @@ export class AdminController {
     @CurrentUser() admin: { sub: string; email: string; name?: string },
   ) {
     return this.adminService.removeUser(id, admin?.sub);
+  }
+
+  // ── GET /api/admin/subscription/pricing ──────────────────────────────────
+  @Public()
+  @Get('subscription/pricing')
+  @ApiOperation({ summary: 'Get non-editable plan pricing and Paystack fee' })
+  getPlanPricing(
+    @Query('plan') plan: string,
+    @Query('billingCycle') billingCycle?: string,
+  ) {
+    return this.subscriptionService.calculatePlanPricing(plan, billingCycle);
+  }
+
+  // ── POST /api/admin/subscription/initialize ──────────────────────────────
+  @Public()
+  @Post('subscription/initialize')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Initialize Paystack payment for hospital plan' })
+  initializeSubscriptionPayment(
+    @Body() body: { plan: string; billingCycle?: string; email?: string; callbackUrl?: string },
+    @CurrentUser() admin?: { email: string },
+  ) {
+    const userEmail = admin?.email || body.email;
+    if (!userEmail) {
+      throw new BadRequestException('User email is required');
+    }
+    return this.subscriptionService.initializePayment(
+      userEmail,
+      body.plan,
+      body.billingCycle,
+      body.callbackUrl,
+    );
+  }
+
+  // ── POST /api/admin/subscription/verify ──────────────────────────────────
+  @Public()
+  @Post('subscription/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify Paystack payment and activate subscription' })
+  verifySubscriptionPayment(
+    @Body() body: { reference: string; plan: string; billingCycle?: string; email?: string },
+    @CurrentUser() admin?: { email: string },
+  ) {
+    const userEmail = admin?.email || body.email;
+    if (!userEmail) {
+      throw new BadRequestException('User email is required');
+    }
+    return this.subscriptionService.verifyPayment(
+      userEmail,
+      body.reference,
+      body.plan,
+      body.billingCycle,
+    );
+  }
+
+  // ── POST /api/admin/subscription/free-trial ──────────────────────────────
+  @Public()
+  @Post('subscription/free-trial')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Activate 7-day free trial for hospital facility' })
+  activateFreeTrial(
+    @Body() body: { email?: string },
+    @CurrentUser() admin?: { email: string },
+  ) {
+    const userEmail = admin?.email || body.email;
+    if (!userEmail) {
+      throw new BadRequestException('User email is required');
+    }
+    return this.subscriptionService.activateFreeTrial(userEmail);
   }
 }

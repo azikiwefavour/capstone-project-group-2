@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Prescription, PrescriptionStatus } from '../doctor/entities/prescription.entity';
@@ -11,6 +13,8 @@ import { Activity } from '../doctor/entities/activity.entity';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../users/entities/user.entity';
 import { RaiseClarificationDto } from './dto/raise-clarification.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
+import { SmsService } from '../sms/sms.service';
 
 function formatPrescriptionDate(date: Date): string {
   if (!date) return '';
@@ -47,6 +51,7 @@ export class PharmacyService {
     private readonly activityRepo: Repository<Activity>,
 
     private readonly usersService: UsersService,
+    private readonly smsService: SmsService,
   ) {}
 
   // ─── Pharmacy Dashboard ───────────────────────────────────────────────────
@@ -300,6 +305,26 @@ export class PharmacyService {
 
     const saved = await this.prescriptionRepo.save(rx);
 
+    // Send Dispensed SMS notification with instructions to patient and caregiver
+    try {
+      const patient = rx.patientId ? await this.usersService.findById(rx.patientId) : null;
+      const patientPhone = patient?.phone || rx.patientPhone;
+      if (patientPhone) {
+        await this.smsService.sendDispensedSms({
+          patientName: rx.patientName,
+          phone: patientPhone,
+          medicationName: rx.medicationName,
+          dosage: rx.dosage,
+          instructions: rx.instructions ?? undefined,
+          pharmacistName: cleanPharmName,
+          hospitalName: rx.hospitalName,
+          caregiverPhone: patient?.caregiverPhone ?? undefined,
+        });
+      }
+    } catch (smsErr: any) {
+      this.logger.warn(`Failed to dispatch dispensed SMS for rx ${rx.id}: ${smsErr.message}`);
+    }
+
     // Record activity
     const activity = this.activityRepo.create({
       hospitalName: rx.hospitalName,
@@ -327,6 +352,121 @@ export class PharmacyService {
   async verifyPrescription(pharmacistId: string, prescriptionId: string) {
     // Verifying and dispensing marks prescription as dispensed / verified
     return this.dispensePrescription(pharmacistId, prescriptionId);
+  }
+
+  // ─── Add / Register Patient (Pharmacy Walk-in) ─────────────────────────────
+
+  async addPatient(pharmacistId: string, dto: InvitePatientDto) {
+    const pharmacist = await this.usersService.findById(pharmacistId);
+    if (!pharmacist) throw new NotFoundException('Pharmacist not found');
+
+    const hospitalName = pharmacist.hospitalName || 'General Hospital';
+
+    let effectiveEmail = dto.email ? dto.email.trim().toLowerCase() : '';
+    const cleanPhone = dto.phone ? dto.phone.trim() : null;
+    const isOffline = !effectiveEmail;
+
+    if (!effectiveEmail && !cleanPhone) {
+      throw new BadRequestException('Either an email or phone number is required to register a patient');
+    }
+
+    if (!effectiveEmail && cleanPhone) {
+      // Auto-generate placeholder email for offline/SMS-only patient
+      const digits = cleanPhone.replace(/\D/g, '');
+      effectiveEmail = `${digits}@patient.medtrail.ng`;
+    }
+
+    const existing = await this.usersService.findByEmail(effectiveEmail);
+    if (existing) {
+      throw new ConflictException(
+        isOffline
+          ? 'A patient with this phone number is already registered'
+          : 'A user with this email already exists',
+      );
+    }
+
+    const cleanPharmName = pharmacist.name.startsWith('Pharm.')
+      ? pharmacist.name
+      : `Pharm. ${pharmacist.name}`;
+
+    const token = randomUUID();
+    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const patientCode = dto.patientCode?.trim() || `MT-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const patient = await this.usersService.create({
+      name: dto.name,
+      email: effectiveEmail,
+      phone: cleanPhone,
+      gender: dto.gender ?? null,
+      age: dto.age ?? null,
+      hospitalName,
+      password: null,
+      role: UserRole.PATIENT,
+      invitedRole: UserRole.PATIENT,
+      isInvited: true,
+      invitationStatus: isOffline ? 'accepted' : 'pending',
+      invitationToken: token,
+      invitationTokenExpiry: expiry,
+      emailOtp: otp,
+      emailOtpExpiry: expiry,
+      isEmailVerified: isOffline,
+      patientCode,
+      caregiverPhone: dto.caregiverPhone?.trim() ?? null,
+      caregiverName: dto.caregiverName?.trim() ?? null,
+      isOfflinePatient: isOffline,
+      invitedBy: `${cleanPharmName} (${pharmacist.id})`,
+    });
+
+    // Send Welcome SMS to patient and caregiver
+    if (cleanPhone) {
+      try {
+        await this.smsService.sendWelcomePatientSms({
+          name: patient.name,
+          phone: cleanPhone,
+          hospitalName,
+          patientCode,
+          caregiverPhone: dto.caregiverPhone?.trim(),
+          caregiverName: dto.caregiverName?.trim(),
+        });
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to send welcome SMS to patient ${cleanPhone}: ${smsErr.message}`);
+      }
+    }
+
+    // Record activity
+    try {
+      const activity = this.activityRepo.create({
+        hospitalName,
+        actorName: cleanPharmName,
+        actorRole: 'pharmacist',
+        description: `${cleanPharmName} registered patient ${patient.name}`,
+        actionType: 'registered',
+        targetPatientName: patient.name,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log pharmacy patient register activity: ${err.message}`);
+    }
+
+    return {
+      message: isOffline
+        ? `Patient ${patient.name} registered successfully. Notification SMS sent to ${cleanPhone}`
+        : `Patient ${patient.name} registered successfully`,
+      patient: {
+        id: patient.id,
+        name: patient.name,
+        email: patient.email,
+        phone: patient.phone,
+        patientCode: patient.patientCode,
+        caregiverPhone: patient.caregiverPhone,
+        caregiverName: patient.caregiverName,
+        isOfflinePatient: patient.isOfflinePatient,
+        gender: patient.gender,
+        age: patient.age,
+        hospitalName: patient.hospitalName,
+      },
+    };
   }
 
   // ─── Raise Clarification to Doctor ────────────────────────────────────────

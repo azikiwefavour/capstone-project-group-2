@@ -40,6 +40,10 @@ export class Prescription {
   @Column({ type: 'varchar', length: 255, nullable: true })
   patientEmail: string | null;
 
+  @ApiProperty({ example: '+2348123456789', nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true, default: null })
+  patientPhone: string | null;
+
   @ApiProperty({ example: 'd1e2f3a4-b5c6-7890-1234-abcdef012345' })
   @Column({ type: 'uuid' })
   doctorId: string;

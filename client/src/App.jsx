@@ -23,6 +23,7 @@ import Login from './pages/Login'
 import LandingPage from './pages/LandingPage'
 import NewPassword from './pages/NewPassword'
 import RoleSelection from './pages/RoleSelection'
+import SelectPlan from './pages/SelectPlan'
 import VerifyEmail from './pages/VerifyEmail'
 import VerifyResetCode from './pages/VerifyResetCode'
 import PharmacistLogin from './pharmacist/pages/PharmacistLogin'
@@ -78,6 +79,7 @@ function App() {
         <Route path="/create-account" element={<CreateAccount />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/select-role" element={<RoleSelection />} />
+        <Route path="/select-plan" element={<SelectPlan />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-reset-code" element={<VerifyResetCode />} />
