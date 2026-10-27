@@ -27,7 +27,7 @@ export async function verifyAdminSession(token, signal) {
     || typeof profile.isEmailVerified !== 'boolean') {
     throw new Error('The server returned an unexpected session response. Please try again.')
   }
-  if (profile.role !== 'admin' || !profile.isEmailVerified || profile.invitationStatus === 'pending') {
+  if ((profile.role !== 'admin' && profile.role !== 'super_admin') || !profile.isEmailVerified || profile.invitationStatus === 'pending') {
     setAccessToken(null)
     return null
   }

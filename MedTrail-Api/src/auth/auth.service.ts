@@ -247,15 +247,15 @@ export class AuthService {
     }
 
     if (userRole) {
-      if (userRole === UserRole.ADMIN && dto.role && dto.role !== UserRole.ADMIN) {
+      if (userRole === UserRole.SUPER_ADMIN) {
+        if (dto.role && dto.role !== UserRole.ADMIN && dto.role !== UserRole.SUPER_ADMIN) {
+          throw new UnauthorizedException('Invalid email or password');
+        }
+      } else if (userRole === UserRole.ADMIN && dto.role && dto.role !== UserRole.ADMIN) {
         throw new UnauthorizedException('Invalid email or password');
-      }
-
-      if (userRole !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
+      } else if (userRole !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
         throw new UnauthorizedException('Invalid email or password');
-      }
-
-      if (dto.role && userRole !== dto.role) {
+      } else if (dto.role && userRole !== dto.role) {
         throw new UnauthorizedException('Invalid email or password');
       }
     } else {

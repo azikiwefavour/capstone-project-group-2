@@ -5,7 +5,7 @@ import { isValidPreviewPassword, startDoctorPreviewSession } from '../doctor/pre
 import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
-const backendRoles = { Admin: 'admin', Doctor: 'doctor', Pharmacist: 'pharmacist', Patient: 'patient' }
+const backendRoles = { Admin: 'admin', Doctor: 'doctor', Pharmacist: 'pharmacist', Patient: 'patient', SuperAdmin: 'super_admin' }
 
 function FieldError({ id, message }) {
   return (
@@ -222,8 +222,8 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       setAccessToken(data.accessToken, data.user.role)
       setPassword('')
       setContinueClicked(false)
-      if (data.user.role === 'admin') {
-        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : '')
+      if (data.user.role === 'admin' || data.user.role === 'super_admin') {
+        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : 'Super Admin')
         navigate('/admin/dashboard', { replace: true })
       } else if (data.user.role === 'doctor') {
         navigate('/doctor/dashboard', { replace: true })

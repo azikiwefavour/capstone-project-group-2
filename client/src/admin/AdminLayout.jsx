@@ -59,7 +59,7 @@ function AdminLayout() {
     navigate('/login', { replace: true, state: { selectedRole: 'Admin' } })
   }
 
-  if (!token || getAuthenticatedRole() !== 'admin') {
+  if (!token || (getAuthenticatedRole() !== 'admin' && getAuthenticatedRole() !== 'super_admin')) {
     return <Navigate to="/login" replace state={{ selectedRole: 'Admin' }} />
   }
 
