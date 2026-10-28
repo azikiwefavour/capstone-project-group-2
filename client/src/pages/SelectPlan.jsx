@@ -13,12 +13,13 @@ export default function SelectPlan() {
 
   // Retrieve email and hospitalName from location state, or fallback to session
   const [billingCycle, setBillingCycle] = useState('Monthly') // 'Monthly' | 'Annually'
-  const [selectedPlan, setSelectedPlan] = useState('starter') // 'free-trial' | 'starter' | 'growth'
+  const [selectedPlan, setSelectedPlan] = useState('free-trial') // Only 'free-trial' is selectable now
   const [expandedPlan, setExpandedPlan] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [pendingPayment, setPendingPayment] = useState(null)
+  const [showTrialSuccess, setShowTrialSuccess] = useState(false)
 
   const email =
     location.state?.email ||
@@ -57,6 +58,12 @@ export default function SelectPlan() {
   const paystackFee = calculateFee(currentPrice)
   const totalCharge = currentPrice + paystackFee
 
+  const handleSelectLockedPlan = (planName) => {
+    setErrorMessage(
+      `The ${planName} is currently locked. Only the 7-day Free Trial is available to select at this time.`
+    )
+  }
+
   async function handleContinue() {
     setIsProcessing(true)
     setErrorMessage('')
@@ -81,7 +88,9 @@ export default function SelectPlan() {
           throw new Error(data?.message || 'Unable to activate free trial. Please try again.')
         }
 
-        navigate('/admin/dashboard', { replace: true })
+        // Show animated celebration
+        setIsProcessing(false)
+        setShowTrialSuccess(true)
       } catch (err) {
         setErrorMessage(err.message || 'Error activating free trial.')
         setIsProcessing(false)
@@ -89,11 +98,10 @@ export default function SelectPlan() {
       return
     }
 
-    // ── 2. PAID PLAN VIA PAYSTACK FLOW ──────────────────────────────────────
+    // ── 2. PAID PLAN VIA PAYSTACK FLOW (Guarded if unlocked in future) ───────
     const planName = selectedPlan === 'starter' ? 'Starter plan' : 'Growth plan'
 
     try {
-      // Step A: Initialize payment on backend (calculates fixed server price + fee)
       const initResponse = await fetch(`${apiBaseUrl}/api/admin/subscription/initialize`, {
         method: 'POST',
         headers,
@@ -112,7 +120,6 @@ export default function SelectPlan() {
 
       const reference = initData.reference
 
-      // Open our authentic interactive Paystack modal with Card and Bank Transfer options
       setPendingPayment({
         reference,
         planName,
@@ -149,7 +156,6 @@ export default function SelectPlan() {
         throw new Error(verifyData?.message || 'Payment verification failed.')
       }
 
-      // Successfully subscribed -> Direct to Admin Dashboard
       navigate('/admin/dashboard', { replace: true })
     } catch (err) {
       setErrorMessage(err.message || 'Could not verify payment. Please contact support.')
@@ -226,18 +232,26 @@ export default function SelectPlan() {
 
           {/* Plan Options List */}
           <div className="space-y-3">
-            {/* 1. Free Trial */}
+            {/* 1. Free Trial (Active & Selectable) */}
             <div
-              onClick={() => setSelectedPlan('free-trial')}
-              className={`relative cursor-pointer rounded-2xl border p-4 transition-all ${
+              onClick={() => {
+                setSelectedPlan('free-trial')
+                setErrorMessage('')
+              }}
+              className={`relative cursor-pointer rounded-2xl border-2 p-4 transition-all ${
                 selectedPlan === 'free-trial'
-                  ? 'border-[#5063BF] bg-[#F7F9FF] shadow-sm'
+                  ? 'border-[#5063BF] bg-[#F7F9FF] shadow-sm ring-2 ring-[#5063BF]/20'
                   : 'border-[#E5E7EB] bg-white hover:border-[#D1D5DB]'
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 pr-4">
-                  <div className="text-base font-bold text-[#111827]">Free trial</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-[#111827]">Free trial</span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      • Available now
+                    </span>
+                  </div>
                   <p className="mt-0.5 text-xs text-[#7A8190]">
                     Get free access to MedtrailNG for 7 days
                   </p>
@@ -260,38 +274,35 @@ export default function SelectPlan() {
                   )}
                 </div>
 
-                {/* Custom Radio Circle */}
+                {/* Selected Radio Indicator */}
                 <div className="pt-0.5">
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all ${
-                      selectedPlan === 'free-trial'
-                        ? 'border-[#5063BF] bg-white'
-                        : 'border-[#D1D5DB] bg-white'
-                    }`}
-                  >
-                    {selectedPlan === 'free-trial' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#5063BF]" />
-                    )}
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#5063BF] bg-white transition-all">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#5063BF]" />
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* 2. Starter Plan */}
+            {/* 2. Starter Plan (LOCKED) */}
             <div
-              onClick={() => setSelectedPlan('starter')}
-              className={`relative cursor-pointer rounded-2xl border p-4 transition-all ${
-                selectedPlan === 'starter'
-                  ? 'border-[#5063BF] bg-[#F7F9FF] shadow-sm'
-                  : 'border-[#E5E7EB] bg-white hover:border-[#D1D5DB]'
-              }`}
+              onClick={() => handleSelectLockedPlan('Starter plan')}
+              className="relative cursor-not-allowed rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-all opacity-85 select-none hover:border-gray-300"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 pr-4">
-                  <div className="text-base font-bold text-[#111827]">Starter plan</div>
-                  <div className="mt-1 text-sm font-semibold text-[#111827]">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-[#4B5563]">Starter plan</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-200/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+                      <svg className="h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Locked
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-[#6B7280]">
                     ₦ {starterPrice.toLocaleString()}
-                    <span className="ml-1 text-xs font-normal text-[#7A8190]">
+                    <span className="ml-1 text-xs font-normal text-[#9CA3AF]">
                       /{isAnnual ? 'year' : 'month'}
                     </span>
                   </div>
@@ -301,12 +312,12 @@ export default function SelectPlan() {
                       e.stopPropagation()
                       setExpandedPlan(expandedPlan === 'starter' ? null : 'starter')
                     }}
-                    className="mt-1 text-xs font-semibold text-[#5063BF] hover:underline"
+                    className="mt-1 text-xs font-semibold text-[#6B7280] hover:underline"
                   >
                     {expandedPlan === 'starter' ? 'Hide details' : 'Learn more'}
                   </button>
                   {expandedPlan === 'starter' && (
-                    <ul className="mt-2 space-y-1 text-xs text-[#4B5563]">
+                    <ul className="mt-2 space-y-1 text-xs text-[#6B7280]">
                       <li>• Up to 15 clinicians (doctors & pharmacists)</li>
                       <li>• Up to 300 active patient profiles</li>
                       <li>• 1,000 monthly SMS notifications via Termii</li>
@@ -315,43 +326,38 @@ export default function SelectPlan() {
                   )}
                 </div>
 
-                {/* Custom Radio Circle */}
-                <div className="pt-0.5">
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all ${
-                      selectedPlan === 'starter'
-                        ? 'border-[#5063BF] bg-white'
-                        : 'border-[#D1D5DB] bg-white'
-                    }`}
-                  >
-                    {selectedPlan === 'starter' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#5063BF]" />
-                    )}
+                {/* Padlock Icon Circle */}
+                <div className="pt-0.5" title="Plan is currently locked">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-600 shadow-inner">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* 3. Growth Plan (Best Fit) */}
+            {/* 3. Growth Plan (LOCKED) */}
             <div
-              onClick={() => setSelectedPlan('growth')}
-              className={`relative cursor-pointer rounded-2xl border p-4 transition-all ${
-                selectedPlan === 'growth'
-                  ? 'border-[#5063BF] bg-[#F7F9FF] shadow-sm'
-                  : 'border-[#E5E7EB] bg-white hover:border-[#D1D5DB]'
-              }`}
+              onClick={() => handleSelectLockedPlan('Growth plan')}
+              className="relative cursor-not-allowed rounded-2xl border border-gray-200 bg-gray-50/70 p-4 transition-all opacity-85 select-none hover:border-gray-300"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 pr-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-[#111827]">Growth plan</span>
-                    <span className="rounded-full bg-[#E0E7FF] px-2.5 py-0.5 text-[11px] font-semibold text-[#4338CA]">
-                      • Best fit
+                    <span className="text-base font-bold text-[#4B5563]">Growth plan</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-200/90 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
+                      <svg className="h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Locked
                     </span>
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-[#111827]">
+                  <div className="mt-1 text-sm font-semibold text-[#6B7280]">
                     ₦ {growthPrice.toLocaleString()}
-                    <span className="ml-1 text-xs font-normal text-[#7A8190]">
+                    <span className="ml-1 text-xs font-normal text-[#9CA3AF]">
                       /{isAnnual ? 'year' : 'month'}
                     </span>
                   </div>
@@ -361,12 +367,12 @@ export default function SelectPlan() {
                       e.stopPropagation()
                       setExpandedPlan(expandedPlan === 'growth' ? null : 'growth')
                     }}
-                    className="mt-1 text-xs font-semibold text-[#5063BF] hover:underline"
+                    className="mt-1 text-xs font-semibold text-[#6B7280] hover:underline"
                   >
                     {expandedPlan === 'growth' ? 'Hide details' : 'Learn more'}
                   </button>
                   {expandedPlan === 'growth' && (
-                    <ul className="mt-2 space-y-1 text-xs text-[#4B5563]">
+                    <ul className="mt-2 space-y-1 text-xs text-[#6B7280]">
                       <li>• Unlimited doctors, pharmacists & staff</li>
                       <li>• Unlimited patients & offline SMS reminders</li>
                       <li>• 8,000 monthly SMS notifications via Termii</li>
@@ -375,41 +381,29 @@ export default function SelectPlan() {
                   )}
                 </div>
 
-                {/* Custom Radio Circle */}
-                <div className="pt-0.5">
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all ${
-                      selectedPlan === 'growth'
-                        ? 'border-[#5063BF] bg-white'
-                        : 'border-[#D1D5DB] bg-white'
-                    }`}
-                  >
-                    {selectedPlan === 'growth' && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#5063BF]" />
-                    )}
+                {/* Padlock Icon Circle */}
+                <div className="pt-0.5" title="Plan is currently locked">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-600 shadow-inner">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Pricing Breakdown with Paystack Fee (Non-editable) */}
-          {selectedPlan !== 'free-trial' && (
-            <div className="mt-4 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-3 text-xs text-[#4B5563]">
-              <div className="flex justify-between py-0.5">
-                <span>Plan price ({billingCycle})</span>
-                <span className="font-semibold text-[#111827]">₦ {currentPrice.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between py-0.5 text-[#6B7280]">
-                <span>Paystack transaction fee (1.5% + ₦100)</span>
-                <span>+ ₦ {paystackFee.toLocaleString()}</span>
-              </div>
-              <div className="mt-1.5 flex justify-between border-t border-[#E5E7EB] pt-1.5 font-bold text-[#111827]">
-                <span>Total amount to charge</span>
-                <span className="text-sm text-[#5063BF]">₦ {totalCharge.toLocaleString()}</span>
-              </div>
+          {/* Friendly Free Trial Information Banner */}
+          <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-xs text-emerald-900 flex items-start gap-2.5">
+            <span className="text-base leading-none">✨</span>
+            <div>
+              <span className="font-semibold text-emerald-950">7-Day Full Access Free Trial</span>
+              <p className="text-emerald-700 text-[11px] mt-0.5">
+                No credit card or upfront payment required. You will be able to upgrade to a paid plan anytime after your trial.
+              </p>
             </div>
-          )}
+          </div>
 
           {/* Error Message */}
           {errorMessage && (
@@ -431,18 +425,72 @@ export default function SelectPlan() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                Processing payment...
+                Activating free trial...
               </span>
-            ) : selectedPlan === 'free-trial' ? (
-              'Start 7-day free trial'
             ) : (
-              `Pay ₦ ${totalCharge.toLocaleString()} via Paystack`
+              'Start 7-day free trial'
             )}
           </button>
         </div>
       </section>
 
-      {/* Paystack Checkout Modal */}
+      {/* Free Trial Activated Animated Thumbs-Up Modal */}
+      {showTrialSuccess && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm transition-all"
+        >
+          <div className="relative w-full max-w-[440px] overflow-hidden rounded-3xl bg-white p-8 text-center shadow-2xl">
+            {/* Animated Thumbs Up Badge */}
+            <div className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center">
+              {/* Pulsing Ripple Rings */}
+              <div className="absolute inset-0 animate-ping rounded-full bg-emerald-400/20" />
+              <div className="absolute -inset-2 animate-pulse rounded-full bg-emerald-500/10" />
+
+              {/* Main Circular Thumbs Up */}
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white shadow-xl shadow-emerald-500/30">
+                <svg
+                  className="h-10 w-10 animate-[bounce_1s_infinite]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M7 10v12" />
+                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Free Trial Activated
+            </div>
+
+            <h3 className="mt-3 text-2xl font-bold text-[#111827]">Welcome to MedTrail!</h3>
+            <p className="mt-1.5 text-sm text-[#4B5563]">
+              Your 7-day free trial has been activated for{' '}
+              <span className="font-semibold text-gray-900">{hospitalName}</span>.
+            </p>
+            <p className="mt-1 text-xs text-emerald-600 font-medium">
+              You now have full access to manage patients, clinicians, and prescriptions.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate('/admin/dashboard', { replace: true })}
+              className="mt-6 w-full rounded-xl bg-[#5063BF] py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#4353A4] active:scale-[0.99]"
+            >
+              Proceed to Admin Dashboard →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paystack Checkout Modal (Preserved for paid subscriptions) */}
       <PaystackCheckoutModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
