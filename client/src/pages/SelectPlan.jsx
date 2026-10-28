@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import MedTrailLogo from '../admin/components/MedTrailLogo'
 import medicationImage from '../assets/medication-image.png'
 import { getAccessToken } from '../auth/session'
+import PaystackCheckoutModal from './PaystackCheckoutModal'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
@@ -16,6 +17,8 @@ export default function SelectPlan() {
   const [expandedPlan, setExpandedPlan] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState(null)
 
   const email =
     location.state?.email ||
@@ -108,41 +111,24 @@ export default function SelectPlan() {
       }
 
       const reference = initData.reference
-      const publicKey = initData.publicKey
 
-      // Step B: If Paystack Inline is loaded and key is valid, launch Paystack modal
-      if (window.PaystackPop && publicKey && !publicKey.includes('demo')) {
-        const handler = window.PaystackPop.setup({
-          key: publicKey,
-          email,
-          amount: totalCharge * 100, // Amount in kobo
-          currency: 'NGN',
-          ref: reference,
-          metadata: {
-            plan: planName,
-            billingCycle,
-            hospitalName,
-            fee: paystackFee,
-          },
-          callback: async function (response) {
-            // Step C: Verify payment on backend
-            await verifyPayment(response.reference || reference, planName, headers)
-          },
-          onClose: function () {
-            setIsProcessing(false)
-          },
-        })
-        handler.openIframe()
-      } else if (initData?.authorizationUrl) {
-        window.location.href = initData.authorizationUrl
-      } else {
-        // Step B (Fallback / Test Mode): Verify transaction directly
-        await verifyPayment(reference, planName, headers)
-      }
+      // Open our authentic interactive Paystack modal with Card and Bank Transfer options
+      setPendingPayment({
+        reference,
+        planName,
+        headers,
+      })
+      setIsModalOpen(true)
+      setIsProcessing(false)
     } catch (err) {
       setErrorMessage(err.message || 'Payment initialization failed. Please try again.')
       setIsProcessing(false)
     }
+  }
+
+  async function handleModalSuccess() {
+    if (!pendingPayment) return
+    await verifyPayment(pendingPayment.reference, pendingPayment.planName, pendingPayment.headers)
   }
 
   async function verifyPayment(reference, planName, headers) {
@@ -455,6 +441,18 @@ export default function SelectPlan() {
           </button>
         </div>
       </section>
+
+      {/* Paystack Checkout Modal */}
+      <PaystackCheckoutModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        amount={totalCharge}
+        planName={selectedPlan === 'starter' ? 'Starter plan' : 'Growth plan'}
+        billingCycle={billingCycle}
+        email={email}
+        hospitalName={hospitalName}
+        onSuccess={handleModalSuccess}
+      />
     </main>
   )
 }
