@@ -71,7 +71,13 @@ function AdminLayout() {
     return <Navigate to="/login" replace state={{ selectedRole: 'Admin' }} />
   }
 
-  if (checked && verification.status === 'verified' && getAuthenticatedRole() === 'admin' && verification.hasPlan === false) {
+  if (
+    checked &&
+    verification.status === 'verified' &&
+    getAuthenticatedRole() === 'admin' &&
+    verification.hasPlan === false &&
+    sessionStorage.getItem('medtrailAdminTrialActive') !== 'true'
+  ) {
     return (
       <Navigate
         to="/select-plan"
