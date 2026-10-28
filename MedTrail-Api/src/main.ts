@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { DataSource } from 'typeorm';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -81,6 +82,28 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT ?? 3000;
+
+  // Safe schema check to ensure all columns exist even if synchronize is false in production
+  try {
+    const dataSource = app.get(DataSource);
+    await dataSource.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
+    await dataSource.query(`ALTER TYPE "public"."users_role_enum" ADD VALUE IF NOT EXISTS 'super_admin';`).catch(() => {});
+    await dataSource.query(`ALTER TYPE "public"."users_invited_role_enum" ADD VALUE IF NOT EXISTS 'super_admin';`).catch(() => {});
+    await dataSource.query(`
+      ALTER TABLE "users" 
+        ADD COLUMN IF NOT EXISTS "patientCode" character varying(50),
+        ADD COLUMN IF NOT EXISTS "caregiverPhone" character varying(50),
+        ADD COLUMN IF NOT EXISTS "caregiverName" character varying(255),
+        ADD COLUMN IF NOT EXISTS "isOfflinePatient" boolean NOT NULL DEFAULT false;
+    `).catch(() => {});
+    await dataSource.query(`
+      ALTER TABLE "prescriptions" 
+        ADD COLUMN IF NOT EXISTS "patientPhone" character varying(50);
+    `).catch(() => {});
+  } catch {
+    // Non-fatal if database is already migrated
+  }
+
   await app.listen(port);
 
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);

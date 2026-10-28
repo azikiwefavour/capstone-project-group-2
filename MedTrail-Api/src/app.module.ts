@@ -59,8 +59,9 @@ import { SystemIncident } from './super-admin/entities/system-incident.entity';
             MessageLog,
             SystemIncident,
           ],
-          autoLoadEntities: true,
-          synchronize: configService.get<string>('NODE_ENV') !== 'production',
+          synchronize:
+            configService.get<string>('DB_SYNCHRONIZE') === 'true' ||
+            configService.get<string>('NODE_ENV') !== 'production',
           ssl: isNeonOrSsl ? { rejectUnauthorized: false } : false,
         };
       },

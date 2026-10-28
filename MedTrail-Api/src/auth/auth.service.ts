@@ -232,7 +232,7 @@ export class AuthService {
     }
 
     if (!user.isEmailVerified) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Please verify your email address before logging in.');
     }
 
     // Strict Role Enforcement:

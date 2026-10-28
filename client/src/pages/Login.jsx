@@ -214,7 +214,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
         return
       }
 
-      if (authenticationRole && data.user.role !== role) {
+      if (authenticationRole && data.user.role !== role && !(role === 'admin' && data.user.role === 'super_admin')) {
         setLoginError('Invalid email or password.')
         return
       }

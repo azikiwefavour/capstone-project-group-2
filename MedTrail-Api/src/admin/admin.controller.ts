@@ -32,7 +32,7 @@ import { SubscriptionService } from './subscription.service';
 @ApiTags('Admin')
 @ApiBearerAuth('JWT')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 @Controller('admin')
 export class AdminController {
   constructor(
