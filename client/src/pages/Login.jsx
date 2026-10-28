@@ -228,11 +228,16 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       setAccessToken(data.accessToken, data.user.role)
       setPassword('')
       setContinueClicked(false)
-      if (data.user.role === 'admin' || data.user.role === 'super_admin') {
-        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : 'Super Admin')
+      if (data.user.role === 'super_admin') {
+        sessionStorage.setItem('medtrailSuperAdminSession', JSON.stringify({ token: data.accessToken }))
+        navigate('/super-admin/overview', { replace: true })
+        return
+      }
+      if (data.user.role === 'admin') {
+        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : 'Admin')
         sessionStorage.setItem('medtrailAdminEmail', data.user.email || email)
         sessionStorage.setItem('medtrailAdminHospital', data.user.hospitalName || '')
-        if (data.user.role === 'admin' && data.user.hasPlan === false) {
+        if (data.user.hasPlan === false) {
           navigate('/select-plan', {
             replace: true,
             state: {

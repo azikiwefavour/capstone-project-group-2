@@ -120,6 +120,8 @@ function App() {
         <Route path="/select-plan" element={<SelectPlan />} />
         <Route path="/login" element={<Login />} />
         <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+        <Route path="/super-admin-login" element={<Navigate to="/super-admin/login" replace />} />
+        <Route path="/super-admin/auth" element={<Navigate to="/super-admin/login" replace />} />
         {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/overview" element={<Suspense fallback={<p role="status">Loading design preview...</p>}><SuperAdminDashboardPreview /></Suspense>} />}
         {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/facilities" element={<Suspense fallback={<p role="status">Loading facilities preview...</p>}><SuperAdminFacilitiesPreview /></Suspense>} />}
         {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/subscriptions" element={<Suspense fallback={<p role="status">Loading subscriptions preview...</p>}><SuperAdminSubscriptionsPreview /></Suspense>} />}
