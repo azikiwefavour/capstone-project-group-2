@@ -32,10 +32,11 @@ export async function verifyAdminSession(token, signal) {
     return null
   }
   // Retain display name, email, plan status, and hospital name
-  return {
+  const result = {
     name: typeof profile.name === 'string' ? profile.name : '',
     email: typeof profile.email === 'string' ? profile.email : '',
-    hasPlan: profile.hasPlan,
-    hospitalName: typeof profile.hospitalName === 'string' ? profile.hospitalName : '',
   }
+  if (profile.hasPlan !== undefined) result.hasPlan = profile.hasPlan
+  if (profile.hospitalName !== undefined) result.hospitalName = typeof profile.hospitalName === 'string' ? profile.hospitalName : ''
+  return result
 }
