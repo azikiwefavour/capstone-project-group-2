@@ -84,6 +84,29 @@ test('creation sends the exact DTO with the Doctor bearer token and requires a c
   assert.equal(requests.filter(r => r.method === 'POST').length, 1)
 })
 
+test('multi-medication creation sends the medications array and common details', async () => {
+  const { api, requests } = await load()
+  const multiValues = {
+    items: [
+      { medication: 'Paracetamol', dose: '500mg', frequency: '3 times daily', duration: '7 days' },
+      { medication: 'Amoxicillin', dose: '500mg', frequency: 'Three times daily', duration: '5 days' },
+    ],
+    reason: 'Bacterial infection',
+  }
+  const result = await api.createDoctorPrescription(patientId, multiValues)
+  assert.equal(result.message, 'Saved by backend')
+  const request = requests.at(-1)
+  assert.equal(request.url, 'http://localhost:3000/api/doctor/prescriptions')
+  assert.equal(request.method, 'POST')
+  assert.equal(request.headers.Authorization, `Bearer ${jwt('doctor')}`)
+  const body = JSON.parse(request.body)
+  assert.equal(body.patientId, patientId)
+  assert.equal(body.reason, 'Bacterial infection')
+  assert.equal(body.medications.length, 2)
+  assert.equal(body.medications[0].medicationName, 'Paracetamol')
+  assert.equal(body.medications[1].medicationName, 'Amoxicillin')
+})
+
 test('invalid medication fields or patient IDs never submit', async () => {
   const { api, requests } = await load()
   for (const value of [null, {}, { ...values, medication: '' }, { ...values, reason: ' ' }, { ...values, frequency: 'unsupported' }, { ...values, duration: 'unsupported' }]) await assert.rejects(api.createDoctorPrescription(patientId, value), /complete all prescription fields/)

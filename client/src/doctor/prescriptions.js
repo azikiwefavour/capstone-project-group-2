@@ -41,6 +41,27 @@ export async function createDoctorPrescription(patientId, values, signal) {
   if (duplicate.status !== 'none') throw new Error(duplicate.status === 'found'
     ? 'An exact duplicate exists. Prescription submission is disabled.'
     : 'Duplicate checking is unavailable. Refresh the medication records before submitting.')
+
+  if (Array.isArray(values.items) && values.items.length > 0) {
+    const body = {
+      patientId,
+      reason: values.reason.trim(),
+      medications: values.items.map(item => ({
+        medicationName: item.medication.trim(),
+        dosage: item.dose.trim(),
+        dose: item.dose.trim(),
+        frequency: item.frequency.trim(),
+        duration: item.duration.trim(),
+        reason: values.reason.trim(),
+      })),
+      medicationName: values.items[0].medication.trim(),
+      dosage: values.items[0].dose.trim(),
+      frequency: values.items[0].frequency.trim(),
+      duration: values.items[0].duration.trim(),
+    }
+    return saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
+  }
+
   const body = {
     patientId, medicationName: values.medication.trim(), dosage: values.dose.trim(),
     frequency: values.frequency.trim(), duration: values.duration.trim(), reason: values.reason.trim(),
@@ -51,9 +72,10 @@ export async function createDoctorPrescription(patientId, values, signal) {
 export async function saveDoctorPrescription(path, { method, body, patientId, prescriptionId, status, expectedStatus = 200 }, signal) {
   try {
     const data = await doctorRequest(path, { method, body, signal, expectedStatus })
-    if (!hasId(data?.prescription) || data.prescription.patientId?.toLowerCase() !== patientId?.toLowerCase()
-      || (prescriptionId && data.prescription.id?.toLowerCase() !== prescriptionId?.toLowerCase())
-      || (status && data.prescription.status?.toLowerCase() !== status?.toLowerCase())) {
+    const mainRx = data?.prescription || (Array.isArray(data?.prescriptions) && data.prescriptions[0])
+    if (!hasId(mainRx) || mainRx.patientId?.toLowerCase() !== patientId?.toLowerCase()
+      || (prescriptionId && mainRx.id?.toLowerCase() !== prescriptionId?.toLowerCase())
+      || (status && mainRx.status?.toLowerCase() !== status?.toLowerCase())) {
       throw new Error('Unexpected prescription response.')
     }
     return { message: text(data.message) || 'Prescription saved successfully.' }

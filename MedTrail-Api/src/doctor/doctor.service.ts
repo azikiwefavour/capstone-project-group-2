@@ -593,6 +593,86 @@ export class DoctorService {
       ? doctor.name
       : `Dr. ${doctor.name}`;
 
+    // Support multiple medications in a single prescription submission
+    if (dto.medications && Array.isArray(dto.medications) && dto.medications.length > 0) {
+      const createdPrescriptions: Prescription[] = [];
+
+      for (const item of dto.medications) {
+        const itemDosage = item.dosage || item.dose || '';
+        const itemFrequency = item.frequency || null;
+        const itemDoseAndFreq = itemFrequency && itemDosage ? `${itemDosage}, ${itemFrequency}` : itemDosage || itemFrequency || null;
+
+        const p = this.prescriptionRepo.create({
+          hospitalName,
+          patientId: patient.id,
+          patientName: patient.name,
+          patientEmail: patient.email,
+          patientPhone: patient.phone || null,
+          doctorId: doctor.id,
+          doctorName: cleanDoctorName,
+          medicationName: item.medicationName,
+          dosage: itemDosage,
+          frequency: itemFrequency,
+          doseAndFrequency: itemDoseAndFreq,
+          duration: item.duration ?? dto.duration ?? null,
+          reason: item.reason ?? dto.reason ?? null,
+          instructions: item.instructions ?? dto.instructions ?? null,
+          status: PrescriptionStatus.PENDING,
+        });
+        createdPrescriptions.push(p);
+      }
+
+      const savedList = await this.prescriptionRepo.save(createdPrescriptions);
+
+      if (patient.phone) {
+        try {
+          const medSummary = savedList.map(p => `${p.medicationName} (${p.doseAndFrequency || p.dosage})`).join(', ');
+          await this.smsService.sendPrescriptionSms({
+            patientName: patient.name,
+            phone: patient.phone,
+            medicationName: medSummary,
+            dosage: savedList.map(p => p.dosage).filter(Boolean).join(', '),
+            frequency: savedList[0].frequency ?? undefined,
+            duration: savedList[0].duration ?? undefined,
+            instructions: savedList[0].instructions ?? undefined,
+            prescriberName: cleanDoctorName,
+            hospitalName,
+            caregiverPhone: patient.caregiverPhone ?? undefined,
+          });
+        } catch (smsErr: any) {
+          this.logger.warn(`Failed to dispatch prescription SMS to patient ${patient.phone}: ${smsErr.message}`);
+        }
+      }
+
+      const activity = this.activityRepo.create({
+        hospitalName,
+        actorName: cleanDoctorName,
+        actorRole: 'doctor',
+        description: `${cleanDoctorName} prescribed ${savedList.length} medications for ${patient.name}`,
+        actionType: 'prescribed',
+        targetPatientName: patient.name,
+      });
+      await this.activityRepo.save(activity);
+
+      this.logger.log(`${savedList.length} prescriptions created by ${cleanDoctorName} for ${patient.name}`);
+
+      const firstSaved = {
+        ...savedList[0],
+        date: formatPrescriptionDate(savedList[0].createdAt),
+      };
+
+      return {
+        message: savedList.length > 1
+          ? `${savedList.length} prescriptions created successfully and sent to pharmacy for review`
+          : 'Prescription created successfully and sent to pharmacy for review',
+        prescription: firstSaved,
+        prescriptions: savedList.map(p => ({
+          ...p,
+          date: formatPrescriptionDate(p.createdAt),
+        })),
+      };
+    }
+
     const dosage = dto.dosage || dto.dose || '';
     const frequency = dto.frequency || null;
     const doseAndFrequency = frequency && dosage ? `${dosage}, ${frequency}` : dosage || frequency || null;

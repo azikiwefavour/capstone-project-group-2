@@ -21,3 +21,17 @@ test('dropdown selections must be supported options', () => {
   assert.equal(errors.frequency, 'Select a valid frequency.')
   assert.equal(errors.duration, 'Select a valid duration.')
 })
+
+test('multi-medication values require at least one medication item and a reason', () => {
+  assert.equal(validateMedicationDetails({ items: [], reason: '' }).items, 'At least one medication is required.')
+  assert.equal(validateMedicationDetails({ items: [], reason: '' }).reason, 'This field is required.')
+
+  const valid = {
+    items: [
+      { medication: 'Paracetamol', dose: '500mg', frequency: '3 times daily', duration: '7 days' },
+      { medication: 'Amoxicillin', dose: '500mg', frequency: 'Three times daily', duration: '5 days' },
+    ],
+    reason: 'Bacterial infection',
+  }
+  assert.deepEqual(validateMedicationDetails(valid), {})
+})
