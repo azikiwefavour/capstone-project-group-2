@@ -1,0 +1,70 @@
+/* Facilities-only visual layout. Data handling does not change these styles. */
+[data-super-admin-facilities] .facilities-pagination {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+}
+[data-super-admin-facilities] .facilities-pagination-summary { grid-column: 1; grid-row: 1; white-space: nowrap; }
+[data-super-admin-facilities] .facilities-page-size { grid-column: 2; grid-row: 1; justify-self: end; }
+[data-super-admin-facilities] .facilities-pagination-controls {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+}
+[data-super-admin-facilities] .facilities-page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-width: 1px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+@media (min-width: 1024px) {
+  [data-super-admin-facilities] .facilities-pagination { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; }
+  [data-super-admin-facilities] .facilities-pagination-controls { grid-column: 2; grid-row: 1; }
+  [data-super-admin-facilities] .facilities-page-size { grid-column: 3; }
+}
+@media (min-width: 1280px) {
+  [data-super-admin-facilities] > section > div:first-of-type { margin-top: 10px; }
+  [data-super-admin-facilities] > section > div:first-of-type > p { margin-top: 4px; line-height: 20px; }
+  [data-super-admin-facilities] [aria-label="Facility status filters"] { margin-top: 12px; }
+  [data-super-admin-facilities] [aria-label="Facility status filters"] + div { margin-top: 12px; }
+  [data-super-admin-facilities] input[type="search"] { height: 36px; }
+  [data-super-admin-facilities] input[type="search"]:disabled { opacity: 1; }
+  [data-super-admin-facilities] [aria-label="Facility status filters"] + div > svg { top: 10px; }
+  [data-super-admin-facilities] [aria-label="Facilities table and pagination"] { margin-top: 12px; }
+  [data-super-admin-facilities] th,
+  [data-super-admin-facilities] td { padding-top: 8px; padding-bottom: 8px; }
+  [data-super-admin-facilities] td p + p { margin-top: 2px; }
+}
+
+/* Fill spare desktop space with the existing seven rows, not the footer.
+   Intrinsic minimum heights preserve readable rows and natural scrolling on
+   shorter viewports. Mobile/tablet layout remains content-sized. */
+@media (min-width: 1280px) {
+  [data-super-admin-facilities] > section { display: flex; flex-direction: column; }
+  [data-super-admin-facilities] > section > * { flex-shrink: 0; }
+  [data-super-admin-facilities] [aria-label="Facilities table and pagination"] {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  [data-super-admin-facilities] [aria-label="Facilities table"] {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+  }
+  [data-super-admin-facilities] table { flex: 1 0 auto; height: 100%; }
+  [data-super-admin-facilities] thead { height: 37px; }
+  [data-super-admin-facilities] .facilities-pagination { flex: none; }
+}

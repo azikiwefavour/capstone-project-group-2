@@ -1,0 +1,67 @@
+/* Scoped to the Super Admin Overview. Smaller screens retain the existing layout.
+   Content keeps its intrinsic height; the existing scroll area handles zoom,
+   short screens, longer names and error messages without cropping any records. */
+@media (min-width: 1280px) {
+  [data-super-admin-layout] > section { padding: 10px 24px; }
+  [data-super-admin-layout] > section > header { gap: 8px; }
+  [data-super-admin-layout] > section > header button { width: 28px; height: 28px; }
+  [data-super-admin-layout] > section > [role="status"] { margin-top: 2px; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-intro] { margin-top: 4px; }
+  [data-super-admin-overview] [data-overview-intro] h1 { font-size: 20px; line-height: 24px; }
+  [data-super-admin-overview] [data-overview-intro] p { margin-top: 0; font-size: 12px; line-height: 16px; }
+  [data-super-admin-overview] section[aria-labelledby="facility-applications-heading"] { margin-top: 6px; padding: 6px 12px; gap: 8px; }
+  [data-super-admin-overview] section[aria-labelledby="facility-applications-heading"] > div { gap: 8px; align-items: center; }
+  [data-super-admin-overview] section[aria-labelledby="facility-applications-heading"] span { width: 28px; height: 28px; }
+  [data-super-admin-overview] section[aria-labelledby="facility-applications-heading"] h2 { font-size: 12px; line-height: 16px; }
+  [data-super-admin-overview] section[aria-labelledby="facility-applications-heading"] p { margin-top: 0; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] section[aria-labelledby="facility-applications-heading"] > button { min-height: 28px; padding: 4px 14px; font-size: 12px; line-height: 20px; }
+  [data-super-admin-overview] [data-overview-row] { margin-top: 6px; gap: 16px; }
+  [data-super-admin-overview] [data-overview-card]:not([data-overview-card="statistics"]) { padding: 6px 12px; }
+  [data-super-admin-overview] [data-overview-card] > p { margin-top: 4px; margin-bottom: 0; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-card] > div:first-child > h2 { font-size: 14px; line-height: 18px; }
+  [data-super-admin-overview] [data-overview-card] > div:first-child > button { font-size: 12px; line-height: 18px; }
+
+  [data-super-admin-overview] [data-overview-card="revenue"] { min-height: 0; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tablist"] { gap: 20px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tab"] { padding-bottom: 4px; font-size: 12px; line-height: 18px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] { padding-top: 6px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > p { margin-bottom: 4px; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > h2 { font-size: 12px; line-height: 16px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > div { margin-top: 4px; gap: 8px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > div > p:first-child { font-size: 22px; line-height: 26px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > div > p + p { font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="img"] > div:first-child { height: 76px; gap: 6px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="img"] > div + div { margin-top: 4px; gap: 6px; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > div:not([role="img"]) > div { margin-top: 0; margin-bottom: 8px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="tabpanel"] > .space-y-7 { padding-bottom: 4px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="progressbar"] { height: 8px; }
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="progressbar"] + p { margin-top: 2px; font-size: 11px; line-height: 14px; }
+
+  [data-super-admin-overview] [data-overview-card="statistics"] > p { margin: 0 0 4px; }
+  [data-super-admin-overview] [data-overview-card="statistics"] > div:last-child { gap: 8px 12px; }
+  [data-super-admin-overview] [data-overview-card="statistics"] article { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-content: center; column-gap: 8px; padding: 8px 10px; }
+  [data-super-admin-overview] [data-overview-card="statistics"] article > span { grid-column: 1; grid-row: 1; width: 24px; height: 24px; margin: 0; }
+  [data-super-admin-overview] [data-overview-card="statistics"] article h2 { grid-column: 2; align-self: center; font-size: 12px; line-height: 16px; }
+  [data-super-admin-overview] [data-overview-card="statistics"] article > p { grid-column: 1 / -1; margin-top: 2px; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-card="statistics"] article > p:first-of-type { font-size: 22px; line-height: 26px; }
+
+  [data-super-admin-overview] :is([data-overview-card="renewals"], [data-overview-card="integrations"]) > ul { margin-top: 4px; }
+  [data-super-admin-overview] :is([data-overview-card="renewals"], [data-overview-card="integrations"]) li { padding-block: 2px; gap: 8px; align-items: center; }
+  [data-super-admin-overview] :is([data-overview-card="renewals"], [data-overview-card="integrations"]) li > span { width: 24px; height: 24px; }
+  [data-super-admin-overview] :is([data-overview-card="renewals"], [data-overview-card="integrations"]) li p,
+  [data-super-admin-overview] [data-overview-card="integrations"] li h3 { font-size: 12px; line-height: 16px; }
+  [data-super-admin-overview] [data-overview-card="renewals"] li p + p,
+  [data-super-admin-overview] [data-overview-card="renewals"] li time,
+  [data-super-admin-overview] [data-overview-card="integrations"] li p { margin-top: 0; font-size: 11px; line-height: 14px; }
+  [data-super-admin-overview] [data-overview-card="integrations"] li h3 + span { padding-block: 0; line-height: 16px; }
+
+  [data-super-admin-overview] [data-overview-card="activities"] { margin-top: 6px; }
+  [data-super-admin-overview] [data-overview-card="activities"] > div[role="region"] { margin-top: 4px; }
+  [data-super-admin-overview] [data-overview-card="activities"] th,
+  [data-super-admin-overview] [data-overview-card="activities"] td { padding: 2px 10px; font-size: 12px; line-height: 16px; }
+}
+
+/* Use a little more chart detail when the desktop has room for it. */
+@media (min-width: 1280px) and (min-height: 850px) {
+  [data-super-admin-overview] [data-overview-card="revenue"] [role="img"] > div:first-child { height: 100px; }
+}
