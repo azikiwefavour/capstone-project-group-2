@@ -6,6 +6,7 @@ import { Inject, Optional } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import * as os from 'node:os';
 import { performance } from 'node:perf_hooks';
+import * as bcrypt from 'bcrypt';
 import { RedisService } from '../cache/redis.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Prescription } from '../doctor/entities/prescription.entity';
@@ -528,6 +529,47 @@ export class SuperAdminService implements OnModuleInit {
 
     // Seed and sync System Incidents matching Figma
     await this.integrationsHealthService.seedInitialIncidentsIfEmpty();
+
+    // Ensure default Super Admin account is available
+    await this.seedSuperAdminUserIfEmpty();
+  }
+
+  /**
+   * Seeds the default Super Admin user if one does not already exist.
+   */
+  async seedSuperAdminUserIfEmpty() {
+    try {
+      const userRepo = this.dataSource.getRepository(User);
+      const existing = await userRepo.findOne({
+        where: [
+          { email: 'superadmin@medtrail.ng' },
+          { role: UserRole.SUPER_ADMIN },
+        ],
+      });
+
+      if (!existing) {
+        this.logger.log('Seeding default Super Admin user account (superadmin@medtrail.ng)...');
+        const hashedPassword = await bcrypt.hash('Password123!', 12);
+        const superAdmin = userRepo.create({
+          name: 'MedTrail Super Admin',
+          email: 'superadmin@medtrail.ng',
+          password: hashedPassword,
+          role: UserRole.SUPER_ADMIN,
+          isEmailVerified: true,
+          invitationStatus: 'accepted',
+        });
+        await userRepo.save(superAdmin);
+        this.logger.log('Default Super Admin account created successfully.');
+      } else if (existing.role !== UserRole.SUPER_ADMIN || !existing.isEmailVerified) {
+        existing.role = UserRole.SUPER_ADMIN;
+        existing.isEmailVerified = true;
+        existing.invitationStatus = 'accepted';
+        await userRepo.save(existing);
+        this.logger.log('Updated existing superadmin account to active SUPER_ADMIN role.');
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not seed Super Admin user: ${err?.message}`);
+    }
   }
 
   // ─── Super Admin Dashboard Overview ───────────────────────────────────────

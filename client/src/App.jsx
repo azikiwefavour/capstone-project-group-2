@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './admin/AdminLayout'
 import SuperAdminLogin from './super-admin/SuperAdminLogin'
@@ -204,4 +205,3 @@ function App() {
 }
 
 export default App
-import { lazy, Suspense } from 'react'
