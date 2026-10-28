@@ -63,6 +63,20 @@ function AdminLayout() {
     return <Navigate to="/login" replace state={{ selectedRole: 'Admin' }} />
   }
 
+  if (checked && verification.status === 'verified' && getAuthenticatedRole() === 'admin' && verification.hasPlan === false) {
+    return (
+      <Navigate
+        to="/select-plan"
+        replace
+        state={{
+          email: verification.email,
+          hospitalName: verification.hospitalName,
+          name: verification.name,
+        }}
+      />
+    )
+  }
+
   return (
     <SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
       <AdminSidebar adminName={adminName} onLogout={() => setLogoutOpen(true)} />

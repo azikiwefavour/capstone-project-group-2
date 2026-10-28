@@ -31,6 +31,11 @@ export async function verifyAdminSession(token, signal) {
     setAccessToken(null)
     return null
   }
-  // Retain only display name and email, not the full profile returned by the API.
-  return { name: typeof profile.name === 'string' ? profile.name : '', email: typeof profile.email === 'string' ? profile.email : '' }
+  // Retain display name, email, plan status, and hospital name
+  return {
+    name: typeof profile.name === 'string' ? profile.name : '',
+    email: typeof profile.email === 'string' ? profile.email : '',
+    hasPlan: profile.hasPlan,
+    hospitalName: typeof profile.hospitalName === 'string' ? profile.hospitalName : '',
+  }
 }

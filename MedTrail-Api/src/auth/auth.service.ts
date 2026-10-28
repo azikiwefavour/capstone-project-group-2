@@ -19,6 +19,9 @@ import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { Facility, FacilityStatus } from '../super-admin/entities/facility.entity';
 
 @Injectable()
 export class AuthService {
@@ -29,6 +32,7 @@ export class AuthService {
     private jwtService: JwtService,
     private mailService: MailService,
     private configService: ConfigService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) { }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -269,13 +273,35 @@ export class AuthService {
 
     const effectiveRole: UserRole = user.role || user.invitedRole || UserRole.PATIENT;
 
+    let hasPlan = true;
+    if (effectiveRole === UserRole.ADMIN) {
+      try {
+        const facilityRepo = this.dataSource.getRepository(Facility);
+        const hospitalName = user.hospitalName?.trim() || '';
+        const facility = await facilityRepo.findOne({
+          where: [
+            { adminEmail: user.email },
+            ...(hospitalName ? [{ name: hospitalName }] : []),
+          ],
+        });
+        hasPlan = Boolean(
+          facility &&
+          (facility.status === FacilityStatus.ACTIVE ||
+           facility.status === FacilityStatus.TRIAL)
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not check facility plan status: ${err.message}`);
+        hasPlan = true;
+      }
+    }
+
     const token = this.signToken({
       sub: String(user.id),
       email: user.email,
       role: effectiveRole,
     });
 
-    this.logger.log(`Login success: ${user.email} as ${effectiveRole}`);
+    this.logger.log(`Login success: ${user.email} as ${effectiveRole} (hasPlan: ${hasPlan})`);
 
     return {
       message: 'Login successful',
@@ -287,6 +313,7 @@ export class AuthService {
         role: effectiveRole,
         hospitalName: user.hospitalName,
         phone: user.phone,
+        hasPlan,
       },
     };
   }
@@ -484,7 +511,28 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('User not found');
-    return user;
+
+    let hasPlan = true;
+    if (user.role === UserRole.ADMIN) {
+      try {
+        const facilityRepo = this.dataSource.getRepository(Facility);
+        const hospitalName = user.hospitalName?.trim() || '';
+        const facility = await facilityRepo.findOne({
+          where: [
+            { adminEmail: user.email },
+            ...(hospitalName ? [{ name: hospitalName }] : []),
+          ],
+        });
+        hasPlan = Boolean(
+          facility &&
+          (facility.status === FacilityStatus.ACTIVE ||
+           facility.status === FacilityStatus.TRIAL)
+        );
+      } catch {
+        hasPlan = true;
+      }
+    }
+    return { ...user, hasPlan };
   }
 
   // ─── Dev Admin Token (for testing/development) ─────────────────────────────

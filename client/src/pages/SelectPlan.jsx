@@ -58,7 +58,7 @@ export default function SelectPlan() {
     setIsProcessing(true)
     setErrorMessage('')
 
-    const token = getAccessToken('admin')
+    const token = getAccessToken()
     const headers = {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -133,6 +133,8 @@ export default function SelectPlan() {
           },
         })
         handler.openIframe()
+      } else if (initData?.authorizationUrl) {
+        window.location.href = initData.authorizationUrl
       } else {
         // Step B (Fallback / Test Mode): Verify transaction directly
         await verifyPayment(reference, planName, headers)

@@ -16,10 +16,22 @@ export class JwtAuthGuard {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
-
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers['authorization'];
+
+    if (isPublic) {
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const payload = await this.jwtService.verifyAsync(token);
+          request['user'] = payload;
+        } catch {
+          // Public route allows proceeding even if token is invalid
+        }
+      }
+      return true;
+    }
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('Missing or invalid Authorization header');
     }

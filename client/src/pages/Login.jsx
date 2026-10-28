@@ -224,6 +224,19 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       setContinueClicked(false)
       if (data.user.role === 'admin' || data.user.role === 'super_admin') {
         sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : 'Super Admin')
+        sessionStorage.setItem('medtrailAdminEmail', data.user.email || email)
+        sessionStorage.setItem('medtrailAdminHospital', data.user.hospitalName || '')
+        if (data.user.role === 'admin' && data.user.hasPlan === false) {
+          navigate('/select-plan', {
+            replace: true,
+            state: {
+              email: data.user.email || email,
+              hospitalName: data.user.hospitalName || '',
+              name: data.user.name || '',
+            },
+          })
+          return
+        }
         navigate('/admin/dashboard', { replace: true })
       } else if (data.user.role === 'doctor') {
         navigate('/doctor/dashboard', { replace: true })
