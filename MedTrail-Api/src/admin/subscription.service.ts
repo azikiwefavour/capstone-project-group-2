@@ -367,17 +367,28 @@ export class SubscriptionService {
     const facilityRepo = this.dataSource.getRepository(Facility);
     const activityRepo = this.dataSource.getRepository(PlatformActivity);
 
-    const user = await userRepo.findOne({
-      where: { email: userEmail.toLowerCase().trim() },
-    });
+    const cleanEmail = (userEmail || '').trim().toLowerCase();
+    let user = await userRepo
+      .createQueryBuilder('user')
+      .where('LOWER(user.email) = LOWER(:email)', { email: cleanEmail })
+      .getOne();
+
+    if (!user) {
+      user = await userRepo.findOne({
+        where: { email: cleanEmail },
+      });
+    }
+
     if (!user) {
       throw new NotFoundException('User account not found');
     }
 
     const hospitalName = user.hospitalName?.trim() || 'General Hospital';
-    let facility = await facilityRepo.findOne({
-      where: [{ name: hospitalName }, { adminEmail: user.email }],
-    });
+    let facility = await facilityRepo
+      .createQueryBuilder('fac')
+      .where('LOWER(fac.adminEmail) = LOWER(:email)', { email: user.email })
+      .orWhere('LOWER(fac.name) = LOWER(:name)', { name: hospitalName })
+      .getOne();
 
     const renewalDate = new Date();
     renewalDate.setDate(renewalDate.getDate() + 7); // 7-day trial

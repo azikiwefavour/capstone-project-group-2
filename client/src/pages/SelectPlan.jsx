@@ -19,10 +19,21 @@ export default function SelectPlan() {
   const [errorMessage, setErrorMessage] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [pendingPayment, setPendingPayment] = useState(null)
-  const [showTrialSuccess, setShowTrialSuccess] = useState(false)
+
+  const token = getAccessToken()
+  let tokenEmail = ''
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+      tokenEmail = payload.email || ''
+    } catch {
+      // ignore
+    }
+  }
 
   const email =
     location.state?.email ||
+    tokenEmail ||
     sessionStorage.getItem('medtrailAdminEmail') ||
     'admin@hospital.ng'
   const hospitalName =
@@ -68,10 +79,10 @@ export default function SelectPlan() {
     setIsProcessing(true)
     setErrorMessage('')
 
-    const token = getAccessToken()
+    const authToken = getAccessToken()
     const headers = {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     }
 
     // ── 1. FREE TRIAL FLOW ──────────────────────────────────────────────────
@@ -88,9 +99,8 @@ export default function SelectPlan() {
           throw new Error(data?.message || 'Unable to activate free trial. Please try again.')
         }
 
-        // Show animated celebration
-        setIsProcessing(false)
-        setShowTrialSuccess(true)
+        // Directly navigate to Admin Dashboard
+        navigate('/admin/dashboard', { replace: true })
       } catch (err) {
         setErrorMessage(err.message || 'Error activating free trial.')
         setIsProcessing(false)
@@ -433,62 +443,6 @@ export default function SelectPlan() {
           </button>
         </div>
       </section>
-
-      {/* Free Trial Activated Animated Thumbs-Up Modal */}
-      {showTrialSuccess && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm transition-all"
-        >
-          <div className="relative w-full max-w-[440px] overflow-hidden rounded-3xl bg-white p-8 text-center shadow-2xl">
-            {/* Animated Thumbs Up Badge */}
-            <div className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center">
-              {/* Pulsing Ripple Rings */}
-              <div className="absolute inset-0 animate-ping rounded-full bg-emerald-400/20" />
-              <div className="absolute -inset-2 animate-pulse rounded-full bg-emerald-500/10" />
-
-              {/* Main Circular Thumbs Up */}
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 text-white shadow-xl shadow-emerald-500/30">
-                <svg
-                  className="h-10 w-10 animate-[bounce_1s_infinite]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M7 10v12" />
-                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Free Trial Activated
-            </div>
-
-            <h3 className="mt-3 text-2xl font-bold text-[#111827]">Welcome to MedTrail!</h3>
-            <p className="mt-1.5 text-sm text-[#4B5563]">
-              Your 7-day free trial has been activated for{' '}
-              <span className="font-semibold text-gray-900">{hospitalName}</span>.
-            </p>
-            <p className="mt-1 text-xs text-emerald-600 font-medium">
-              You now have full access to manage patients, clinicians, and prescriptions.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => navigate('/admin/dashboard', { replace: true })}
-              className="mt-6 w-full rounded-xl bg-[#5063BF] py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#4353A4] active:scale-[0.99]"
-            >
-              Proceed to Admin Dashboard →
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Paystack Checkout Modal (Preserved for paid subscriptions) */}
       <PaystackCheckoutModal

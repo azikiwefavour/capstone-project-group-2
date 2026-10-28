@@ -22,7 +22,15 @@ function AdminLayout() {
       try {
         const profile = await verifyAdminSession(token, controller.signal)
         if (!controller.signal.aborted && profile && getAccessToken() === token) {
-          setVerification({ token, attempt, status: 'verified', name: profile.name, email: profile.email })
+          setVerification({
+            token,
+            attempt,
+            status: 'verified',
+            name: profile.name,
+            email: profile.email,
+            hasPlan: profile.hasPlan,
+            hospitalName: profile.hospitalName,
+          })
         }
       } catch (error) {
         if (!controller.signal.aborted && getAccessToken() === token) {
