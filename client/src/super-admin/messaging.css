@@ -1,0 +1,32 @@
+/* Messaging-only desktop spacing. Keep intrinsic content height and the layout's
+   existing single scroll area for short viewports; mobile spacing is unchanged. */
+@media (min-width: 1024px) {
+  [aria-label="Messaging content"] > [data-messaging-heading] { margin-top: 8px; }
+  [aria-label="Messaging content"] > [data-messaging-heading] p { margin-top: 4px; }
+
+  [aria-label="Messaging content"] > [aria-label="Messaging summary"] { margin-top: 10px; }
+  [aria-label="Messaging content"] > [aria-label="Messaging summary"] article { padding-block: 8px; }
+  [aria-label="Messaging content"] > [aria-label="Messaging summary"] article > p { margin-top: 4px; }
+
+  [aria-label="Messaging content"] > [data-messaging-panels] { margin-top: 10px; }
+  [aria-label="Messaging content"] > [data-messaging-panels] > section { padding-block: 10px; }
+  [aria-label="Messaging content"] > [data-messaging-panels] ul { margin-top: 8px; }
+  [aria-label="Messaging content"] > [data-messaging-panels] li:not(:last-child) { margin-block-end: 10px; }
+  [aria-label="Messaging content"] > [data-messaging-panels] li > div:last-child { margin-top: 6px; }
+
+  [aria-label="Messaging content"] > [data-super-admin-message-log] { margin-top: 10px; }
+  [aria-label="Messaging content"] > [data-super-admin-message-log] > div:last-child { margin-top: 6px; }
+  [aria-label="Messaging content"] > [data-super-admin-message-log] th { padding-block: 6px; }
+  [aria-label="Messaging content"] > [data-super-admin-message-log] td { padding-block: 2px; }
+  [aria-label="Messaging content"] > [data-super-admin-message-log] .subscriber-pagination { padding-block: 4px; }
+}
+
+/* Keep room for seven desktop rows and anchor the existing pagination footer.
+   Minimum sizing allows longer content to grow and short screens to scroll. */
+@media (min-width: 1024px) {
+  [data-super-admin-message-log] [data-message-log-card] { display: flex; flex-direction: column; min-height: 244px; }
+  [data-super-admin-message-log] [aria-label="Message log table"] { display: flex; flex-direction: column; flex: 1 0 auto; }
+  [data-super-admin-message-log] table { flex: 1 0 auto; height: 100%; }
+  [data-super-admin-message-log] thead { height: 29px; }
+  [data-super-admin-message-log] .subscriber-pagination { flex: none; }
+}

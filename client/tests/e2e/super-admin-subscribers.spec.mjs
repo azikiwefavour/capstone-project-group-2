@@ -1,0 +1,121 @@
+import { test, expect } from '@playwright/test'
+import { mountSubscriptionsFixture } from './subscriptionsHarness.mjs'
+
+async function openFilter(page) {
+  const button = page.getByRole('button', { name: 'Filter', exact: true })
+  if (await button.getAttribute('aria-expanded') !== 'true') await button.click()
+}
+
+for (const viewport of [{ width: 375, height: 667 }, { width: 390, height: 844 }, { width: 414, height: 896 }, { width: 430, height: 932 }, { width: 1024, height: 768 }, { width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }]) {
+  test(`empty Subscribers keeps controls and layout at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport)
+    const errors = [], requests = []
+    page.on('pageerror', e => errors.push(e.message))
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
+    await page.route('**/api/**', route => { requests.push(route.request().url()); return route.abort() })
+    await page.goto('/super-admin/preview/subscriptions')
+    const section = page.getByRole('region', { name: 'Subscribers', exact: true }), table = section.getByRole('table'), search = page.getByRole('searchbox'), pagination = section.getByRole('navigation')
+    await expect(table.getByRole('columnheader')).toHaveText(['Facility', 'Plan', 'Cycle', 'Amount', 'Next charge', 'Method', 'Status'])
+    await expect(table.getByText('No subscriptions available yet.', { exact: true })).toBeVisible()
+    await expect(table.locator('time')).toHaveCount(0)
+    await expect(page.locator('[data-plan-subscribers]').getByText('—', { exact: true })).toHaveCount(2)
+    await expect(pagination.getByRole('button')).toHaveCount(2)
+    await expect(pagination.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+    await expect(pagination.getByRole('button', { name: 'Next page' })).toBeDisabled()
+    await expect(section.getByText('Page 1 of 1', { exact: true })).toBeVisible()
+    await search.fill('unused name')
+    await expect(table.getByText('No matching subscriptions found.', { exact: true })).toBeVisible()
+    await search.fill('')
+    await openFilter(page)
+    await page.getByLabel('Subscription status', { exact: true }).selectOption('paid')
+    await page.getByLabel('Subscription plan', { exact: true }).selectOption('Starter')
+    await expect(table.getByText('No matching subscriptions found.', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Clear filters' }).click()
+    await page.keyboard.press('Escape')
+    await expect(table.getByText('No subscriptions available yet.', { exact: true })).toBeVisible()
+    for (const sort of ['charge_asc', 'charge_desc', 'amount_desc', 'amount_asc', 'name_asc', 'name_desc']) {
+      await page.getByRole('button', { name: 'Sort', exact: true }).click()
+      await page.getByLabel('Sort subscribers', { exact: true }).selectOption(sort)
+      await page.keyboard.press('Escape')
+      await expect(table.getByText('No subscriptions available yet.', { exact: true })).toBeVisible()
+    }
+    await expect(table.locator('button, input')).toHaveCount(0)
+    await expect(table).not.toContainText(/Sample |Preview Hospital|Card Payment|Bank Transfer/)
+    const content = page.getByRole('region', { name: 'Subscriptions content', exact: true })
+    if (viewport.width >= 1280) expect(await content.evaluate(n => n.scrollHeight <= n.clientHeight)).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    if (viewport.width < 1024) expect(await section.getByRole('region', { name: 'Subscribers table' }).evaluate(n => n.scrollWidth > n.clientWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath(`subscriptions-empty-${viewport.width}.png`), fullPage: true })
+    expect(errors).toEqual([]); expect(requests).toEqual([])
+  })
+}
+
+test('isolated supplied records retain name-only search, combined filters and seven-row pagination', async ({ page }) => {
+  const host = await mountSubscriptionsFixture(page), search = host.getByRole('searchbox'), table = host.getByRole('table'), pagination = host.getByRole('navigation', { name: 'Subscribers pagination' })
+  await expect(table.locator('tbody tr')).toHaveCount(7)
+  await expect(host.getByText('Page 1 of 10', { exact: true })).toBeVisible()
+  await pagination.getByRole('button', { name: 'Next page' }).click()
+  await expect(host.getByText('Page 2 of 10', { exact: true })).toBeVisible()
+  await search.fill('sAMPLE CEDAR')
+  await expect(host.getByText('Page 1 of 2', { exact: true })).toBeVisible()
+  await openFilter(page)
+  await page.getByLabel('Subscription status', { exact: true }).selectOption('paid')
+  await page.getByLabel('Subscription plan', { exact: true }).selectOption('Starter')
+  await expect(table.locator('tbody tr')).toHaveCount(6)
+  for (const row of await table.locator('tbody tr').all()) { await expect(row.locator('td').first()).toContainText('Cedar'); await expect(row.locator('td').last()).toHaveText('Paid') }
+  await host.getByRole('button', { name: 'Clear filters' }).click()
+  await expect(host.getByText('Page 1 of 2', { exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  for (const term of ['Card Payment', 'Bank Transfer', 'Starter', 'admin@hospital-preview.example.test']) {
+    await search.fill(term)
+    await expect(table.getByText('No matching subscriptions found.', { exact: true })).toBeVisible()
+  }
+  await search.fill('')
+  for (let i = 0; i < 9; i++) await pagination.getByRole('button', { name: 'Next page' }).click()
+  await expect(host.getByText('Page 10 of 10', { exact: true })).toBeVisible()
+  await expect(pagination.getByRole('button', { name: 'Next page' })).toBeDisabled()
+  await pagination.getByRole('button', { name: 'Previous page' }).click()
+  await expect(host.getByText('Page 9 of 10', { exact: true })).toBeVisible()
+  await search.fill('pREVIEW hospital 08')
+  await expect(host.getByText('Page 1 of 1', { exact: true })).toBeVisible()
+  await expect(table.getByRole('cell', { name: '₦0', exact: true })).toBeVisible()
+  await table.locator('tbody tr').first().click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('isolated supplied records sort in all six orders and stay independent of card pricing', async ({ page }) => {
+  const host = await mountSubscriptionsFixture(page), table = host.getByRole('table')
+  for (const sort of ['charge_asc', 'charge_desc', 'amount_desc', 'amount_asc', 'name_asc', 'name_desc']) {
+    await host.getByRole('button', { name: 'Sort', exact: true }).click()
+    await host.getByLabel('Sort subscribers', { exact: true }).selectOption(sort)
+    await page.keyboard.press('Escape')
+    const rows = table.locator('tbody tr')
+    const values = sort.startsWith('charge') ? await rows.locator('time').evaluateAll(nodes => nodes.map(n => Date.parse(n.dateTime))) : await rows.evaluateAll((nodes, amount) => nodes.map(n => amount ? Number(n.cells[3].textContent.replace(/[₦,]/g, '')) : n.cells[0].textContent), sort.startsWith('amount'))
+    const expected = [...values].sort((a, b) => typeof a === 'number' ? a - b : a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true }))
+    if (sort.endsWith('desc')) expected.reverse()
+    expect(values).toEqual(expected)
+  }
+  const before = await table.locator('tbody').textContent()
+  await host.getByRole('radiogroup').getByText('Annually', { exact: true }).click()
+  await expect(table.locator('tbody')).toHaveText(before)
+  await expect(host.getByRole('article', { name: 'Starter Plan' }).getByText('₦300,000', { exact: true })).toBeVisible()
+  await expect(host.locator('[data-plan-subscribers]').getByText('—', { exact: true })).toHaveCount(2)
+})
+
+test('loading, error, empty and confirmed plan counts remain distinct from missing data', async ({ page }) => {
+  const host = await mountSubscriptionsFixture(page)
+  await page.evaluate(() => window.renderSubscriptionsFixture('loading', [], { Starter: 10, Growth: 20 }))
+  await expect(host.getByText('Loading subscriptions...', { exact: true })).toBeVisible()
+  await expect(host.locator('[data-plan-subscribers]').getByText('—', { exact: true })).toHaveCount(2)
+  await page.evaluate(() => window.renderSubscriptionsFixture('error', []))
+  await expect(host.getByRole('alert')).toHaveText('Unable to load subscriptions.')
+  await page.evaluate(() => window.renderSubscriptionsFixture('empty', []))
+  await expect(host.getByText('No subscriptions available yet.', { exact: true })).toBeVisible()
+  await expect(host.locator('[data-plan-subscribers]').getByText('—', { exact: true })).toHaveCount(2)
+  await page.evaluate(() => window.renderSubscriptionsFixture('ready', [{ id: 'missing-fields', facilityName: 'Isolated missing amount' }], { Starter: 0, Growth: 9 }))
+  await expect(host.getByRole('article', { name: 'Starter Plan' }).locator('[data-plan-subscribers]').getByText('0', { exact: true })).toBeVisible()
+  await expect(host.getByRole('article', { name: 'Growth Plan' }).locator('[data-plan-subscribers]').getByText('9', { exact: true })).toBeVisible()
+  await expect(host.locator('tbody tr td').nth(3)).toHaveText('Not available')
+  await host.getByRole('radiogroup').getByText('Annually', { exact: true }).click()
+  await expect(host.getByRole('article', { name: 'Growth Plan' }).locator('[data-plan-subscribers]').getByText('9', { exact: true })).toBeVisible()
+})

@@ -1,0 +1,29 @@
+/* Shared three-part pagination pattern, scoped to Subscribers/Transactions/Message log/Audit log. */
+:is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-pagination { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 6px 12px; }
+:is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-page-summary { grid-column: 1; grid-row: 1; white-space: nowrap; }
+:is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-page-size { grid-column: 2; grid-row: 1; justify-self: end; }
+:is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-page-controls { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; }
+:is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-page-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; border-width: 1px; border-radius: 8px; font-size: 12px; line-height: 16px; }
+@media (min-width: 1024px) {
+  :is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-pagination { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; }
+  :is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-page-controls { grid-column: 2; grid-row: 1; }
+  :is([data-super-admin-subscribers], [data-super-admin-transactions], [data-super-admin-message-log], [data-super-admin-audit-log]) .subscriber-page-size { grid-column: 3; }
+}
+
+/* Reserve the space occupied by seven desktop rows, including when empty.
+   A minimum height lets longer content grow; mobile retains natural sizing. */
+@media (min-width: 1024px) {
+  [data-super-admin-subscribers] [data-subscribers-card] {
+    display: flex;
+    flex-direction: column;
+    min-height: 272px;
+  }
+  [data-super-admin-subscribers] [aria-label="Subscribers table"] {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+  }
+  [data-super-admin-subscribers] table { flex: 1 0 auto; height: 100%; }
+  [data-super-admin-subscribers] thead { height: 33px; }
+  [data-super-admin-subscribers] .subscriber-pagination { flex: none; }
+}

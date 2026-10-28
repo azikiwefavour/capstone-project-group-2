@@ -1,0 +1,11 @@
+/* Audit Log only. Keep the footer at the bottom of the available desktop space.
+   The seven-row minimum can grow for longer content; short screens scroll normally. */
+@media (min-width: 1024px) {
+  [data-super-admin-layout] > [aria-label="Audit log content"] { display: flex; flex-direction: column; }
+  [aria-label="Audit log content"] > * { flex-shrink: 0; }
+  [data-super-admin-audit-log] { display: flex; flex-direction: column; flex: 1 0 auto; min-height: 434px; }
+  [data-super-admin-audit-log] [aria-label="Audit log table"] { display: flex; flex-direction: column; flex: 1 0 auto; }
+  [data-super-admin-audit-log] table { flex: 1 0 auto; height: 100%; }
+  [data-super-admin-audit-log] thead { height: 33px; }
+  [data-super-admin-audit-log] .subscriber-pagination { flex: none; }
+}

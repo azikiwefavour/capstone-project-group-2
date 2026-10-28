@@ -1,5 +1,14 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './admin/AdminLayout'
+import SuperAdminLogin from './super-admin/SuperAdminLogin'
+import SuperAdminBoundary from './super-admin/SuperAdminBoundary'
+import SuperAdminOverview from './super-admin/SuperAdminDashboard'
+import SuperAdminFacilities from './super-admin/SuperAdminFacilities.jsx'
+import SuperAdminSubscriptions from './super-admin/SuperAdminSubscriptions.jsx'
+import SuperAdminPayments from './super-admin/SuperAdminPayments.jsx'
+import SuperAdminMessaging from './super-admin/SuperAdminMessaging.jsx'
+import SuperAdminSystemHealth from './super-admin/SuperAdminSystemHealth.jsx'
+import SuperAdminAuditLog from './super-admin/SuperAdminAuditLog.jsx'
 import PatientAuthLayout from './patient/components/PatientAuthLayout'
 import PatientLayout from './patient/components/PatientLayout'
 import PatientLogin from './patient/pages/PatientLogin'
@@ -34,6 +43,34 @@ const PharmacistVerificationQueue = lazy(() => import('./pharmacist/pages/Pharma
 const PharmacistPrescriptionDetails = lazy(() => import('./pharmacist/pages/PharmacistPrescriptionDetails'))
 const PharmacistClarifications = lazy(() => import('./pharmacist/pages/PharmacistClarifications'))
 const PharmacistDispensationHistory = lazy(() => import('./pharmacist/pages/PharmacistDispensationHistory'))
+
+const SuperAdminAuditLogPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminAuditLogPreview.jsx'))
+  : null
+
+const SuperAdminSystemHealthPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminSystemHealthPreview.jsx'))
+  : null
+
+const SuperAdminMessagingPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminMessagingPreview.jsx'))
+  : null
+
+const SuperAdminPaymentsPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminPaymentsPreview.jsx'))
+  : null
+
+const SuperAdminSubscriptionsPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminSubscriptionsPreview.jsx'))
+  : null
+
+const SuperAdminFacilitiesPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminFacilitiesPreview.jsx'))
+  : null
+
+const SuperAdminDashboardPreview = import.meta.env.DEV
+  ? lazy(() => import('./super-admin/SuperAdminDashboardPreview'))
+  : null
 
 const PatientDashboardPreview = import.meta.env.DEV
   ? lazy(() => import('./patient/previews/PatientDashboardPreview'))
@@ -79,6 +116,26 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/select-role" element={<RoleSelection />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/super-admin/login" element={<SuperAdminLogin />} />
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/overview" element={<Suspense fallback={<p role="status">Loading design preview...</p>}><SuperAdminDashboardPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/facilities" element={<Suspense fallback={<p role="status">Loading facilities preview...</p>}><SuperAdminFacilitiesPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/subscriptions" element={<Suspense fallback={<p role="status">Loading subscriptions preview...</p>}><SuperAdminSubscriptionsPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/payments" element={<Suspense fallback={<p role="status">Loading payments preview...</p>}><SuperAdminPaymentsPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/messaging" element={<Suspense fallback={<p role="status">Loading messaging preview...</p>}><SuperAdminMessagingPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/system-health" element={<Suspense fallback={<p role="status">Loading system health preview...</p>}><SuperAdminSystemHealthPreview /></Suspense>} />}
+        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/audit-log" element={<Suspense fallback={<p role="status">Loading audit log preview...</p>}><SuperAdminAuditLogPreview /></Suspense>} />}
+        <Route path="/super-admin" element={<SuperAdminBoundary />}>
+          <Route index element={<Navigate to="/super-admin/overview" replace />} />
+          <Route path="overview" element={<SuperAdminOverview />} />
+          <Route path="facilities" element={<SuperAdminFacilities />} />
+          <Route path="subscriptions" element={<SuperAdminSubscriptions />} />
+          <Route path="payments" element={<SuperAdminPayments />} />
+          <Route path="messaging" element={<SuperAdminMessaging />} />
+          <Route path="system-health" element={<SuperAdminSystemHealth />} />
+          <Route path="audit-log" element={<SuperAdminAuditLog />} />
+          <Route path="dashboard" element={<Navigate to="/super-admin/overview" replace />} />
+          <Route path="*" element={<Navigate to="/super-admin/login" replace />} />
+        </Route>
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-reset-code" element={<VerifyResetCode />} />
         <Route path="/new-password" element={<NewPassword />} />
