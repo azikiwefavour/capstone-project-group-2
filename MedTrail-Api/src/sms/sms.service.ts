@@ -206,6 +206,17 @@ export class SmsService {
         if (!response.ok || (data && data.code && data.code !== 'ok' && !data.message_id)) {
           const errorMsg = data?.message || `HTTP ${response.status} ${response.statusText}`;
           this.logger.error(`Termii SMS failed for ${normalizedTo}: ${errorMsg}`);
+          if (errorMsg.includes('SENDER_ID_NOT_APPROVED')) {
+            this.logger.warn(
+              `\n╔════════════════════════════════════════════════════════════════╗\n` +
+              `║ ⚠️  [TERMII SENDER ID PENDING / NOT APPROVED]                  ║\n` +
+              `║ Sender ID "${senderId}" is awaiting telecom carrier approval.     ║\n` +
+              `║ Live SMS will deliver automatically once Termii approves it.   ║\n` +
+              `║ [SIMULATED SMS to ${normalizedTo.padEnd(41)}]║\n` +
+              `║ ${message.replace(/\n/g, ' ').slice(0, 60).padEnd(62)}║\n` +
+              `╚════════════════════════════════════════════════════════════════╝\n`
+            );
+          }
           result = { success: false, error: errorMsg };
         } else {
           this.logger.log(`Termii SMS dispatched to ${normalizedTo} (ID: ${data.message_id || 'sent'})`);
