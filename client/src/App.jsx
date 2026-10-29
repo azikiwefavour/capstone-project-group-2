@@ -29,7 +29,7 @@ import AcceptInvite from './pages/AcceptInvite'
 import CreateAccount from './pages/CreateAccount'
 import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
-import LandingPage from './pages/LandingPage'
+import LandingPageV2 from './pages/LandingPageV2'
 import NewPassword from './pages/NewPassword'
 import RoleSelection from './pages/RoleSelection'
 import SelectPlan from './pages/SelectPlan'
@@ -109,7 +109,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<LandingPageV2 />} />
         {import.meta.env.DEV && <Route path="/email-preview/hospital-invitation" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading email preview...</p>}><HospitalInvitationEmailPreview /></Suspense>} />}
         {import.meta.env.DEV && <Route path="/email-preview/email-verification" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading email preview...</p>}><EmailVerificationEmailPreview /></Suspense>} />}
         {import.meta.env.DEV && <Route path="/email-preview/reset-password" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading email preview...</p>}><ResetPasswordEmailPreview /></Suspense>} />}
