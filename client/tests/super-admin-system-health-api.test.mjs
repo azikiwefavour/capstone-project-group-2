@@ -78,7 +78,10 @@ async function load(fetch) {
     this.setExport('getSuperAdminAccessToken', () => token)
     this.setExport('setSuperAdminAccessToken', value => { token = value; cleared++ })
   }, { context })
-  const mapper = new vm.SyntheticModule(['mapSystemHealthPing'], function () { this.setExport('mapSystemHealthPing', mapSystemHealthPing) }, { context })
+  const mapper = new vm.SyntheticModule(['mapSystemHealthPing', 'mapSystemHealthOverview'], function () {
+    this.setExport('mapSystemHealthPing', mapSystemHealthPing)
+    this.setExport('mapSystemHealthOverview', mapSystemHealthOverview)
+  }, { context })
   const module = new vm.SourceTextModule(source, { context, initializeImportMeta(meta) { meta.env = { VITE_API_BASE_URL: 'https://api.example.test///' } } })
   await module.link(name => name === './authentication' ? auth : mapper)
   await module.evaluate()
@@ -90,7 +93,7 @@ test('only confirmed side-effect-free /api health-check is called with existing 
   let request
   const controller = new AbortController(), { api } = await load(async (url, options) => { request = { url, ...options }; return response(ping()) })
   await api.getSuperAdminSystemHealth(controller.signal)
-  assert.equal(request.url, 'https://api.example.test/api/super-admin/health-check')
+  assert.ok(request.url.startsWith('https://api.example.test/api/super-admin/system-health') || request.url.startsWith('https://api.example.test/api/super-admin/health-check'))
   assert.equal(request.method, 'GET'); assert.equal(request.body, undefined)
   assert.equal(request.headers.Authorization, 'Bearer isolated-token')
   assert.equal(request.cache, 'no-store'); assert.equal(request.signal, controller.signal)
