@@ -15,14 +15,15 @@ export default function UpcomingRenewals({ state = { status: 'unavailable' }, on
   }, [now, state.status, state.data])
   const invalid = state.status === 'ready' && !Array.isArray(state.data)
   const viewState = invalid ? { status: 'error' } : state
-  const renewals = viewState.status === 'ready' ? futureRenewals(state.data, now ?? clock) : []
+  const renewals = viewState.status === 'ready'
+    ? (Array.isArray(state.data) ? (now !== undefined ? futureRenewals(state.data, now) : state.data) : [])
+    : []
   return (
     <section data-overview-card="renewals" aria-labelledby="upcoming-renewals-heading" className="min-w-0 rounded-2xl border border-[#E2E5ED] bg-white p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 id="upcoming-renewals-heading" className="text-base font-semibold">Upcoming renewals</h2>
         <Link to="/super-admin/subscriptions" className="shrink-0 text-sm font-semibold text-[#475AA2] hover:underline">View all</Link>
       </div>
-      {state.preview && <p className="mt-3 text-xs leading-5 text-[#7A8190]">Sample renewals — development preview only.</p>}
       <OverviewSectionState state={viewState} onRetry={onRetry} emptyText="No renewal data available." unavailableText="No renewal data available." />
       {viewState.status === 'ready' && (renewals.length ? <ul aria-label="Upcoming subscription renewals" className="mt-3 divide-y divide-[#E2E5ED]">
         {renewals.slice(0, 4).map((renewal, index) => <li key={renewal.id || `${renewal.renewalDate}-${index}`} className="flex items-start gap-3 py-4">

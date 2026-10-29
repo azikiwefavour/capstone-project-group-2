@@ -33,7 +33,7 @@ export function mapFacilityResponse(value) {
     },
     messagesLabel: text(cardMessages?.label) || 'Messages (Oct)',
     nextRenewalDate: date(value.renewalDate), trialEndDate: date(value.renewalDate), subscriptionExpiryDate: date(value.renewalDate),
-    subscriptionDate: date(value.createdAt) || date(value.renewalDate),
+    subscriptionDate: date(value.createdAt) || date(value.subscriptionDate) || date(value.renewalDate),
     admin: adminName || adminEmail ? { name: adminName || 'Admin', email: adminEmail || '' } : null,
     paymentMethod,
     subscriptionAmount: value.billingCycle === 'Monthly' && Number.isFinite(value.monthlyValue ?? value.monthlyFee)

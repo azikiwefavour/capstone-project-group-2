@@ -12,7 +12,7 @@ const items = [
 ]
 
 export default function SuperAdminSidebar({ name, preview, onLogout }) {
-  const profileName = name || (preview ? 'Design preview' : 'Account unavailable')
+  const profileName = name || 'MedTrail Super Admin'
   return (
     <aside aria-label="Super Admin sidebar" className="flex bg-[#475AA2] text-white lg:h-screen lg:w-1/5 lg:min-w-[250px] lg:flex-col lg:overflow-y-auto">
       <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 lg:min-h-full lg:flex-1 lg:px-5 lg:pb-6 lg:pt-6">
@@ -21,7 +21,7 @@ export default function SuperAdminSidebar({ name, preview, onLogout }) {
           {items.map(([label, path], index) => {
             const icon = <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5 shrink-0"><path d={path} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             const base = 'flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium'
-            return index < 7 ? <NavLink key={label} end to={`${preview ? '/super-admin/preview' : '/super-admin'}/${['overview', 'facilities', 'subscriptions', 'payments', 'messaging', 'system-health', 'audit-log'][index]}`} className={({ isActive }) => `${base} ${isActive ? 'bg-[#DEE2F4] text-[#475AA2]' : 'text-white/80 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white'}`}>
+            return index < 7 ? <NavLink key={label} end to={`/super-admin/${['overview', 'facilities', 'subscriptions', 'payments', 'messaging', 'system-health', 'audit-log'][index]}`} className={({ isActive }) => `${base} ${isActive ? 'bg-[#DEE2F4] text-[#475AA2]' : 'text-white/80 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white'}`}>
               {icon}{label}
             </NavLink> : <button key={label} type="button" disabled title={`${label} — coming soon`} className={`${base} cursor-default text-white/80`}>{icon}{label}</button>
           })}

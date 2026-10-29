@@ -14,7 +14,6 @@ export default function RecentPlatformActivities({ state = { status: 'unavailabl
         <h2 id="recent-platform-activities-heading" className="text-base font-semibold">Recent platform activities</h2>
         <Link to="/super-admin/audit-log" className="shrink-0 text-sm font-semibold text-[#475AA2] hover:underline">View all</Link>
       </div>
-      {state.preview && <p className="mt-3 text-xs leading-5 text-[#7A8190]">Sample activities — development preview only. These are not real platform events.</p>}
       <div role="region" aria-label="Recent platform activities table" tabIndex={0} className="relative mt-4 min-w-0 overflow-x-auto rounded-xl border border-[#E2E5ED] focus-visible:outline-2 focus-visible:outline-[#475AA2]">
         <table className="w-full min-w-[640px] border-collapse text-left text-xs">
           <caption className="sr-only">The five most recent platform activities. Times are shown in UTC.</caption>

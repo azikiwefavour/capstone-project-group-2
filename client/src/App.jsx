@@ -122,13 +122,14 @@ function App() {
         <Route path="/super-admin/login" element={<SuperAdminLogin />} />
         <Route path="/super-admin-login" element={<Navigate to="/super-admin/login" replace />} />
         <Route path="/super-admin/auth" element={<Navigate to="/super-admin/login" replace />} />
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/overview" element={<Suspense fallback={<p role="status">Loading design preview...</p>}><SuperAdminDashboardPreview /></Suspense>} />}
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/facilities" element={<Suspense fallback={<p role="status">Loading facilities preview...</p>}><SuperAdminFacilitiesPreview /></Suspense>} />}
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/subscriptions" element={<Suspense fallback={<p role="status">Loading subscriptions preview...</p>}><SuperAdminSubscriptionsPreview /></Suspense>} />}
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/payments" element={<Suspense fallback={<p role="status">Loading payments preview...</p>}><SuperAdminPaymentsPreview /></Suspense>} />}
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/messaging" element={<Suspense fallback={<p role="status">Loading messaging preview...</p>}><SuperAdminMessagingPreview /></Suspense>} />}
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/system-health" element={<Suspense fallback={<p role="status">Loading system health preview...</p>}><SuperAdminSystemHealthPreview /></Suspense>} />}
-        {import.meta.env.DEV && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <Route path="/super-admin/preview/audit-log" element={<Suspense fallback={<p role="status">Loading audit log preview...</p>}><SuperAdminAuditLogPreview /></Suspense>} />}
+        <Route path="/super-admin/preview/overview" element={<Navigate to="/super-admin/overview" replace />} />
+        <Route path="/super-admin/preview/facilities" element={<Navigate to="/super-admin/facilities" replace />} />
+        <Route path="/super-admin/preview/subscriptions" element={<Navigate to="/super-admin/subscriptions" replace />} />
+        <Route path="/super-admin/preview/payments" element={<Navigate to="/super-admin/payments" replace />} />
+        <Route path="/super-admin/preview/messaging" element={<Navigate to="/super-admin/messaging" replace />} />
+        <Route path="/super-admin/preview/system-health" element={<Navigate to="/super-admin/system-health" replace />} />
+        <Route path="/super-admin/preview/audit-log" element={<Navigate to="/super-admin/audit-log" replace />} />
+        <Route path="/super-admin/preview/*" element={<Navigate to="/super-admin/overview" replace />} />
         <Route path="/super-admin" element={<SuperAdminBoundary />}>
           <Route index element={<Navigate to="/super-admin/overview" replace />} />
           <Route path="overview" element={<SuperAdminOverview />} />

@@ -27,7 +27,6 @@ export default function PlatformStatistics({ state = { status: 'unavailable' }, 
   const ready = state.status === 'ready' && state.data
   return (
     <section data-overview-card="statistics" aria-label="Platform statistics" className="flex min-w-0 flex-col">
-      {state.preview && <p className="mb-3 text-xs leading-5 text-[#7A8190]">Sample platform statistics — development preview only.</p>}
       {state.status === 'error' && <div role="alert" className="mb-3 text-sm text-[#52556C]">Unable to load platform statistics.{onRetry && <button type="button" onClick={onRetry} className="ml-2 rounded-lg px-2 py-1 font-semibold text-[#475AA2] underline focus-visible:outline-2 focus-visible:outline-[#475AA2]">Try again</button>}</div>}
       {state.status === 'loading' && <p role="status" className="mb-3 text-sm text-[#7A8190]">Loading platform statistics...</p>}
       {state.status === 'empty' && <p className="mb-3 text-sm text-[#7A8190]">No platform statistics available yet.</p>}

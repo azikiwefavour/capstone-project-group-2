@@ -45,15 +45,15 @@ export function mapDashboardResponse(payload) {
   // 2. Platform Statistics
   if (payload.stats) {
     state.platformState = overviewSectionState('ready', {
-      registeredFacilities: count(payload.stats.registeredFacilities?.total) ?? 8,
-      pendingApplications: count(payload.stats.registeredFacilities?.awaitingReview) ?? 1,
-      activeSubscribers: count(payload.stats.activeSubscribers?.total) ?? 4,
-      trialSubscriptions: count(payload.stats.activeSubscribers?.inTrial) ?? 1,
-      overdueSubscriptions: count(payload.stats.activeSubscribers?.overdue) ?? 2,
-      messagesSent: count(payload.stats.messagesSent?.total) ?? 3366,
-      deliveryPercentage: Number.isFinite(payload.stats.messagesSent?.deliveryPercentage) ? payload.stats.messagesSent.deliveryPercentage : 97.6,
-      patientsOnRecord: count(payload.stats.patientsOnRecord?.total) ?? 5638,
-      liveFacilities: count(payload.stats.patientsOnRecord?.liveFacilitiesCount) ?? 5,
+      registeredFacilities: count(payload.stats.registeredFacilities?.total) ?? 0,
+      pendingApplications: count(payload.stats.registeredFacilities?.awaitingReview) ?? 0,
+      activeSubscribers: count(payload.stats.activeSubscribers?.total) ?? 0,
+      trialSubscriptions: count(payload.stats.activeSubscribers?.inTrial) ?? 0,
+      overdueSubscriptions: count(payload.stats.activeSubscribers?.overdue) ?? 0,
+      messagesSent: count(payload.stats.messagesSent?.total) ?? 0,
+      deliveryPercentage: Number.isFinite(payload.stats.messagesSent?.deliveryPercentage) ? payload.stats.messagesSent.deliveryPercentage : 0,
+      patientsOnRecord: count(payload.stats.patientsOnRecord?.total) ?? 0,
+      liveFacilities: count(payload.stats.patientsOnRecord?.liveFacilitiesCount) ?? 0,
     })
   }
 

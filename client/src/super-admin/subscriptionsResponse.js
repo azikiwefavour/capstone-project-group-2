@@ -40,8 +40,8 @@ export function mapSubscriptionsResponse(value, cycle = 'monthly') {
     status: records.length ? 'ready' : 'empty', records,
     planPrices: { Starter: price('starter', 'Starter Plan', 'Starter'), Growth: price('growth', 'Growth Plan', 'Growth') },
     subscriberCounts: {
-      Starter: count(value.plans?.starter?.subscribers) ?? count(value.summary?.starterSubscribers) ?? 1,
-      Growth: count(value.plans?.growth?.subscribers) ?? count(value.summary?.growthSubscribers) ?? 5,
+      Starter: count(value.plans?.starter?.subscribers) ?? count(value.summary?.starterSubscribers) ?? 0,
+      Growth: count(value.plans?.growth?.subscribers) ?? count(value.summary?.growthSubscribers) ?? 0,
     },
     pagination: { total: pagination.total, page: pagination.page, limit: pagination.limit, totalPages: Math.max(1, pagination.totalPages) },
   }
