@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { formatActivityTimestamp, normalizePlatformActivity, recentPlatformActivities } from './activityData'
 import OverviewSectionState from './OverviewSectionState.jsx'
 
@@ -11,7 +12,7 @@ export default function RecentPlatformActivities({ state = { status: 'unavailabl
     <section data-overview-card="activities" aria-labelledby="recent-platform-activities-heading" className="mt-6 min-w-0 rounded-2xl border border-[#E2E5ED] bg-white p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 id="recent-platform-activities-heading" className="text-base font-semibold">Recent platform activities</h2>
-        <button type="button" disabled title="Audit Log — coming soon" className="shrink-0 cursor-not-allowed text-sm font-semibold text-[#7A8190]">View all<span className="sr-only"> — coming soon</span></button>
+        <Link to="/super-admin/audit-log" className="shrink-0 text-sm font-semibold text-[#475AA2] hover:underline">View all</Link>
       </div>
       {state.preview && <p className="mt-3 text-xs leading-5 text-[#7A8190]">Sample activities — development preview only. These are not real platform events.</p>}
       <div role="region" aria-label="Recent platform activities table" tabIndex={0} className="relative mt-4 min-w-0 overflow-x-auto rounded-xl border border-[#E2E5ED] focus-visible:outline-2 focus-visible:outline-[#475AA2]">

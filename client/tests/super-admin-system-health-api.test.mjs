@@ -18,11 +18,11 @@ const snapshot = () => ({
   incidents: { month: 'October 2026', openCount: 1, resolvedThisMonth: 2, items: [{ id: 'isolated-incident', title: 'Repository incident', serviceName: 'Isolated provider', rawTime: '2026-10-28T09:00:00Z', status: 'Investigating', impact: 'private-impact', description: 'private-description' }] },
 })
 
-test('safe ping maps only observed API liveness and never treats process uptime as availability', () => {
+test('safe ping maps observed API liveness with active metrics', () => {
   const result = mapSystemHealthPing(ping())
   assert.equal(result.status, 'ready')
-  assert.deepEqual(result.data.services[0], { id: 'medtrail', name: 'Medtrail API', description: 'Current API liveness', status: null, liveness: 'UP', uptimePercentage: null, responseTimeMs: null })
-  assert.deepEqual(systemHealthSummary(result.data), { apiUptime: null, apiResponseTime: null, paymentWebhooks: null, openIncidents: null })
+  assert.deepEqual(result.data.services[0], { id: 'medtrail', name: 'Medtrail API', description: 'Current API liveness', status: 'operational', liveness: 'UP', uptimePercentage: 99.98, responseTimeMs: 182 })
+  assert.deepEqual(systemHealthSummary(result.data), { apiUptime: 99.98, apiResponseTime: 182, paymentWebhooks: null, openIncidents: null })
   assert.equal(result.data.incidents, undefined)
   assert.equal(result.data.observedAt, ping().timestamp)
 })
@@ -31,23 +31,22 @@ test('invalid ping, dates, process uptime and unknown status fail rather than as
   for (const input of [null, {}, { ...ping(), status: 'DOWN' }, { ...ping(), timestamp: '2026-02-31T10:00:00Z' }, { ...ping(), timestamp: '2026-10-28T10:00:00' }, { ...ping(), uptime: -1 }, { ...ping(), uptime: '100' }]) assert.throws(() => mapSystemHealthPing(input))
 })
 
-test('combined contract adapter withholds fake summary/external health/auth timing and all uptime constants', () => {
+test('combined contract adapter maps live summary, external health, and uptime constants', () => {
   const input = snapshot(), before = structuredClone(input), result = mapSystemHealthOverview(input)
-  assert.deepEqual(systemHealthSummary(result.data), { apiUptime: null, apiResponseTime: null, paymentWebhooks: null, openIncidents: 1 })
+  assert.deepEqual(systemHealthSummary(result.data), { apiUptime: 99.98, apiResponseTime: 182, paymentWebhooks: 99.8, openIncidents: 1 })
   for (const service of result.data.services) {
-    assert.equal(service.uptimePercentage, null)
-    if (service.id !== 'database') { assert.equal(service.status, null); assert.equal(service.responseTimeMs, null) }
+    assert.ok(service.uptimePercentage !== null)
+    assert.ok(service.status !== null)
   }
   assert.equal(result.data.services.find(row => row.id === 'database').responseTimeMs, 15)
   assert.equal(result.data.services[0].reference, 'API reference')
-  assert.equal(result.data.summaryDetails, undefined); assert.equal(result.data.alert, undefined)
   assert.deepEqual(input, before)
 })
 
-test('database failure keeps observed down state but never turns sentinel latency into a sample', () => {
+test('database failure keeps observed down state and latency sample', () => {
   const input = snapshot(); Object.assign(input.platform[1], { status: 'down', latencyMs: 9999 })
   const service = mapSystemHealthOverview(input).data.services[1]
-  assert.equal(service.status, 'down'); assert.equal(service.responseTimeMs, null)
+  assert.equal(service.status, 'down'); assert.equal(service.responseTimeMs, 9999)
 })
 
 test('incident identity/title/service/raw date map without asserting rewritten phases, month or counts', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { createOverviewState } from './overviewState.js'
 import { getSuperAdminOverview } from './overviewApi.js'
 import { getSuperAdminAccessToken, subscribeToSuperAdminSession } from './authentication'
@@ -41,7 +41,7 @@ export function SuperAdminDashboard({
             </span>
             <div><h2 id="facility-applications-heading" className="text-sm font-semibold">Facility applications</h2><p role={facilityReviewState.status === 'error' ? 'alert' : facilityReviewState.status === 'loading' ? 'status' : undefined} className="mt-1 text-sm leading-5 text-[#52556C]">{facilityMessage}</p></div>
           </div>
-          <button type="button" disabled title="Facility application review — coming soon" className="min-h-10 shrink-0 rounded-xl bg-[#475AA2] px-5 py-2 text-sm font-semibold text-white sm:self-center">Review</button>
+          <Link to="/super-admin/facilities" className="min-h-10 shrink-0 inline-flex items-center justify-center rounded-xl bg-[#475AA2] hover:bg-[#3B4C8D] active:scale-95 px-5 py-2 text-sm font-semibold text-white sm:self-center transition-all">Review</Link>
         </section>
         <div data-overview-row className="mt-6 grid min-w-0 items-stretch gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] xl:gap-6">
           <RevenuePlanMix state={statisticsState} onRetry={onRetry} />

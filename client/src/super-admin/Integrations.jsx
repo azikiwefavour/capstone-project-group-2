@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { integrationHealth } from './overviewData'
 import OverviewSectionState from './OverviewSectionState.jsx'
 
@@ -19,7 +20,7 @@ export default function Integrations({ state = { status: 'unavailable' }, onRetr
   const viewState = invalid ? { status: 'error' } : state
   return (
     <section data-overview-card="integrations" aria-labelledby="integrations-heading" className="min-w-0 rounded-2xl border border-[#E2E5ED] bg-white p-4 sm:p-5">
-      <div className="flex items-center justify-between gap-3"><h2 id="integrations-heading" className="text-base font-semibold">Integrations</h2><button type="button" disabled title="System Health — coming soon" className="shrink-0 cursor-not-allowed text-sm font-semibold text-[#7A8190]">View details<span className="sr-only"> — coming soon</span></button></div>
+      <div className="flex items-center justify-between gap-3"><h2 id="integrations-heading" className="text-base font-semibold">Integrations</h2><Link to="/super-admin/system-health" className="shrink-0 text-sm font-semibold text-[#475AA2] hover:underline">View details</Link></div>
       {state.preview && <p className="mt-3 text-xs leading-5 text-[#7A8190]">Sample service health — development preview only.</p>}
       <OverviewSectionState state={viewState} onRetry={onRetry} emptyText="No integration health data available." unavailableText="Integration health monitoring is not connected yet." />
       <ul aria-label="Integration service health" className="mt-3 divide-y divide-[#E2E5ED]">

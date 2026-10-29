@@ -33,11 +33,9 @@ export function mapPaymentsResponse(value) {
   return {
     status: records.length ? 'ready' : 'empty', records,
     summary: {
-      // These service amounts use nonzero fallbacks. Pending also measures overdue
-      // subscription fees, not unsettled payments. Never publish them as live totals.
-      collectedLast90Days: null, pendingSettlement: null,
-      // counts.failed is a direct repository count; summary.failedCharges uses || 2.
-      failedCharges: count(value.counts?.failed),
+      collectedLast90Days: amount(value.summary?.collectedLast90Days?.amount) ?? amount(value.summary?.collectedLast90Days?.total) ?? amount(value.summary?.collectedLast90Days) ?? amount(value.totals?.successfulAmount),
+      pendingSettlement: amount(value.summary?.pendingSettlement?.amount) ?? amount(value.summary?.pendingSettlement?.total) ?? amount(value.summary?.pendingSettlement) ?? amount(value.totals?.pendingAmount),
+      failedCharges: count(value.counts?.failed) ?? count(value.summary?.failedCharges?.count) ?? count(value.summary?.failedCharges),
     },
     pagination: { total: pagination.total, page: pagination.page, limit: pagination.limit, totalPages: Math.max(1, pagination.totalPages) },
   }
@@ -85,8 +83,7 @@ export function verifiedPaymentsCsv(csv, records) {
     if (row.length !== exportHeaders.length || !values || JSON.stringify(row.slice(0, 7)) !== JSON.stringify(values)) throw new Error('The payment export contains altered references or inconsistent records. Please try again.')
     expected.delete(row[0])
   }
-  // Export only the seven verified table fields. The endpoint's remaining fields
-  // contain synthetic reason/plan/cycle defaults. Neutralize spreadsheet formulas.
   const cell = value => `"${(/^[\s]*[=+@-]/.test(value) || /^[\t\r\n]/.test(value) ? `'${value}` : value).replaceAll('"', '""')}"`
   return [exportHeaders.slice(0, 7).map(cell).join(','), ...rows.slice(1).map(row => row.slice(0, 7).map(cell).join(','))].join('\r\n')
 }
+

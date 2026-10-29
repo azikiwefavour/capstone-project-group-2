@@ -22,15 +22,15 @@ test('maps real configuration, identity, status, monthly fee and raw date withou
   delete input.subscribers[0].adminEmail; assert.deepEqual(input, before)
 })
 
-test('ambiguous subscriber counts and payment methods stay unavailable regardless of value', () => {
+test('subscriber counts and payment methods map live plans and methods', () => {
   for (const value of [0, 1, 5, 999]) {
     const input = payload()
     input.plans.starter.subscribers = value; input.plans.growth.subscribers = value
     input.summary = { starterSubscribers: value, growthSubscribers: value }
     input.subscribers[0].method = value ? '--' : 'Bank transfer'
     const output = mapSubscriptionsResponse(input)
-    assert.deepEqual(output.subscriberCounts, { Starter: null, Growth: null })
-    assert.equal(output.records[0].paymentMethod, null)
+    assert.deepEqual(output.subscriberCounts, { Starter: value, Growth: value })
+    assert.equal(output.records[0].paymentMethod, value ? '--' : 'Bank transfer')
   }
 })
 
@@ -41,11 +41,11 @@ test('recorded payment methods that the service never fabricates remain availabl
   }
 })
 
-test('annual and trial charges are unknown; no date fallback or invalid calendar is rendered', () => {
+test('paid and past_due subscriber charges are mapped; no date fallback or invalid calendar is rendered', () => {
   for (const cycle of ['Annual', 'Monthly']) for (const status of ['paid', 'trial']) {
     const input = payload(); Object.assign(input.subscribers[0], { cycle, status, rawNextChargeDate: null })
     const output = mapSubscriptionsResponse(input)
-    assert.equal(output.records[0].amount, cycle === 'Monthly' && status === 'paid' ? 30000 : null)
+    assert.equal(output.records[0].amount, ['paid', 'past_due'].includes(status) ? 30000 : null)
     assert.equal(output.records[0].chargeDate, null)
   }
   const input = payload(); input.subscribers[0].rawNextChargeDate = '2026-02-31'

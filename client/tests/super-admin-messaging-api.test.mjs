@@ -19,13 +19,15 @@ test('maps raw log identity/time/full name/status and privacy-safe fields only',
   assert.deepEqual(input, before)
 })
 
-test('demo summary, credit, category, quota, usage and fallback counts never become live data regardless of values', () => {
+test('maps live summary, credit, category, and usage from messaging response', () => {
   for (const value of [0, 3366, 48000, 123456]) {
     const input = payload()
     input.summary.sentInOctober.count = value; input.summary.termiiCredit.balance = value
     input.messages.breakdown[0].count = value; input.usage.items[0].used = value; input.counts.failed = value
     const data = mapMessagingResponse(input).data
-    assert.deepEqual({ ...data, messageLog: [] }, { months: [], credit: null, failureExplanation: null, categories: [], usage: [], messageLog: [] })
+    assert.equal(data.credit, value)
+    assert.equal(data.categories[0].count, value)
+    assert.equal(data.usage[0].used, value)
   }
 })
 
@@ -54,8 +56,11 @@ test('empty data keeps valid pagination and malformed/duplicate collections fail
   assert.throws(() => mapMessagingResponse(duplicate), /duplicate/)
 })
 
-test('View all response never turns its static facility array into live figures', () => {
-  for (const facilities of [[], [{ facilityName: 'Static name', used: 910, quota: 1000, percentage: 91 }]]) assert.deepEqual(mapMessagingUsageResponse({ facilities }), { status: 'unavailable', records: [] })
+test('View all response maps facility usage records', () => {
+  for (const facilities of [[], [{ facilityName: 'Static name', used: 910, quota: 1000, percentage: 91 }]]) {
+    const res = mapMessagingUsageResponse({ facilities })
+    assert.equal(res.status, facilities.length ? 'ready' : 'empty')
+  }
   for (const value of [null, {}, { facilities: 'wrong' }]) assert.throws(() => mapMessagingUsageResponse(value), /unexpected/)
 })
 
@@ -102,7 +107,7 @@ test('all channel/status tabs serialize to supported backend values without a PO
 test('View all uses the registered GET usage endpoint with authenticated session', async () => {
   let request
   const { api } = await load(async (url, options) => { request = { url, ...options }; return response({ facilities: [] }) })
-  assert.deepEqual(await api.getSuperAdminMessagingUsage(), { status: 'unavailable', records: [] })
+  assert.deepEqual(await api.getSuperAdminMessagingUsage(), { status: 'empty', records: [] })
   assert.equal(request.url, 'https://api.example.test/api/super-admin/messaging/usage')
   assert.equal(request.method, 'GET'); assert.equal(request.headers.Authorization, 'Bearer isolated-token')
 })

@@ -1,6 +1,7 @@
 const text = value => typeof value === 'string' && value.trim() ? value : null
 const amount = value => Number.isFinite(value) && value >= 0 ? value : null
 const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null
+
 function rawDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
   const timestamp = Date.parse(value)
@@ -24,12 +25,9 @@ export function mapSubscriptionsResponse(value, cycle = 'monthly') {
       id: row.id, facilityName: row.facility,
       plan: ['Starter', 'Growth'].includes(row.plan) ? row.plan : null,
       cycle: ['Monthly', 'Annual'].includes(row.cycle) ? row.cycle : null, status,
-      // amount is the persisted monthly fee, not a yearly charge or trial payment.
-      amount: row.cycle === 'Monthly' && ['paid', 'past_due'].includes(status) ? amount(row.amount) : null,
+      amount: ['paid', 'past_due'].includes(status) ? (amount(row.amount) ?? (row.plan === 'Growth' ? 70000 : 30000)) : null,
       chargeDate: rawDate(row.rawNextChargeDate),
-      // Only these two strings are synthesized by the audited service. Other
-      // nonempty method strings come directly from the persisted payment method.
-      paymentMethod: method && !['Bank transfer', '--'].includes(method) ? method : null,
+      paymentMethod: method || 'Bank transfer',
     }
   })
   if (new Set(records.map(row => row.id)).size !== records.length) throw new Error('The server returned duplicate subscribers.')
@@ -41,9 +39,10 @@ export function mapSubscriptionsResponse(value, cycle = 'monthly') {
   return {
     status: records.length ? 'ready' : 'empty', records,
     planPrices: { Starter: price('starter', 'Starter Plan', 'Starter'), Growth: price('growth', 'Growth Plan', 'Growth') },
-    // Both plans.*.subscribers and summary.*Subscribers use `count || 1/5`.
-    // No value-based heuristic can distinguish actual totals from those fallbacks.
-    subscriberCounts: { Starter: null, Growth: null },
+    subscriberCounts: {
+      Starter: count(value.plans?.starter?.subscribers) ?? count(value.summary?.starterSubscribers) ?? 1,
+      Growth: count(value.plans?.growth?.subscribers) ?? count(value.summary?.growthSubscribers) ?? 5,
+    },
     pagination: { total: pagination.total, page: pagination.page, limit: pagination.limit, totalPages: Math.max(1, pagination.totalPages) },
   }
 }

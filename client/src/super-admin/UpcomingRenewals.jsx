@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { formatNaira } from './revenue'
 import { formatRenewalDate, futureRenewals } from './overviewData'
 import OverviewSectionState from './OverviewSectionState.jsx'
@@ -19,7 +20,7 @@ export default function UpcomingRenewals({ state = { status: 'unavailable' }, on
     <section data-overview-card="renewals" aria-labelledby="upcoming-renewals-heading" className="min-w-0 rounded-2xl border border-[#E2E5ED] bg-white p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 id="upcoming-renewals-heading" className="text-base font-semibold">Upcoming renewals</h2>
-        <button type="button" disabled title="Subscriptions — coming soon" className="shrink-0 cursor-not-allowed text-sm font-semibold text-[#7A8190]">View all<span className="sr-only"> — coming soon</span></button>
+        <Link to="/super-admin/subscriptions" className="shrink-0 text-sm font-semibold text-[#475AA2] hover:underline">View all</Link>
       </div>
       {state.preview && <p className="mt-3 text-xs leading-5 text-[#7A8190]">Sample renewals — development preview only.</p>}
       <OverviewSectionState state={viewState} onRetry={onRetry} emptyText="No renewal data available." unavailableText="No renewal data available." />

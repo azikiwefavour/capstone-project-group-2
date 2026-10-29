@@ -35,8 +35,9 @@ async function load(handler = () => response({ message: 'Saved by backend', pres
   await modules.api.evaluate()
   await modules.prescriptions.link(specifier => modules[specifier.split('/').at(-1)])
   await modules.prescriptions.evaluate()
-  modules.doctorSession.namespace.setDoctorAccessToken(jwt('doctor'))
-  return { api: modules.prescriptions.namespace, doctor: modules.doctorSession.namespace, admin: modules.session.namespace, store, requests }
+  const doctorToken = jwt('doctor')
+  modules.doctorSession.namespace.setDoctorAccessToken(doctorToken)
+  return { api: modules.prescriptions.namespace, doctor: modules.doctorSession.namespace, admin: modules.session.namespace, store, requests, token: doctorToken }
 }
 
 test('patient details use hospital-scoped membership and map real medication fields and timestamps', async () => {
@@ -85,7 +86,7 @@ test('creation sends the exact DTO with the Doctor bearer token and requires a c
 })
 
 test('multi-medication creation sends the medications array and common details', async () => {
-  const { api, requests } = await load()
+  const { api, requests, token } = await load()
   const multiValues = {
     items: [
       { medication: 'Paracetamol', dose: '500mg', frequency: '3 times daily', duration: '7 days' },
@@ -98,7 +99,7 @@ test('multi-medication creation sends the medications array and common details',
   const request = requests.at(-1)
   assert.equal(request.url, 'http://localhost:3000/api/doctor/prescriptions')
   assert.equal(request.method, 'POST')
-  assert.equal(request.headers.Authorization, `Bearer ${jwt('doctor')}`)
+  assert.equal(request.headers.Authorization, `Bearer ${token}`)
   const body = JSON.parse(request.body)
   assert.equal(body.patientId, patientId)
   assert.equal(body.reason, 'Bacterial infection')
