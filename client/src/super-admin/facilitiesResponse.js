@@ -10,12 +10,12 @@ export function mapFacilityResponse(value) {
   const cardPatients = value.cards?.patients
 
   const clinicians = count(cardClinicians?.count) ?? count(value.clinicians)
-  const doctors = count(cardClinicians?.doctorsCount) ?? count(value.doctorsCount) ?? (clinicians ? Math.ceil(clinicians * 0.6) : null)
-  const pharmacists = count(cardClinicians?.pharmacistsCount) ?? count(value.pharmacistsCount) ?? (clinicians ? Math.floor(clinicians * 0.4) : null)
+  const doctors = count(cardClinicians?.doctorsCount) ?? count(value.doctorsCount) ?? (clinicians ?? null)
+  const pharmacists = count(cardClinicians?.pharmacistsCount) ?? count(value.pharmacistsCount) ?? null
   const patients = count(cardPatients?.count) ?? count(value.patients)
   const messages = count(cardMessages?.count) ?? count(value.messages)
-  const smsSent = messages !== null ? Math.round(messages * 0.6) : null
-  const whatsappSent = messages !== null ? Math.round(messages * 0.4) : null
+  const smsSent = count(value.smsSent) ?? messages
+  const whatsappSent = count(value.whatsappSent) ?? null
 
   const adminName = text(value.facilityAdmin?.name) || text(value.adminName) || text(value.admin?.name)
   const adminEmail = text(value.facilityAdmin?.email) || text(value.adminEmail) || text(value.admin?.email)
@@ -27,9 +27,9 @@ export function mapFacilityResponse(value) {
     status: ['active', 'trial', 'past_due', 'pending_review', 'suspended', 'rejected'].includes(value.status) ? value.status : null,
     clinicians, doctors, pharmacists, patients, messages, smsSent, whatsappSent,
     progress: {
-      clinicians: count(cardClinicians?.percentage) ?? (clinicians ? 40 : null),
-      patients: count(cardPatients?.percentage) ?? (patients ? 10 : null),
-      messages: count(cardMessages?.percentage) ?? (messages ? 10 : null),
+      clinicians: count(cardClinicians?.percentage) ?? (clinicians ? Math.min(100, Math.round((clinicians / 20) * 100)) : null),
+      patients: count(cardPatients?.percentage) ?? (patients ? Math.min(100, Math.round((patients / 500) * 100)) : null),
+      messages: count(cardMessages?.percentage) ?? (messages ? Math.min(100, Math.round((messages / 1000) * 100)) : null),
     },
     messagesLabel: text(cardMessages?.label) || 'Messages (Oct)',
     nextRenewalDate: date(value.renewalDate), trialEndDate: date(value.renewalDate), subscriptionExpiryDate: date(value.renewalDate),

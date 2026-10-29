@@ -302,12 +302,21 @@ export class SuperAdminService implements OnModuleInit {
     const patientsOnRecordCount = totalPatientsInDb;
 
     // Messages sent & delivered stats
-    const totalMessagesSent = allFacilities.reduce(
+    const messageLogRepo = this.dataSource.getRepository(MessageLog);
+    const dbTotalMessages = await messageLogRepo.count();
+    const dbDelivered = await messageLogRepo.count({
+      where: { status: MessageStatus.DELIVERED },
+    });
+    const facilityMessagesSum = allFacilities.reduce(
       (sum, f) => sum + (Number(f.messagesCount) || 0),
       0,
     );
-    const deliveryPercentage = totalMessagesSent > 0 ? 97.6 : 0;
-    const deliveredMessages = Math.round(totalMessagesSent * (deliveryPercentage / 100));
+    const totalMessagesSent = dbTotalMessages > 0 ? dbTotalMessages : facilityMessagesSum;
+    const deliveredMessages = dbTotalMessages > 0 ? dbDelivered : totalMessagesSent;
+    const deliveryPercentage =
+      totalMessagesSent > 0
+        ? Number(((deliveredMessages / totalMessagesSent) * 100).toFixed(1))
+        : 0;
 
     const stats = {
       registeredFacilities: {
@@ -446,7 +455,7 @@ export class SuperAdminService implements OnModuleInit {
       throw new NotFoundException(`Facility with ID ${id} not found`);
     }
 
-    const reviewerName = reviewer?.name || reviewer?.email || 'Adekemi (Super admin)';
+    const reviewerName = reviewer?.name || reviewer?.email || 'Super admin';
 
     if (dto.action === ReviewAction.APPROVE) {
       facility.status = FacilityStatus.TRIAL;
@@ -467,7 +476,7 @@ export class SuperAdminService implements OnModuleInit {
       const activity = activityRepo.create({
         facilityName: facility.name,
         facilityId: facility.id,
-        actorName: reviewerName.split(' ')[0] || 'Adekemi',
+        actorName: reviewerName.split(' ')[0] || 'Super admin',
         actorRole: 'Super admin',
         action: 'Facility approved for trial',
         status: ActivitySeverity.SUCCESS,
@@ -492,7 +501,7 @@ export class SuperAdminService implements OnModuleInit {
       const activity = activityRepo.create({
         facilityName: facility.name,
         facilityId: facility.id,
-        actorName: reviewerName.split(' ')[0] || 'Adekemi',
+        actorName: reviewerName.split(' ')[0] || 'Super admin',
         actorRole: 'Super admin',
         action: 'Facility application rejected',
         status: ActivitySeverity.WARNING,

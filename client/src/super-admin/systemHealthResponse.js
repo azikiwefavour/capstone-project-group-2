@@ -58,7 +58,7 @@ export function mapSystemHealthOverview(value) {
       apiUptime: value.summary.apiUptime30Days?.uptime ?? 99.98,
       apiResponseTime: value.summary.apiResponseTime?.responseMs ?? 182,
       paymentWebhooks: value.summary.paymentWebhooks?.deliveryRate ?? 99.8,
-      openIncidents: value.summary.openIncidents?.count ?? 1,
+      openIncidents: value.summary.openIncidents?.count ?? 0,
     }
   }
 

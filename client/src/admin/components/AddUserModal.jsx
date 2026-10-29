@@ -188,6 +188,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     }
     submissionInFlight.current = true
     setIsSubmitting(true)
+    try {
       const cleanCaregiverPhone = caregiverPhone.replace(/\D/g, '').replace(/^0/, '')
       const isOffline = isOfflinePatient || (isPatient && !email.trim())
       const result = await adminRequest('invite-user', {

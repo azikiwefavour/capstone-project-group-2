@@ -17,7 +17,7 @@ export default function SuperAdminLayout({ profile, onLogout, preview = false, p
   }
 
   const profileContextValue = {
-    name: name || 'Adekemi',
+    name: name || 'Super Admin',
     email: email || 'superadmin@medtrail.ng',
     role: 'super_admin',
   }

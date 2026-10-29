@@ -19,7 +19,7 @@ function IconButton({ label, onClick, disabled, children }) {
 function AdminHeader({ adminName }) {
   const profile = useContext(SettingsProfileContext)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const effectiveProfile = profile || { name: adminName || 'Adekemi', email: 'superadmin@medtrail.ng' }
+  const effectiveProfile = profile || { name: adminName || 'Admin', email: '' }
 
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -43,7 +43,7 @@ function AdminHeader({ adminName }) {
           </svg>
         </IconButton>
         <div aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-[#475AA2] to-[#7B8ED8] text-sm font-bold text-white shadow-xs">
-          {adminName ? adminName.charAt(0).toUpperCase() : 'S'}
+          {adminName ? adminName.charAt(0).toUpperCase() : 'A'}
         </div>
       </div>
       {settingsOpen && <SettingsModal profile={effectiveProfile} onClose={() => setSettingsOpen(false)} />}

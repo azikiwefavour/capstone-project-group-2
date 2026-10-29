@@ -415,16 +415,16 @@ export class IntegrationsHealthService {
           subtext: 'Delivered first time',
         },
         openIncidents: {
-          count: openIncidents.length || 1,
-          subtext: `${resolvedIncidentsCount || 2} resolved this month`,
-          resolvedThisMonth: resolvedIncidentsCount || 2,
+          count: openIncidents.length,
+          subtext: `${resolvedIncidentsCount} resolved this month`,
+          resolvedThisMonth: resolvedIncidentsCount,
         },
       },
       platform: filteredPlatform,
       incidents: {
         month: 'October 2026',
-        openCount: openIncidents.length || 1,
-        resolvedThisMonth: resolvedIncidentsCount || 2,
+        openCount: openIncidents.length,
+        resolvedThisMonth: resolvedIncidentsCount,
         items: formattedIncidents,
       },
     };

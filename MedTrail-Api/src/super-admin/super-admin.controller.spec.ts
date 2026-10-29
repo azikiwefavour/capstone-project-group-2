@@ -111,7 +111,7 @@ describe('SuperAdminController', () => {
   });
 
   it('should approve facility review application', async () => {
-    const req = { user: { name: 'Adekemi', email: 'adekemi@medtrail.ng' } };
+    const req = { user: { name: 'Super Admin', email: 'superadmin@medtrail.ng' } };
     const res = await controller.reviewFacility(
       'fac-1',
       { action: ReviewAction.APPROVE, notes: 'Qualified' },

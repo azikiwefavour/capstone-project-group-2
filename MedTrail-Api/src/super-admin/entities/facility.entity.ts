@@ -149,7 +149,7 @@ export class Facility {
   @Column({ type: 'text', nullable: true })
   reviewNotes: string;
 
-  @ApiProperty({ example: 'Adekemi (Super Admin)' })
+  @ApiProperty({ example: 'Super Admin' })
   @Column({ type: 'varchar', length: 255, nullable: true })
   reviewedBy: string;
 
