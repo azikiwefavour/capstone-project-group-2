@@ -14,26 +14,29 @@ const items = [
 export default function SuperAdminSidebar({ name, preview, onLogout }) {
   const profileName = name || 'MedTrail Super Admin'
   return (
-    <aside aria-label="Super Admin sidebar" className="flex bg-[#475AA2] text-white lg:h-screen lg:w-1/5 lg:min-w-[250px] lg:flex-col lg:overflow-y-auto">
+    <aside aria-label="Super Admin sidebar" className="flex bg-[#4355B8] text-white dark:bg-[#111A2E] lg:h-screen lg:w-64 lg:min-w-[250px] lg:flex-col lg:overflow-y-auto border-r border-[#3848A0] dark:border-[#1E293B] transition-colors">
       <div className="flex w-full flex-col gap-5 px-4 py-5 sm:px-6 lg:min-h-full lg:flex-1 lg:px-5 lg:pb-6 lg:pt-6">
-        <MedTrailLogo />
+        <div className="pl-1">
+          <MedTrailLogo />
+        </div>
         <nav aria-label="Super Admin navigation" className="flex gap-2 overflow-x-auto lg:mt-4 lg:flex-col lg:overflow-visible">
           {items.map(([label, path], index) => {
             const icon = <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5 shrink-0"><path d={path} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            const base = 'flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium'
-            return index < 7 ? <NavLink key={label} end to={`/super-admin/${['overview', 'facilities', 'subscriptions', 'payments', 'messaging', 'system-health', 'audit-log'][index]}`} className={({ isActive }) => `${base} ${isActive ? 'bg-[#DEE2F4] text-[#475AA2]' : 'text-white/80 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white'}`}>
+            const base = 'flex min-w-max items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition-all'
+            return index < 7 ? <NavLink key={label} end to={`/super-admin/${['overview', 'facilities', 'subscriptions', 'payments', 'messaging', 'system-health', 'audit-log'][index]}`} className={({ isActive }) => `${base} ${isActive ? 'bg-[#EEF1FF] text-[#3B4C9B] shadow-sm font-semibold dark:bg-[#202C48] dark:text-[#E2E8F0]' : 'text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white'}`}>
               {icon}{label}
             </NavLink> : <button key={label} type="button" disabled title={`${label} — coming soon`} className={`${base} cursor-default text-white/80`}>{icon}{label}</button>
           })}
         </nav>
         <div className="lg:mt-auto">
-          <button type="button" disabled={!onLogout} onClick={onLogout} className="mb-4 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-white/85 hover:bg-white/10 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+          <button type="button" disabled={!onLogout} onClick={onLogout} className="mb-4 flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-left text-sm font-medium text-white/85 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-white/20 transition">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5"><path d="M10 6H5v12h5 M14 8l4 4-4 4 M18 12H10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Log out
           </button>
-          <div className="flex min-h-16 max-w-[263px] items-center gap-3 rounded-[32px] bg-white/10 px-3 py-2.5">
-            <div aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-base font-semibold text-[#475AA2]">{name ? name.slice(0, 1).toUpperCase() : '—'}</div>
-            <div className="min-w-0"><p className="truncate text-sm font-medium">{profileName}</p><p className="text-xs font-medium text-white/70">Super Admin</p></div>
+          <div className="flex min-h-14 max-w-full items-center gap-3 rounded-2xl bg-white/10 dark:bg-white/5 px-3 py-2 border border-white/10">
+            <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-[#4355B8] shadow-xs">{name ? name.slice(0, 1).toUpperCase() : 'A'}</div>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-white">{profileName}</p><p className="text-xs text-white/70">Super Admin</p></div>
+            <svg className="h-4 w-4 shrink-0 text-white/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5" /></svg>
           </div>
         </div>
       </div>

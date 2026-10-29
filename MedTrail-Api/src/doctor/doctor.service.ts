@@ -594,10 +594,17 @@ export class DoctorService {
       : `Dr. ${doctor.name}`;
 
     // Support multiple medications in a single prescription submission
-    if (dto.medications && Array.isArray(dto.medications) && dto.medications.length > 0) {
+    const medList = (dto.medications && Array.isArray(dto.medications) && dto.medications.length > 0)
+      ? dto.medications
+      : (dto.items && Array.isArray(dto.items) && dto.items.length > 0)
+        ? dto.items
+        : null;
+
+    if (medList && medList.length > 0) {
       const createdPrescriptions: Prescription[] = [];
 
-      for (const item of dto.medications) {
+      for (const item of medList) {
+        const itemMedName = item.medicationName || (item as any).medication || (item as any).name || 'Medication';
         const itemDosage = item.dosage || item.dose || '';
         const itemFrequency = item.frequency || null;
         const itemDoseAndFreq = itemFrequency && itemDosage ? `${itemDosage}, ${itemFrequency}` : itemDosage || itemFrequency || null;
@@ -610,7 +617,7 @@ export class DoctorService {
           patientPhone: patient.phone || null,
           doctorId: doctor.id,
           doctorName: cleanDoctorName,
-          medicationName: item.medicationName,
+          medicationName: itemMedName,
           dosage: itemDosage,
           frequency: itemFrequency,
           doseAndFrequency: itemDoseAndFreq,

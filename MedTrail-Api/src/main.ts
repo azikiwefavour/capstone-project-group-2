@@ -100,6 +100,10 @@ async function bootstrap() {
       ALTER TABLE "prescriptions" 
         ADD COLUMN IF NOT EXISTS "patientPhone" character varying(50);
     `).catch(() => {});
+    await dataSource.query(`
+      ALTER TABLE "facilities" 
+        ADD COLUMN IF NOT EXISTS "trialUsed" boolean NOT NULL DEFAULT false;
+    `).catch(() => {});
   } catch {
     // Non-fatal if database is already migrated
   }

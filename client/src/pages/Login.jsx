@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
 import { isValidPreviewPassword, startDoctorPreviewSession } from '../doctor/previewAuth'
 import medicationImage from '../assets/medication-image.png'
+import PaymentGatingModal from '../components/PaymentGatingModal'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
 const backendRoles = { Admin: 'admin', Doctor: 'doctor', Pharmacist: 'pharmacist', Patient: 'patient', SuperAdmin: 'super_admin' }
@@ -114,6 +115,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [loginNotice, setLoginNotice] = useState(() => (typeof location.state?.notice === 'string' ? location.state.notice : ''))
+  const [paymentGating, setPaymentGating] = useState(null)
   const loginInFlight = useRef(false)
   const loginController = useRef(null)
   useEffect(() => () => loginController.current?.abort(), [])
@@ -238,13 +240,14 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
         sessionStorage.setItem('medtrailAdminEmail', data.user.email || email)
         sessionStorage.setItem('medtrailAdminHospital', data.user.hospitalName || '')
         if (data.user.hasPlan === false) {
-          navigate('/select-plan', {
-            replace: true,
-            state: {
-              email: data.user.email || email,
-              hospitalName: data.user.hospitalName || '',
-              name: data.user.name || '',
-            },
+          setPaymentGating({
+            isOpen: true,
+            email: data.user.email || email,
+            hospitalName: data.user.hospitalName || '',
+            adminName: data.user.name || '',
+            trialUsed: Boolean(data.user.trialUsed),
+            isTrialExpired: Boolean(data.user.isTrialExpired),
+            isSubscriptionExpired: Boolean(data.user.isSubscriptionExpired),
           })
           return
         }
@@ -424,6 +427,24 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           </p>}
         </form>
       </section>
+
+      <PaymentGatingModal
+        isOpen={Boolean(paymentGating?.isOpen)}
+        email={paymentGating?.email || email}
+        hospitalName={paymentGating?.hospitalName}
+        adminName={paymentGating?.adminName}
+        trialUsed={paymentGating?.trialUsed}
+        isTrialExpired={paymentGating?.isTrialExpired}
+        isSubscriptionExpired={paymentGating?.isSubscriptionExpired}
+        onSuccess={() => {
+          setPaymentGating(null)
+          navigate('/admin/dashboard', { replace: true })
+        }}
+        onLogout={() => {
+          setPaymentGating(null)
+          setAccessToken(null)
+        }}
+      />
     </main>
   )
 }

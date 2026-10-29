@@ -9,7 +9,7 @@ function IconButton({ label, onClick, disabled, children }) {
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#E2E5ED] bg-white text-[#52556C] transition hover:bg-[#F7F8FB] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
+      className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E5ED] bg-white text-[#52556C] transition hover:bg-[#F7F8FB] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 dark:border-[#2C3852] dark:bg-[#161F30] dark:text-[#94A3B8] dark:hover:bg-[#1E293B]"
     >
       {children}
     </button>
@@ -19,13 +19,15 @@ function IconButton({ label, onClick, disabled, children }) {
 function AdminHeader({ adminName }) {
   const profile = useContext(SettingsProfileContext)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const effectiveProfile = profile || { name: adminName || 'Adekemi', email: 'superadmin@medtrail.ng' }
+
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-medium text-[#111827]">
+      <p className="text-xl font-bold tracking-tight text-[#0F172A] dark:text-[#F8FAFC]">
         {adminName ? `Welcome, ${adminName}` : 'Welcome'}
       </p>
-      <div className="flex items-center justify-end">
-        <IconButton label="Open settings" onClick={() => setSettingsOpen(true)} disabled={!profile}>
+      <div className="flex items-center justify-end gap-2.5">
+        <IconButton label="Open settings" onClick={() => setSettingsOpen(true)}>
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
             <path
               d="M12 15.5C13.93 15.5 15.5 13.93 15.5 12C15.5 10.07 13.93 8.5 12 8.5C10.07 8.5 8.5 10.07 8.5 12C8.5 13.93 10.07 15.5 12 15.5Z"
@@ -40,8 +42,11 @@ function AdminHeader({ adminName }) {
             />
           </svg>
         </IconButton>
+        <div aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-[#475AA2] to-[#7B8ED8] text-sm font-bold text-white shadow-xs">
+          {adminName ? adminName.charAt(0).toUpperCase() : 'S'}
+        </div>
       </div>
-      {settingsOpen && profile && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal profile={effectiveProfile} onClose={() => setSettingsOpen(false)} />}
     </header>
   )
 }

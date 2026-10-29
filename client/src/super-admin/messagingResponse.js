@@ -39,34 +39,58 @@ export function mapMessagingResponse(value) {
   const prevDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
   const prevKey = `${prevDate.getUTCFullYear()}-${String(prevDate.getUTCMonth() + 1).padStart(2, '0')}`
 
-  const months = [
-    {
-      month: curKey,
-      sms: { delivered: 1800, failed: 45, queued: 10 },
-      whatsapp: { delivered: 1485, failed: 36, queued: 5 },
-    },
-    {
-      month: prevKey,
-      sms: { delivered: 1550, failed: 50, queued: 0 },
-      whatsapp: { delivered: 1280, failed: 30, queued: 0 },
-    },
-  ]
+  const months = Array.isArray(value.months) && value.months.length
+    ? value.months.map(m => ({
+        month: m.month,
+        sms: {
+          delivered: count(m.sms?.delivered) ?? 0,
+          failed: count(m.sms?.failed) ?? 0,
+          queued: count(m.sms?.queued) ?? 0,
+        },
+        whatsapp: {
+          delivered: count(m.whatsapp?.delivered) ?? 0,
+          failed: count(m.whatsapp?.failed) ?? 0,
+          queued: count(m.whatsapp?.queued) ?? 0,
+        },
+      }))
+    : [
+        {
+          month: curKey,
+          sms: {
+            delivered: count(value.summary?.sentInOctober?.count) ?? 0,
+            failed: count(value.summary?.failed?.count) ?? 0,
+            queued: count(value.counts?.queued) ?? 0,
+          },
+          whatsapp: { delivered: 0, failed: 0, queued: 0 },
+        },
+        {
+          month: prevKey,
+          sms: { delivered: 0, failed: 0, queued: 0 },
+          whatsapp: { delivered: 0, failed: 0, queued: 0 },
+        },
+      ]
 
   const categories = Array.isArray(value.messages?.breakdown)
-    ? value.messages.breakdown.map(item => ({ label: item.category || item.type, count: item.count }))
+    ? value.messages.breakdown.map(item => ({
+        name: item.name || item.category || item.type,
+        label: item.category || item.type,
+        count: item.count,
+      }))
     : [
-        { label: 'Staff invites', count: 1120 },
-        { label: 'Verification codes', count: 640 },
-        { label: 'Prescription details', count: 520 },
+        { name: 'Staff invites', label: 'Staff invites', count: 0 },
+        { name: 'Verification codes', label: 'Verification codes', count: 0 },
+        { name: 'Prescription details', label: 'Prescription details', count: 0 },
       ]
 
   const usage = Array.isArray(value.usage?.items)
-    ? value.usage.items.map(item => ({ facilityName: item.facilityName, used: item.used, allowance: item.quota }))
-    : [
-        { facilityName: 'Absolute Health Hospital', used: 640, allowance: 1000 },
-        { facilityName: 'Lifeline Specialist Clinic', used: 910, allowance: 1000 },
-        { facilityName: 'Mercy Cross Clinic', used: 640, allowance: 1000 },
-      ]
+    ? value.usage.items.map(item => ({
+        name: item.facilityName || item.name,
+        facilityName: item.facilityName || item.name,
+        used: item.used,
+        allowance: item.quota || item.allowance || 1000,
+        warning: ((item.used || 0) / (item.quota || item.allowance || 1000)) >= 0.9,
+      }))
+    : []
 
   const credit = amount(value.summary?.termiiCredit?.balance) ?? 48000
 
@@ -91,9 +115,11 @@ function recordsLength(arr) {
 export function mapMessagingUsageResponse(value) {
   if (!value || !Array.isArray(value.facilities)) throw new Error('The server returned an unexpected messaging usage response.')
   const records = value.facilities.map(item => ({
-    facilityName: item.facilityName,
+    name: item.facilityName || item.name,
+    facilityName: item.facilityName || item.name,
     used: item.used,
-    allowance: item.quota,
+    allowance: item.quota || item.allowance || 1000,
+    warning: ((item.used || 0) / (item.quota || item.allowance || 1000)) >= 0.9,
   }))
   return { status: records.length ? 'ready' : 'empty', records }
 }

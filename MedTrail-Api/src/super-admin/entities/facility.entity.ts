@@ -128,6 +128,10 @@ export class Facility {
   @Column({ type: 'int', default: 0, nullable: true })
   messagesCount: number;
 
+  @ApiProperty({ example: false, description: 'True if 7-day free trial has been activated' })
+  @Column({ type: 'boolean', default: false })
+  trialUsed: boolean;
+
   // ── Facility Qualification & Verification Documents ──
   @ApiProperty({ example: 'RC-1294819' })
   @Column({ type: 'varchar', length: 100, nullable: true })

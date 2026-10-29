@@ -217,6 +217,7 @@ export class SubscriptionService {
     reference: string,
     plan: string,
     billingCycle: string = 'Monthly',
+    channel: string = 'Card',
   ) {
     const userRepo = this.dataSource.getRepository(User);
     const facilityRepo = this.dataSource.getRepository(Facility);
@@ -260,6 +261,13 @@ export class SubscriptionService {
     const renewalDate = new Date();
     renewalDate.setDate(renewalDate.getDate() + pricing.durationDays);
 
+    const paymentMethodLabel = channel.toLowerCase().includes('transfer')
+      ? 'Bank transfer (Paystack)'
+      : 'Card (Paystack)';
+    const txChannel = channel.toLowerCase().includes('transfer')
+      ? 'Bank Transfer'
+      : 'Card';
+
     if (!facility) {
       facility = facilityRepo.create({
         name: hospitalName,
@@ -272,12 +280,13 @@ export class SubscriptionService {
         monthlyFee: pricing.plan === 'Starter plan' ? 30000 : 70000,
         currency: 'NGN',
         paymentStatus: 'paid',
-        paymentMethod: 'Card (Paystack)',
+        paymentMethod: paymentMethodLabel,
         renewalDate,
         lastPaymentDate: new Date(),
         cliniciansCount: 1,
         patientsCount: 0,
         messagesCount: 0,
+        trialUsed: true,
       });
     } else {
       facility.status = FacilityStatus.ACTIVE;
@@ -285,9 +294,10 @@ export class SubscriptionService {
       facility.billingCycle = isAnnual ? BillingCycle.YEARLY : BillingCycle.MONTHLY;
       facility.monthlyFee = pricing.plan === 'Starter plan' ? 30000 : 70000;
       facility.paymentStatus = 'paid';
-      facility.paymentMethod = 'Card (Paystack)';
+      facility.paymentMethod = paymentMethodLabel;
       facility.renewalDate = renewalDate;
       facility.lastPaymentDate = new Date();
+      facility.trialUsed = true;
     }
 
     await facilityRepo.save(facility);
@@ -307,6 +317,7 @@ export class SubscriptionService {
         basePrice: pricing.basePrice,
         paystackFee: pricing.paystackFee,
         reference,
+        channel: txChannel,
         gateway: 'Paystack',
       },
     });
@@ -325,7 +336,7 @@ export class SubscriptionService {
           customerEmail: user.email,
           amount: pricing.totalAmount,
           currency: 'NGN',
-          channel: 'Card',
+          channel: txChannel,
           gateway: 'Paystack',
           status: PaymentTransactionStatus.SUCCESSFUL,
           statusReason: 'Payment verified and confirmed via Paystack',
@@ -336,6 +347,7 @@ export class SubscriptionService {
       } else {
         tx.facilityId = facility.id;
         tx.facilityName = facility.name;
+        tx.channel = txChannel;
         tx.status = PaymentTransactionStatus.SUCCESSFUL;
         tx.statusReason = 'Payment verified and confirmed via Paystack';
         tx.paidAt = new Date();
@@ -390,6 +402,12 @@ export class SubscriptionService {
       .orWhere('LOWER(fac.name) = LOWER(:name)', { name: hospitalName })
       .getOne();
 
+    if (facility && (facility.trialUsed || facility.paymentStatus === 'expired')) {
+      throw new BadRequestException(
+        'You have already completed your 7-day free trial. Please select a paid plan (Starter or Growth) to access MedTrail.',
+      );
+    }
+
     const renewalDate = new Date();
     renewalDate.setDate(renewalDate.getDate() + 7); // 7-day trial
 
@@ -411,6 +429,7 @@ export class SubscriptionService {
         cliniciansCount: 1,
         patientsCount: 0,
         messagesCount: 0,
+        trialUsed: true,
       });
     } else {
       facility.status = FacilityStatus.TRIAL;
@@ -419,6 +438,7 @@ export class SubscriptionService {
       facility.paymentStatus = 'trial';
       facility.paymentMethod = 'None (Trial)';
       facility.renewalDate = renewalDate;
+      facility.trialUsed = true;
     }
 
     await facilityRepo.save(facility);

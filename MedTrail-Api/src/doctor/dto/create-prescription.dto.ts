@@ -92,4 +92,8 @@ export class CreatePrescriptionDto {
   @Type(() => PrescriptionItemDto)
   @IsOptional()
   medications?: PrescriptionItemDto[];
+
+  @ApiProperty({ required: false, description: 'Optional alias for medication items' })
+  @IsOptional()
+  items?: any;
 }

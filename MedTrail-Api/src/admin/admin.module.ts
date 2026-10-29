@@ -7,6 +7,7 @@ import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
 import { MailModule } from '../mail/mail.module';
 import { Activity } from '../doctor/entities/activity.entity';
+import { SmsModule } from '../sms/sms.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { Activity } from '../doctor/entities/activity.entity';
     UsersModule,
     AuthModule,
     MailModule,
+    SmsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, SubscriptionService],

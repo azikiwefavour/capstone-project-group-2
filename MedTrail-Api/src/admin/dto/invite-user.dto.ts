@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UserRole } from '../../users/entities/user.entity';
@@ -17,10 +18,12 @@ export class InviteUserDto {
   @IsNotEmpty({ message: 'Name is required' })
   name: string;
 
-  @ApiProperty({ example: 'adewale@hospital.com', description: 'Email address of the invited user' })
+  @ApiProperty({ example: 'adewale@hospital.com', description: 'Email address of the invited user', required: false })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @ValidateIf((o: any) => !o.isOfflinePatient && (o.role !== UserRole.PATIENT || o.email))
   @IsEmail({}, { message: 'Please provide a valid email address' })
-  email: string;
+  @IsOptional()
+  email?: string;
 
   @ApiProperty({
     enum: [UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.PATIENT],
@@ -52,4 +55,18 @@ export class InviteUserDto {
   @ApiProperty({ example: 34, description: 'Age in years for patient', required: false })
   @IsOptional()
   age?: number;
+
+  @ApiProperty({ example: 'Emeka Adeyemi', description: 'Guardian or caregiver name for patient', required: false })
+  @IsString()
+  @IsOptional()
+  caregiverName?: string;
+
+  @ApiProperty({ example: '+2348099998888', description: 'Guardian or caregiver phone number for patient SMS', required: false })
+  @IsString()
+  @IsOptional()
+  caregiverPhone?: string;
+
+  @ApiProperty({ example: false, description: 'True if patient is registered without email (SMS-first patient)', required: false })
+  @IsOptional()
+  isOfflinePatient?: boolean;
 }

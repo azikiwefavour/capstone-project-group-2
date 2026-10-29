@@ -5,6 +5,7 @@ import {
   ConflictException,
   NotFoundException,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -18,13 +19,18 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { Facility, FacilityStatus } from '../super-admin/entities/facility.entity';
+import {
+  Facility,
+  FacilityStatus,
+  SubscriptionPlan,
+  BillingCycle,
+} from '../super-admin/entities/facility.entity';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
@@ -48,6 +54,128 @@ export class AuthService {
 
   private signToken(payload: { sub: string; email: string; role: UserRole | null }) {
     return this.jwtService.sign(payload);
+  }
+
+  /**
+   * Automatically captures newly registered or existing hospital admins in the facilities table
+   * so Super Admin immediately tracks them as unpaid (pending review and payment).
+   */
+  async syncPendingFacility(user: { email: string; name?: string; phone?: string | null; hospitalName?: string | null }) {
+    try {
+      const facilityRepo = this.dataSource.getRepository(Facility);
+      const cleanEmail = user.email.toLowerCase().trim();
+      const hospitalName = user.hospitalName?.trim() || 'General Hospital';
+
+      let facility = await facilityRepo
+        .createQueryBuilder('fac')
+        .where('LOWER(fac.adminEmail) = LOWER(:email)', { email: cleanEmail })
+        .orWhere('LOWER(fac.name) = LOWER(:name)', { name: hospitalName })
+        .getOne();
+
+      if (!facility) {
+        facility = facilityRepo.create({
+          name: hospitalName,
+          adminName: user.name || 'Admin',
+          adminEmail: cleanEmail,
+          phone: user.phone || undefined,
+          status: FacilityStatus.PENDING_REVIEW,
+          paymentStatus: 'pending',
+          plan: SubscriptionPlan.GROWTH,
+          billingCycle: BillingCycle.MONTHLY,
+          monthlyFee: 70000,
+          currency: 'NGN',
+          paymentMethod: 'Pending',
+          cliniciansCount: 1,
+          patientsCount: 0,
+          messagesCount: 0,
+        });
+        await facilityRepo.save(facility);
+        this.logger.log(`Captured facility in pending payment status: ${hospitalName} (${cleanEmail})`);
+      }
+      return facility;
+    } catch (err: any) {
+      this.logger.warn(`Could not sync pending facility: ${err.message}`);
+      return null;
+    }
+  }
+
+  async evaluateFacilityPlanStatus(user: User): Promise<{
+    hasPlan: boolean;
+    paymentStatus: string;
+    facilityStatus: string;
+    trialUsed: boolean;
+    isTrialExpired: boolean;
+    isSubscriptionExpired: boolean;
+    renewalDate: Date | null;
+  }> {
+    const facilityRepo = this.dataSource.getRepository(Facility);
+    const facility = await this.syncPendingFacility(user);
+    if (!facility) {
+      return {
+        hasPlan: false,
+        paymentStatus: 'pending',
+        facilityStatus: 'pending_review',
+        trialUsed: false,
+        isTrialExpired: false,
+        isSubscriptionExpired: false,
+        renewalDate: null,
+      };
+    }
+
+    const now = new Date();
+    let isExpired = false;
+    if (facility.renewalDate) {
+      isExpired = new Date(facility.renewalDate) < now;
+    }
+
+    let isTrialExpired = false;
+    let isSubscriptionExpired = false;
+
+    if (isExpired) {
+      if (facility.status === FacilityStatus.TRIAL || facility.paymentStatus === 'trial') {
+        facility.status = FacilityStatus.OVERDUE;
+        facility.paymentStatus = 'expired';
+        facility.trialUsed = true;
+        await facilityRepo.save(facility);
+        isTrialExpired = true;
+      } else if (facility.status === FacilityStatus.ACTIVE && facility.paymentStatus === 'paid') {
+        facility.status = FacilityStatus.OVERDUE;
+        facility.paymentStatus = 'overdue';
+        await facilityRepo.save(facility);
+        isSubscriptionExpired = true;
+      }
+    }
+
+    const hasPlan = Boolean(
+      !isExpired &&
+      (facility.status === FacilityStatus.ACTIVE || facility.status === FacilityStatus.TRIAL) &&
+      facility.paymentStatus !== 'pending' &&
+      facility.paymentStatus !== 'failed' &&
+      facility.paymentStatus !== 'expired' &&
+      facility.paymentStatus !== 'overdue'
+    );
+
+    return {
+      hasPlan,
+      paymentStatus: facility.paymentStatus || 'pending',
+      facilityStatus: facility.status || 'pending_review',
+      trialUsed: Boolean(facility.trialUsed || isTrialExpired),
+      isTrialExpired,
+      isSubscriptionExpired,
+      renewalDate: facility.renewalDate || null,
+    };
+  }
+
+  async onModuleInit() {
+    try {
+      const userRepo = this.dataSource.getRepository(User);
+      const admins = await userRepo.find({ where: { role: UserRole.ADMIN } });
+      for (const admin of admins) {
+        await this.syncPendingFacility(admin);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Admin facility startup sync skipped: ${err?.message}`);
+    }
   }
 
   // ─── Register ─────────────────────────────────────────────────────────────
@@ -77,6 +205,10 @@ export class AuthService {
       isEmailVerified: false,
       isInvited: false,
     });
+
+    if (assignedRole === UserRole.ADMIN) {
+      await this.syncPendingFacility(user);
+    }
 
     await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp, expiry, user.role);
     this.logger.log(`New account registered: ${user.email} (role: ${user.role || 'admin'})`);
@@ -143,13 +275,37 @@ export class AuthService {
     user.role = resolvedRole;
     user.isEmailVerified = true;
 
+    let hasPlan = true;
+    let paymentStatus = 'paid';
+    let facilityStatus = 'active';
+    let trialUsed = false;
+    let isTrialExpired = false;
+    let isSubscriptionExpired = false;
+    let renewalDate: Date | null = null;
+
+    if (resolvedRole === UserRole.ADMIN) {
+      try {
+        const planInfo = await this.evaluateFacilityPlanStatus(user);
+        hasPlan = planInfo.hasPlan;
+        paymentStatus = planInfo.paymentStatus;
+        facilityStatus = planInfo.facilityStatus;
+        trialUsed = planInfo.trialUsed;
+        isTrialExpired = planInfo.isTrialExpired;
+        isSubscriptionExpired = planInfo.isSubscriptionExpired;
+        renewalDate = planInfo.renewalDate;
+      } catch (err: any) {
+        this.logger.warn(`Could not check facility plan status: ${err.message}`);
+        hasPlan = false;
+      }
+    }
+
     const token = this.signToken({
       sub: String(user.id),
       email: user.email,
       role: resolvedRole,
     });
 
-    this.logger.log(`Email verified and logged in: ${user.email} (role: ${resolvedRole})`);
+    this.logger.log(`Email verified and logged in: ${user.email} (role: ${resolvedRole}, hasPlan: ${hasPlan})`);
     return {
       message: 'Email verified successfully.',
       accessToken: token,
@@ -160,6 +316,9 @@ export class AuthService {
         role: resolvedRole,
         hospitalName: user.hospitalName,
         phone: user.phone,
+        hasPlan,
+        paymentStatus,
+        facilityStatus,
       },
     };
   }
@@ -177,16 +336,9 @@ export class AuthService {
     const otp = this.generateOtp();
     const expiry = this.otpExpiry();
 
-    // If user is already verified, send a fresh password reset code so they are never blocked
+    // If user is already verified
     if (user.isEmailVerified) {
-      await this.usersService.updateById(String(user.id), {
-        resetPasswordOtp: otp,
-        resetPasswordOtpExpiry: expiry,
-      });
-
-      await this.mailService.sendPasswordResetOtp(user.email, user.name, otp, expiry, user.role);
-      this.logger.log(`Fresh reset code resent to verified user: ${user.email}`);
-      return { message: 'A new verification code has been sent to your email.' };
+      throw new BadRequestException('Email is already verified');
     }
 
     // If user is not yet verified or pending invitation
@@ -274,24 +426,26 @@ export class AuthService {
     const effectiveRole: UserRole = user.role || user.invitedRole || UserRole.PATIENT;
 
     let hasPlan = true;
+    let paymentStatus = 'paid';
+    let facilityStatus = 'active';
+    let trialUsed = false;
+    let isTrialExpired = false;
+    let isSubscriptionExpired = false;
+    let renewalDate: Date | null = null;
+
     if (effectiveRole === UserRole.ADMIN) {
       try {
-        const facilityRepo = this.dataSource.getRepository(Facility);
-        const hospitalName = user.hospitalName?.trim() || '';
-        const facility = await facilityRepo.findOne({
-          where: [
-            { adminEmail: user.email },
-            ...(hospitalName ? [{ name: hospitalName }] : []),
-          ],
-        });
-        hasPlan = Boolean(
-          facility &&
-          (facility.status === FacilityStatus.ACTIVE ||
-           facility.status === FacilityStatus.TRIAL)
-        );
+        const planInfo = await this.evaluateFacilityPlanStatus(user);
+        hasPlan = planInfo.hasPlan;
+        paymentStatus = planInfo.paymentStatus;
+        facilityStatus = planInfo.facilityStatus;
+        trialUsed = planInfo.trialUsed;
+        isTrialExpired = planInfo.isTrialExpired;
+        isSubscriptionExpired = planInfo.isSubscriptionExpired;
+        renewalDate = planInfo.renewalDate;
       } catch (err: any) {
         this.logger.warn(`Could not check facility plan status: ${err.message}`);
-        hasPlan = true;
+        hasPlan = false;
       }
     }
 
@@ -301,7 +455,7 @@ export class AuthService {
       role: effectiveRole,
     });
 
-    this.logger.log(`Login success: ${user.email} as ${effectiveRole} (hasPlan: ${hasPlan})`);
+    this.logger.log(`Login success: ${user.email} as ${effectiveRole} (hasPlan: ${hasPlan}, paymentStatus: ${paymentStatus}, trialUsed: ${trialUsed})`);
 
     return {
       message: 'Login successful',
@@ -314,6 +468,12 @@ export class AuthService {
         hospitalName: user.hospitalName,
         phone: user.phone,
         hasPlan,
+        paymentStatus,
+        facilityStatus,
+        trialUsed,
+        isTrialExpired,
+        isSubscriptionExpired,
+        renewalDate,
       },
     };
   }
@@ -512,27 +672,41 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    let hasPlan = true;
+    let planInfo: any = {
+      hasPlan: true,
+      paymentStatus: 'paid',
+      facilityStatus: 'active',
+      trialUsed: false,
+      isTrialExpired: false,
+      isSubscriptionExpired: false,
+      renewalDate: null,
+    };
+
     if (user.role === UserRole.ADMIN) {
       try {
-        const facilityRepo = this.dataSource.getRepository(Facility);
-        const hospitalName = user.hospitalName?.trim() || '';
-        const facility = await facilityRepo.findOne({
-          where: [
-            { adminEmail: user.email },
-            ...(hospitalName ? [{ name: hospitalName }] : []),
-          ],
-        });
-        hasPlan = Boolean(
-          facility &&
-          (facility.status === FacilityStatus.ACTIVE ||
-           facility.status === FacilityStatus.TRIAL)
-        );
+        planInfo = await this.evaluateFacilityPlanStatus(user);
       } catch {
-        hasPlan = true;
+        planInfo = {
+          hasPlan: false,
+          paymentStatus: 'pending',
+          facilityStatus: 'pending_review',
+          trialUsed: false,
+          isTrialExpired: false,
+          isSubscriptionExpired: false,
+          renewalDate: null,
+        };
       }
     }
-    return { ...user, hasPlan };
+    return {
+      ...user,
+      hasPlan: planInfo.hasPlan,
+      paymentStatus: planInfo.paymentStatus,
+      facilityStatus: planInfo.facilityStatus,
+      trialUsed: planInfo.trialUsed,
+      isTrialExpired: planInfo.isTrialExpired,
+      isSubscriptionExpired: planInfo.isSubscriptionExpired,
+      renewalDate: planInfo.renewalDate,
+    };
   }
 
   // ─── Dev Admin Token (for testing/development) ─────────────────────────────

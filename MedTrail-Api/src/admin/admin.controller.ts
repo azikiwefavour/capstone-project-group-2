@@ -185,7 +185,7 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify Paystack payment and activate subscription' })
   verifySubscriptionPayment(
-    @Body() body: { reference: string; plan: string; billingCycle?: string; email?: string },
+    @Body() body: { reference: string; plan: string; billingCycle?: string; email?: string; channel?: string },
     @CurrentUser() admin?: { email: string },
   ) {
     const userEmail = admin?.email || body.email;
@@ -197,6 +197,7 @@ export class AdminController {
       body.reference,
       body.plan,
       body.billingCycle,
+      body.channel,
     );
   }
 

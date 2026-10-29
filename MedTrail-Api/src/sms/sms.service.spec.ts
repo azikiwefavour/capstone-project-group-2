@@ -74,11 +74,13 @@ describe('SmsService', () => {
         1,
         '08031234567',
         expect.stringContaining('Mama Grace'),
+        expect.objectContaining({ hospitalName: 'Lagos Island Hospital' }),
       );
       expect(spy).toHaveBeenNthCalledWith(
         2,
         '08099998888',
         expect.stringContaining('Emeka'),
+        expect.objectContaining({ hospitalName: 'Lagos Island Hospital' }),
       );
     });
   });
@@ -105,11 +107,13 @@ describe('SmsService', () => {
         1,
         '08031234567',
         expect.stringContaining('Amlodipine'),
+        expect.objectContaining({ hospitalName: 'General Hospital' }),
       );
       expect(spy).toHaveBeenNthCalledWith(
         1,
         '08031234567',
         expect.stringContaining('Take with glass of water after breakfast'),
+        expect.objectContaining({ hospitalName: 'General Hospital' }),
       );
     });
   });
@@ -132,6 +136,7 @@ describe('SmsService', () => {
       expect(spy).toHaveBeenCalledWith(
         '08031234567',
         expect.stringContaining('Pharm. Okafor'),
+        expect.objectContaining({ hospitalName: 'General Hospital' }),
       );
     });
   });

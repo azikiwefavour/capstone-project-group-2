@@ -5,6 +5,7 @@ import { getAccessToken, getAuthenticatedRole, getTokenExpiry, setAccessToken, s
 import { verifyAdminSession } from '../auth/adminSession'
 import AdminSidebar from './components/AdminSidebar'
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal'
+import PaymentGatingModal from '../components/PaymentGatingModal'
 
 function AdminLayout() {
   const navigate = useNavigate()
@@ -30,6 +31,10 @@ function AdminLayout() {
             email: profile.email,
             hasPlan: profile.hasPlan,
             hospitalName: profile.hospitalName,
+            trialUsed: profile.trialUsed,
+            isTrialExpired: profile.isTrialExpired,
+            isSubscriptionExpired: profile.isSubscriptionExpired,
+            paymentStatus: profile.paymentStatus,
           })
         }
       } catch (error) {
@@ -75,19 +80,24 @@ function AdminLayout() {
     checked &&
     verification.status === 'verified' &&
     getAuthenticatedRole() === 'admin' &&
-    verification.hasPlan === false &&
-    sessionStorage.getItem('medtrailAdminTrialActive') !== 'true'
+    verification.hasPlan === false
   ) {
     return (
-      <Navigate
-        to="/select-plan"
-        replace
-        state={{
-          email: verification.email,
-          hospitalName: verification.hospitalName,
-          name: verification.name,
-        }}
-      />
+      <div className="relative min-h-screen bg-[#F6F7FB]">
+        <PaymentGatingModal
+          isOpen={true}
+          email={verification.email}
+          hospitalName={verification.hospitalName}
+          adminName={verification.name}
+          trialUsed={verification.trialUsed}
+          isTrialExpired={verification.isTrialExpired}
+          isSubscriptionExpired={verification.isSubscriptionExpired}
+          onSuccess={() => {
+            setAttempt((current) => current + 1)
+          }}
+          onLogout={handleLogout}
+        />
+      </div>
     )
   }
 

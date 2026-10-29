@@ -14,6 +14,7 @@ import { InviteUserDto } from './dto/invite-user.dto';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { Activity } from '../doctor/entities/activity.entity';
 import { UserRole } from '../users/entities/user.entity';
+import { SmsService } from '../sms/sms.service';
 
 function formatActivityDate(date: Date): string {
   if (!date) return '';
@@ -44,6 +45,7 @@ export class AdminService {
     private usersService: UsersService,
     private mailService: MailService,
     private configService: ConfigService,
+    private readonly smsService: SmsService,
   ) {}
 
   private getFrontendUrl(): string {
@@ -203,11 +205,24 @@ export class AdminService {
   // ─── Invite User ──────────────────────────────────────────────────────────
 
   async inviteUser(dto: InviteUserDto, adminId: string, adminName: string) {
+    const isPatientRole = dto.role === UserRole.PATIENT;
+    const isOffline = Boolean(dto.isOfflinePatient || (!dto.email && isPatientRole));
+
+    let targetEmail = dto.email ? dto.email.trim().toLowerCase() : '';
+    if (!targetEmail) {
+      if (dto.phone) {
+        const cleanPhone = dto.phone.replace(/\D/g, '');
+        targetEmail = `${cleanPhone}@patient.medtrail.ng`;
+      } else {
+        targetEmail = `patient-${randomUUID().slice(0, 8)}@patient.medtrail.ng`;
+      }
+    }
+
     // 1. Check for duplicate email
-    const existing = await this.usersService.findByEmail(dto.email);
+    const existing = await this.usersService.findByEmail(targetEmail);
     if (existing) {
       throw new ConflictException(
-        `A user with the email "${dto.email}" already exists. Please use a different email address.`,
+        `A user with the email "${targetEmail}" already exists. Please use a different email address.`,
       );
     }
 
@@ -222,19 +237,22 @@ export class AdminService {
     // 3. Create the user record in a "pending" state (no password yet)
     const user = await this.usersService.create({
       name: dto.name,
-      email: dto.email.toLowerCase(),
+      email: targetEmail,
       phone: dto.phone ?? null,
       hospitalName: resolvedHospital,
       gender: dto.gender ?? null,
       age: dto.age ?? null,
+      caregiverName: dto.caregiverName ?? null,
+      caregiverPhone: dto.caregiverPhone ?? null,
+      isOfflinePatient: isOffline,
       password: null,           // No password until they complete registration
       role: dto.role,
       invitedRole: dto.role,
       isInvited: true,
-      invitationStatus: 'pending',
+      invitationStatus: isOffline ? 'accepted' : 'pending',
       invitationToken: token,
       invitationTokenExpiry: expiry,
-      isEmailVerified: false,
+      isEmailVerified: isOffline,
       invitedBy: `${adminName} (${adminId})`,
     });
 
@@ -242,20 +260,40 @@ export class AdminService {
     const port = process.env.PORT ?? 3000;
     const browserDirectUrl = `http://localhost:${port}/api/auth/accept-invite?token=${token}`;
     const frontendUrl = this.getFrontendUrl();
-    const isPatientRole = dto.role === UserRole.PATIENT;
     const frontendInviteUrl = isPatientRole
       ? `${frontendUrl}/patient/create-password?token=${token}`
       : `${frontendUrl}/accept-invite?token=${token}`;
 
-    // 5. Send the invitation email with the frontend link
-    await this.mailService.sendInvitationEmail(
-      user.email,
-      user.name,
-      dto.role,
-      frontendInviteUrl,
-      user.hospitalName,
-      expiry,
-    );
+    // 5. Send the invitation email if not an offline patient
+    if (!isOffline && dto.email) {
+      try {
+        await this.mailService.sendInvitationEmail(
+          user.email,
+          user.name,
+          dto.role,
+          frontendInviteUrl,
+          user.hospitalName,
+          expiry,
+        );
+      } catch (mailErr: any) {
+        this.logger.warn(`Failed to dispatch invitation email to ${user.email}: ${mailErr.message}`);
+      }
+    }
+
+    // 6. Send Termii Welcome SMS if patient has a phone number
+    if (user.phone && isPatientRole) {
+      try {
+        await this.smsService.sendWelcomePatientSms({
+          name: user.name,
+          phone: user.phone,
+          hospitalName: resolvedHospital || 'General Hospital',
+          caregiverPhone: dto.caregiverPhone ?? undefined,
+          caregiverName: dto.caregiverName ?? undefined,
+        });
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to dispatch patient welcome SMS: ${smsErr.message}`);
+      }
+    }
 
     const cleanRole = dto.role ? dto.role.charAt(0).toUpperCase() + dto.role.slice(1).toLowerCase() : 'User';
     try {
