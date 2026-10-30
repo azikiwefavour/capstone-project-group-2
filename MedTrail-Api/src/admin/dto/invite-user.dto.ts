@@ -1,14 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
   ValidateIf,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { UserRole } from '../../users/entities/user.entity';
 
 export class InviteUserDto {
@@ -53,6 +55,8 @@ export class InviteUserDto {
   gender?: string;
 
   @ApiProperty({ example: 34, description: 'Age in years for patient', required: false })
+  @Type(() => Number)
+  @IsNumber()
   @IsOptional()
   age?: number;
 
@@ -67,6 +71,8 @@ export class InviteUserDto {
   caregiverPhone?: string;
 
   @ApiProperty({ example: false, description: 'True if patient is registered without email (SMS-first patient)', required: false })
+  @Transform(({ value }) => (typeof value === 'boolean' ? value : value === 'true' || value === 1 || value === '1'))
+  @IsBoolean()
   @IsOptional()
   isOfflinePatient?: boolean;
 }
