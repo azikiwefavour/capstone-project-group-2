@@ -287,12 +287,35 @@ export class SuperAdminService implements OnModuleInit {
     const growthPercentage = 0;
     const comparisonPeriod = 'vs previous month';
 
-    const monthsLabels = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'];
-    const revenueChart = monthsLabels.map((month, idx) => ({
-      month,
-      amount: idx === monthsLabels.length - 1 ? mrr : 0,
-      isCurrent: idx === monthsLabels.length - 1,
-    }));
+    const txRepo = this.dataSource.getRepository(PaymentTransaction);
+    const successfulTxs = await txRepo.find({
+      where: { status: PaymentTransactionStatus.SUCCESSFUL },
+    });
+    const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const monthsLabels: string[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      monthsLabels.push(monthShortNames[d.getUTCMonth()]);
+    }
+    const revenueChart = monthsLabels.map((month, idx) => {
+      const isCurrent = idx === monthsLabels.length - 1;
+      const targetMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - idx), 1));
+      const targetYear = targetMonthDate.getUTCFullYear();
+      const targetMonth = targetMonthDate.getUTCMonth();
+      const monthTotal = successfulTxs
+        .filter((tx) => {
+          const d = new Date(tx.createdAt);
+          return d.getUTCFullYear() === targetYear && d.getUTCMonth() === targetMonth;
+        })
+        .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+      const displayAmount = isCurrent ? Math.max(monthTotal, mrr) : monthTotal;
+      return {
+        month,
+        amount: displayAmount,
+        isCurrent,
+      };
+    });
 
     // 5. Stat Cards
     // Total patients on record
@@ -2058,8 +2081,9 @@ export class SuperAdminService implements OnModuleInit {
     const pendingFacilities = await facilityRepo
       .createQueryBuilder('f')
       .select('SUM(f.monthlyFee)', 'total')
-      .where('f.status = :overdue OR f.paymentStatus = :failed OR f.paymentStatus = :pending', {
+      .where('(f.status = :overdue OR f.status = :active) AND (f.paymentStatus = :failed OR f.paymentStatus = :pending)', {
         overdue: FacilityStatus.OVERDUE,
+        active: FacilityStatus.ACTIVE,
         failed: 'failed',
         pending: 'pending',
       })

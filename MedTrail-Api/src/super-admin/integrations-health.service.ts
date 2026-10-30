@@ -151,67 +151,9 @@ export class IntegrationsHealthService {
    * 2 Resolved incidents this month: Paystack webhook delivery delay & Database replica sync
    */
   async seedInitialIncidentsIfEmpty() {
-    try {
-      const incidentRepo = this.dataSource.getRepository(SystemIncident);
-      const count = await incidentRepo.count();
-      if (count > 0) return;
-
-      this.logger.log('Seeding initial system health incidents...');
-
-      const todayAt1340 = new Date();
-      todayAt1340.setHours(13, 40, 0, 0);
-
-      const incidents: Partial<SystemIncident>[] = [
-        {
-          title: 'SMS Delays to MTN numbers',
-          serviceName: 'Termii SMS',
-          status: IncidentStatus.RESOLVED,
-          severity: IncidentSeverity.MINOR,
-          impact: 'All SMS routes operational across all networks',
-          description:
-            'Downstream carrier routing confirmed operational across all networks.',
-          createdAt: new Date('2026-10-20T13:40:00Z'),
-          resolvedAt: new Date('2026-10-20T14:10:00Z'),
-        },
-        {
-          title: 'Paystack webhook delivery latency spike',
-          serviceName: 'Paystack',
-          status: IncidentStatus.RESOLVED,
-          severity: IncidentSeverity.MINOR,
-          impact: 'Brief 30-second delay in payment confirmation receipt',
-          description: 'Temporary DNS routing degradation upstream, resolved by Paystack engineering.',
-          createdAt: new Date('2026-10-15T15:30:00Z'),
-          resolvedAt: new Date('2026-10-15T16:20:00Z'),
-        },
-        {
-          title: 'Database replica synchronization lag',
-          serviceName: 'Database',
-          status: IncidentStatus.RESOLVED,
-          severity: IncidentSeverity.MINOR,
-          impact: 'Read replica lagged by 1.2s during bulk report export',
-          description: 'Automatic catch-up replication buffer completed without data inconsistency.',
-          createdAt: new Date('2026-10-08T09:10:00Z'),
-          resolvedAt: new Date('2026-10-08T09:45:00Z'),
-        },
-      ];
-
-      for (const inc of incidents) {
-        const item = incidentRepo.create(inc);
-        await incidentRepo.save(item);
-      }
-    } catch (err: any) {
-      this.logger.warn(`Could not seed system incidents: ${err.message}`);
-    }
+    // No-op: only real incidents recorded by live monitoring are retained
   }
 
-  /**
-   * Complete System Health Overview
-   * Delivers:
-   * 1. Alert banner: "1 service degraded: Termii SMS. Facilities and Patients may experience delays"
-   * 2. Stat cards: API uptime (99.98%), Response time (182 ms), Webhooks (99.8%), Open incidents (1)
-   * 3. Platform table: Medtrail API, Database, Auth/Sessions, Paystack, Termii SMS, Termii WhatsApp
-   * 4. Open incidents: "SMS Delays to MTN numbers • Termii SMS • Today, 13:40 • Investigating"
-   */
   async getSystemHealthOverview(filter?: string): Promise<SystemHealthOverview> {
     const timestamp = new Date().toISOString();
     const incidentRepo = this.dataSource.getRepository(SystemIncident);
