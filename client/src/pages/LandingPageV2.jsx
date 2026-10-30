@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
+import consultationImage from '../assets/landing-consultation.jpg'
 import './landing-page-v2.css'
 
 const motionQuery = '(prefers-reduced-motion: reduce)'
@@ -27,8 +28,34 @@ const activityEvents = [
     ['ph', 'Folic acid 5 mg for Josephine Eze is ready to collect', '2 min ago']
   ]
 
+function LandingLogo() {
+  return (
+    <svg width="164" height="34" aria-hidden="true" focusable="false" viewBox="0 0 164 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 32.3027V9.19261H5.20578V13.1195H5.4766C5.95806 11.7955 6.75548 10.7624 7.86885 10.0201C8.98223 9.26784 10.3113 8.8917 11.8559 8.8917C13.4207 8.8917 14.7397 9.27285 15.8129 10.0352C16.8962 10.7874 17.6585 11.8156 18.0999 13.1195H18.3406C18.8521 11.8356 19.7148 10.8125 20.9284 10.0502C22.1521 9.27787 23.6015 8.8917 25.2766 8.8917C27.4031 8.8917 29.1383 9.56373 30.4824 10.9078C31.8265 12.2519 32.4985 14.2128 32.4985 16.7906V32.3027H27.037V17.6332C27.037 16.1988 26.6558 15.1507 25.8935 14.4887C25.1312 13.8166 24.1983 13.4806 23.095 13.4806C21.781 13.4806 20.7529 13.8919 20.0107 14.7143C19.2784 15.5268 18.9123 16.585 18.9123 17.889V32.3027H13.5711V17.4075C13.5711 16.2139 13.21 15.261 12.4879 14.5488C11.7757 13.8367 10.8429 13.4806 9.68937 13.4806C8.907 13.4806 8.19484 13.6812 7.55289 14.0824C6.91095 14.4736 6.3994 15.0303 6.01824 15.7525C5.63709 16.4647 5.44651 17.2972 5.44651 18.2501V32.3027H0Z" fill="#354379"/>
+<path d="M46.5603 32.754C44.2433 32.754 42.2422 32.2726 40.5571 31.3096C38.882 30.3367 37.5931 28.9625 36.6904 27.1872C35.7876 25.4017 35.3363 23.3004 35.3363 20.883C35.3363 18.5058 35.7876 16.4195 36.6904 14.6241C37.6031 12.8186 38.877 11.4143 40.5119 10.4113C42.1469 9.39823 44.0677 8.8917 46.2744 8.8917C47.6987 8.8917 49.0428 9.1224 50.3066 9.58379C51.5805 10.0352 52.7039 10.7373 53.6769 11.6902C54.6598 12.6431 55.4322 13.8567 55.9939 15.3312C56.5556 16.7957 56.8364 18.5409 56.8364 20.5671V22.2371H37.894V18.566H51.6156C51.6056 17.5229 51.3799 16.595 50.9386 15.7826C50.4972 14.9601 49.8803 14.3131 49.0879 13.8417C48.3056 13.3703 47.3928 13.1346 46.3496 13.1346C45.2363 13.1346 44.2583 13.4054 43.4157 13.947C42.5732 14.4786 41.9162 15.1808 41.4448 16.0534C40.9834 16.916 40.7477 17.8639 40.7376 18.897V22.1017C40.7376 23.4458 40.9834 24.5993 41.4749 25.5622C41.9664 26.5151 42.6534 27.2473 43.5361 27.7589C44.4188 28.2604 45.4519 28.5112 46.6355 28.5112C47.4279 28.5112 48.1451 28.4008 48.787 28.1802C49.429 27.9495 49.9857 27.6134 50.4571 27.1721C50.9285 26.7308 51.2846 26.1841 51.5253 25.5321L56.6107 26.1039C56.2898 27.4479 55.6779 28.6215 54.7752 29.6245C53.8825 30.6175 52.739 31.3899 51.3448 31.9416C49.9506 32.4832 48.3557 32.754 46.5603 32.754Z" fill="#354379"/>
+<path d="M69.3254 32.7089C67.5099 32.7089 65.885 32.2425 64.4506 31.3096C63.0163 30.3768 61.8828 29.0227 61.0503 27.2473C60.2178 25.472 59.8015 23.3154 59.8015 20.7777C59.8015 18.2099 60.2228 16.0434 61.0654 14.278C61.9179 12.5026 63.0664 11.1636 64.5108 10.2608C65.9552 9.34808 67.5651 8.8917 69.3404 8.8917C70.6945 8.8917 71.8079 9.1224 72.6806 9.58379C73.5532 10.0352 74.2453 10.5818 74.7569 11.2238C75.2684 11.8557 75.6646 12.4525 75.9455 13.0142H76.1712V1.48926H81.6327V32.3027H76.2765V28.6616H75.9455C75.6646 29.2233 75.2584 29.8201 74.7268 30.452C74.1952 31.0739 73.493 31.6055 72.6204 32.0469C71.7477 32.4882 70.6494 32.7089 69.3254 32.7089ZM70.845 28.2403C71.9985 28.2403 72.9815 27.9294 73.7939 27.3075C74.6064 26.6756 75.2233 25.7979 75.6446 24.6745C76.0658 23.5511 76.2765 22.2422 76.2765 20.7476C76.2765 19.2531 76.0658 17.9542 75.6446 16.8508C75.2333 15.7475 74.6215 14.8899 73.809 14.278C73.0066 13.6662 72.0186 13.3602 70.845 13.3602C69.6313 13.3602 68.6183 13.6762 67.8058 14.3081C66.9933 14.94 66.3815 15.8127 65.9702 16.926C65.559 18.0394 65.3534 19.3133 65.3534 20.7476C65.3534 22.192 65.559 23.4809 65.9702 24.6144C66.3915 25.7378 67.0084 26.6255 67.8208 27.2774C68.6433 27.9194 69.6514 28.2403 70.845 28.2403Z" fill="#354379"/>
+<path d="M111.201 32.3029V9.19286H116.482V13.0445H116.723C117.144 11.7105 117.867 10.6824 118.89 9.96019C119.923 9.22797 121.101 8.86186 122.425 8.86186C122.726 8.86186 123.062 8.87691 123.433 8.907C123.815 8.92706 124.131 8.96216 124.381 9.01232V14.0225C124.151 13.9423 123.785 13.872 123.283 13.8119C122.792 13.7417 122.315 13.7065 121.854 13.7065C120.861 13.7065 119.968 13.9222 119.176 14.3535C118.393 14.7748 117.776 15.3616 117.325 16.1138C116.874 16.8661 116.648 17.7338 116.648 18.7167V32.3029H111.201Z" fill="#354379"/>
+<path d="M132.542 32.7693C131.077 32.7693 129.758 32.5085 128.585 31.987C127.421 31.4553 126.498 30.673 125.816 29.6398C125.144 28.6067 124.808 27.3328 124.808 25.8183C124.808 24.5143 125.049 23.436 125.53 22.5835C126.012 21.7309 126.669 21.0488 127.501 20.5373C128.334 20.0257 129.272 19.6395 130.315 19.3787C131.368 19.1079 132.456 18.9123 133.58 18.792C134.934 18.6515 136.032 18.5262 136.875 18.4158C137.717 18.2955 138.329 18.1149 138.71 17.8742C139.101 17.6234 139.297 17.2372 139.297 16.7157V16.6254C139.297 15.492 138.961 14.6143 138.289 13.9924C137.617 13.3705 136.649 13.0596 135.385 13.0596C134.051 13.0596 132.993 13.3505 132.21 13.9322C131.438 14.514 130.917 15.2011 130.646 15.9935L125.56 15.2713C125.962 13.867 126.624 12.6935 127.546 11.7506C128.469 10.7977 129.598 10.0856 130.932 9.61414C132.266 9.13268 133.74 8.89195 135.355 8.89195C136.468 8.89195 137.577 9.02235 138.68 9.28314C139.783 9.54393 140.792 9.97524 141.704 10.5771C142.617 11.1689 143.349 11.9763 143.901 12.9994C144.463 14.0225 144.743 15.3014 144.743 16.836V32.3029H139.508V29.1283H139.327C138.996 29.7702 138.53 30.3721 137.928 30.9338C137.336 31.4854 136.589 31.9318 135.686 32.2728C134.793 32.6038 133.745 32.7693 132.542 32.7693ZM133.956 28.7672C135.049 28.7672 135.997 28.5515 136.799 28.1202C137.602 27.6789 138.219 27.0971 138.65 26.3749C139.091 25.6528 139.312 24.8654 139.312 24.0128V21.2895C139.142 21.43 138.851 21.5604 138.439 21.6807C138.038 21.8011 137.587 21.9064 137.085 21.9967C136.584 22.0869 136.087 22.1672 135.596 22.2374C135.104 22.3076 134.678 22.3678 134.317 22.418C133.504 22.5283 132.777 22.7088 132.135 22.9596C131.493 23.2104 130.987 23.5614 130.616 24.0128C130.245 24.4541 130.059 25.0259 130.059 25.728C130.059 26.731 130.425 27.4883 131.157 27.9999C131.89 28.5114 132.822 28.7672 133.956 28.7672Z" fill="#354379"/>
+<path d="M148.525 32.3029V9.19286H153.972V32.3029H148.525ZM151.264 5.91292C150.401 5.91292 149.659 5.62706 149.037 5.05532C148.415 4.47356 148.104 3.77645 148.104 2.96398C148.104 2.14149 148.415 1.44438 149.037 0.872644C149.659 0.290881 150.401 0 151.264 0C152.136 0 152.879 0.290881 153.49 0.872644C154.112 1.44438 154.423 2.14149 154.423 2.96398C154.423 3.77645 154.112 4.47356 153.49 5.05532C152.879 5.62706 152.136 5.91292 151.264 5.91292Z" fill="#354379"/>
+<path d="M163.324 1.48951V32.3029H157.878V1.48951H163.324Z" fill="#354379"/>
+<path d="M96.1052 33.3027H87.5886V21.5928H96.1052V33.3027ZM107.814 21.5928H96.1052V12.0127H107.814V21.5928ZM96.1052 12.0127H87.5886V0.302734H96.1052V12.0127Z" fill="#E35977"/>
+</svg>
+  )
+}
+
+function scrollToSection(target, nav, behavior) {
+  if (!target) return
+  const safeTop = Number.parseFloat(window.getComputedStyle(nav).top) || 0
+  const offset = nav.offsetHeight + safeTop + 12
+  const top = target.id === 'top' ? 0 : Math.max(0, target.getBoundingClientRect().top + window.scrollY - offset)
+  window.scrollTo({ top, behavior })
+}
+
 export default function LandingPageV2() {
   const rootRef = useRef(null)
+  const navRef = useRef(null)
+  const monitorRef = useRef(null)
+  const dashboardRef = useRef(null)
   const reduceMotion = useSyncExternalStore(subscribeToMotion, getReducedMotion, getServerMotion)
   const [menuOpen, setMenuOpen] = useState(false)
   const [sectionTarget, setSectionTarget] = useState(null)
@@ -79,11 +106,31 @@ export default function LandingPageV2() {
     let cancelled = false
     document.fonts.ready.then(() => {
       if (cancelled) return
-      target?.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'start' })
+      scrollToSection(target, navRef.current, reduceMotion ? 'instant' : 'smooth')
       target?.focus({ preventScroll: true })
     })
     return () => { cancelled = true }
   }, [sectionTarget, reduceMotion])
+
+  useLayoutEffect(() => {
+    const monitor = monitorRef.current
+    const dashboard = dashboardRef.current
+    const fit = () => {
+      dashboard.style.transform = `scale(${monitor.clientWidth / 960}, ${monitor.clientHeight / 545})`
+    }
+    fit()
+    const observer = new ResizeObserver(fit)
+    observer.observe(monitor)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const nav = navRef.current
+    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 8)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
     const previousTitle = document.title
@@ -109,7 +156,7 @@ export default function LandingPageV2() {
     const hashTarget = window.location.hash ? root.querySelector(`[id="${CSS.escape(window.location.hash.slice(1))}"]`) : null
     let cancelled = false
     document.fonts.ready.then(() => {
-      if (!cancelled) hashTarget?.scrollIntoView({ behavior: 'instant' })
+      if (!cancelled) scrollToSection(hashTarget, navRef.current, 'instant')
     })
     return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame) }
   }, [])
@@ -151,18 +198,9 @@ export default function LandingPageV2() {
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Text&family=Inter:wght@400;500;600;700;800&display=swap" />
 
 
-<header className="nav">
+<header className="nav" ref={navRef}>
   <div className="wrap nav-in">
-    <a href="#top" className="logo" aria-label="MedTrail home"><svg width="164" height="34" aria-hidden="true" focusable="false" viewBox="0 0 164 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M0 32.3027V9.19261H5.20578V13.1195H5.4766C5.95806 11.7955 6.75548 10.7624 7.86885 10.0201C8.98223 9.26784 10.3113 8.8917 11.8559 8.8917C13.4207 8.8917 14.7397 9.27285 15.8129 10.0352C16.8962 10.7874 17.6585 11.8156 18.0999 13.1195H18.3406C18.8521 11.8356 19.7148 10.8125 20.9284 10.0502C22.1521 9.27787 23.6015 8.8917 25.2766 8.8917C27.4031 8.8917 29.1383 9.56373 30.4824 10.9078C31.8265 12.2519 32.4985 14.2128 32.4985 16.7906V32.3027H27.037V17.6332C27.037 16.1988 26.6558 15.1507 25.8935 14.4887C25.1312 13.8166 24.1983 13.4806 23.095 13.4806C21.781 13.4806 20.7529 13.8919 20.0107 14.7143C19.2784 15.5268 18.9123 16.585 18.9123 17.889V32.3027H13.5711V17.4075C13.5711 16.2139 13.21 15.261 12.4879 14.5488C11.7757 13.8367 10.8429 13.4806 9.68937 13.4806C8.907 13.4806 8.19484 13.6812 7.55289 14.0824C6.91095 14.4736 6.3994 15.0303 6.01824 15.7525C5.63709 16.4647 5.44651 17.2972 5.44651 18.2501V32.3027H0Z" fill="#354379"/>
-<path d="M46.5603 32.754C44.2433 32.754 42.2422 32.2726 40.5571 31.3096C38.882 30.3367 37.5931 28.9625 36.6904 27.1872C35.7876 25.4017 35.3363 23.3004 35.3363 20.883C35.3363 18.5058 35.7876 16.4195 36.6904 14.6241C37.6031 12.8186 38.877 11.4143 40.5119 10.4113C42.1469 9.39823 44.0677 8.8917 46.2744 8.8917C47.6987 8.8917 49.0428 9.1224 50.3066 9.58379C51.5805 10.0352 52.7039 10.7373 53.6769 11.6902C54.6598 12.6431 55.4322 13.8567 55.9939 15.3312C56.5556 16.7957 56.8364 18.5409 56.8364 20.5671V22.2371H37.894V18.566H51.6156C51.6056 17.5229 51.3799 16.595 50.9386 15.7826C50.4972 14.9601 49.8803 14.3131 49.0879 13.8417C48.3056 13.3703 47.3928 13.1346 46.3496 13.1346C45.2363 13.1346 44.2583 13.4054 43.4157 13.947C42.5732 14.4786 41.9162 15.1808 41.4448 16.0534C40.9834 16.916 40.7477 17.8639 40.7376 18.897V22.1017C40.7376 23.4458 40.9834 24.5993 41.4749 25.5622C41.9664 26.5151 42.6534 27.2473 43.5361 27.7589C44.4188 28.2604 45.4519 28.5112 46.6355 28.5112C47.4279 28.5112 48.1451 28.4008 48.787 28.1802C49.429 27.9495 49.9857 27.6134 50.4571 27.1721C50.9285 26.7308 51.2846 26.1841 51.5253 25.5321L56.6107 26.1039C56.2898 27.4479 55.6779 28.6215 54.7752 29.6245C53.8825 30.6175 52.739 31.3899 51.3448 31.9416C49.9506 32.4832 48.3557 32.754 46.5603 32.754Z" fill="#354379"/>
-<path d="M69.3254 32.7089C67.5099 32.7089 65.885 32.2425 64.4506 31.3096C63.0163 30.3768 61.8828 29.0227 61.0503 27.2473C60.2178 25.472 59.8015 23.3154 59.8015 20.7777C59.8015 18.2099 60.2228 16.0434 61.0654 14.278C61.9179 12.5026 63.0664 11.1636 64.5108 10.2608C65.9552 9.34808 67.5651 8.8917 69.3404 8.8917C70.6945 8.8917 71.8079 9.1224 72.6806 9.58379C73.5532 10.0352 74.2453 10.5818 74.7569 11.2238C75.2684 11.8557 75.6646 12.4525 75.9455 13.0142H76.1712V1.48926H81.6327V32.3027H76.2765V28.6616H75.9455C75.6646 29.2233 75.2584 29.8201 74.7268 30.452C74.1952 31.0739 73.493 31.6055 72.6204 32.0469C71.7477 32.4882 70.6494 32.7089 69.3254 32.7089ZM70.845 28.2403C71.9985 28.2403 72.9815 27.9294 73.7939 27.3075C74.6064 26.6756 75.2233 25.7979 75.6446 24.6745C76.0658 23.5511 76.2765 22.2422 76.2765 20.7476C76.2765 19.2531 76.0658 17.9542 75.6446 16.8508C75.2333 15.7475 74.6215 14.8899 73.809 14.278C73.0066 13.6662 72.0186 13.3602 70.845 13.3602C69.6313 13.3602 68.6183 13.6762 67.8058 14.3081C66.9933 14.94 66.3815 15.8127 65.9702 16.926C65.559 18.0394 65.3534 19.3133 65.3534 20.7476C65.3534 22.192 65.559 23.4809 65.9702 24.6144C66.3915 25.7378 67.0084 26.6255 67.8208 27.2774C68.6433 27.9194 69.6514 28.2403 70.845 28.2403Z" fill="#354379"/>
-<path d="M111.201 32.3029V9.19286H116.482V13.0445H116.723C117.144 11.7105 117.867 10.6824 118.89 9.96019C119.923 9.22797 121.101 8.86186 122.425 8.86186C122.726 8.86186 123.062 8.87691 123.433 8.907C123.815 8.92706 124.131 8.96216 124.381 9.01232V14.0225C124.151 13.9423 123.785 13.872 123.283 13.8119C122.792 13.7417 122.315 13.7065 121.854 13.7065C120.861 13.7065 119.968 13.9222 119.176 14.3535C118.393 14.7748 117.776 15.3616 117.325 16.1138C116.874 16.8661 116.648 17.7338 116.648 18.7167V32.3029H111.201Z" fill="#354379"/>
-<path d="M132.542 32.7693C131.077 32.7693 129.758 32.5085 128.585 31.987C127.421 31.4553 126.498 30.673 125.816 29.6398C125.144 28.6067 124.808 27.3328 124.808 25.8183C124.808 24.5143 125.049 23.436 125.53 22.5835C126.012 21.7309 126.669 21.0488 127.501 20.5373C128.334 20.0257 129.272 19.6395 130.315 19.3787C131.368 19.1079 132.456 18.9123 133.58 18.792C134.934 18.6515 136.032 18.5262 136.875 18.4158C137.717 18.2955 138.329 18.1149 138.71 17.8742C139.101 17.6234 139.297 17.2372 139.297 16.7157V16.6254C139.297 15.492 138.961 14.6143 138.289 13.9924C137.617 13.3705 136.649 13.0596 135.385 13.0596C134.051 13.0596 132.993 13.3505 132.21 13.9322C131.438 14.514 130.917 15.2011 130.646 15.9935L125.56 15.2713C125.962 13.867 126.624 12.6935 127.546 11.7506C128.469 10.7977 129.598 10.0856 130.932 9.61414C132.266 9.13268 133.74 8.89195 135.355 8.89195C136.468 8.89195 137.577 9.02235 138.68 9.28314C139.783 9.54393 140.792 9.97524 141.704 10.5771C142.617 11.1689 143.349 11.9763 143.901 12.9994C144.463 14.0225 144.743 15.3014 144.743 16.836V32.3029H139.508V29.1283H139.327C138.996 29.7702 138.53 30.3721 137.928 30.9338C137.336 31.4854 136.589 31.9318 135.686 32.2728C134.793 32.6038 133.745 32.7693 132.542 32.7693ZM133.956 28.7672C135.049 28.7672 135.997 28.5515 136.799 28.1202C137.602 27.6789 138.219 27.0971 138.65 26.3749C139.091 25.6528 139.312 24.8654 139.312 24.0128V21.2895C139.142 21.43 138.851 21.5604 138.439 21.6807C138.038 21.8011 137.587 21.9064 137.085 21.9967C136.584 22.0869 136.087 22.1672 135.596 22.2374C135.104 22.3076 134.678 22.3678 134.317 22.418C133.504 22.5283 132.777 22.7088 132.135 22.9596C131.493 23.2104 130.987 23.5614 130.616 24.0128C130.245 24.4541 130.059 25.0259 130.059 25.728C130.059 26.731 130.425 27.4883 131.157 27.9999C131.89 28.5114 132.822 28.7672 133.956 28.7672Z" fill="#354379"/>
-<path d="M148.525 32.3029V9.19286H153.972V32.3029H148.525ZM151.264 5.91292C150.401 5.91292 149.659 5.62706 149.037 5.05532C148.415 4.47356 148.104 3.77645 148.104 2.96398C148.104 2.14149 148.415 1.44438 149.037 0.872644C149.659 0.290881 150.401 0 151.264 0C152.136 0 152.879 0.290881 153.49 0.872644C154.112 1.44438 154.423 2.14149 154.423 2.96398C154.423 3.77645 154.112 4.47356 153.49 5.05532C152.879 5.62706 152.136 5.91292 151.264 5.91292Z" fill="#354379"/>
-<path d="M163.324 1.48951V32.3029H157.878V1.48951H163.324Z" fill="#354379"/>
-<path d="M96.1052 33.3027H87.5886V21.5928H96.1052V33.3027ZM107.814 21.5928H96.1052V12.0127H107.814V21.5928ZM96.1052 12.0127H87.5886V0.302734H96.1052V12.0127Z" fill="#E35977"/>
-</svg></a>
+    <a href="#top" className="logo" aria-label="MedTrail home"><LandingLogo /></a>
     <button type="button" className="menu-btn" aria-expanded={menuOpen} aria-controls="landing-navigation" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setMenuOpen(open => !open)}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d={menuOpen ? 'M6 6l12 12M6 18 18 6' : 'M3 6h18M3 12h18M3 18h18'} /></svg></button>
     <nav id="landing-navigation" className={`nav-links${menuOpen ? ' is-open' : ''}`} aria-label="Main">
       <a href="#how">How it works</a>
@@ -181,8 +219,8 @@ export default function LandingPageV2() {
 
 <main id="top" tabIndex={-1}>
   {/* HERO */}
-  <section className="hero" style={{"paddingBottom": "104px"}}>
-    <div className="wrap">
+  <section className="hero" style={{ paddingBottom: 0 }}>
+    <div className="wrap hero-copy">
       <h1 className="r">Medication records, from prescription to patient</h1>
       <p className="lead r" style={{"transitionDelay": ".1s"}}>One shared record for doctors, pharmacists and patients. Every prescription is checked before it's dispensed, and every patient can see what they're taking.</p>
       <div className="hero-cta r" style={{"transitionDelay": ".2s"}}>
@@ -195,6 +233,40 @@ export default function LandingPageV2() {
         <span><svg className="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Works alongside your current system</span>
       </div>
 
+    </div>
+    <div className="hero-img r" style={{"transitionDelay": ".3s"}}>
+      <img src={consultationImage} alt="A doctor and patient reviewing a medication record on MedTrail together" width="2000" height="1125" />
+      <div className="mon" aria-hidden="true" ref={monitorRef}><div className="dash" ref={dashboardRef}>
+        <div className="d-side"><span className="dl"><LandingLogo /></span>
+          <span className="d-nav on"><i></i>Today</span><span className="d-nav"><i></i>Patients</span><span className="d-nav"><i></i>Clarifications<b>1</b></span><span className="d-nav"><i></i>Appointments</span>
+        </div>
+        <div className="d-main">
+          <div className="d-head"><span className="d-av">SA</span><div><div style={{"fontSize": "20px", "fontWeight": "700", "letterSpacing": "-.02em"}}>Sarah Adeyemi</div><div style={{"fontSize": "13px", "color": "#646A80"}}>MT-00124 · Female, 42 · 2 linked hospitals</div></div><span className="d-btn">+ Add medication</span></div>
+          <div className="d-grid">
+            <div className="d-card"><h5>Active medications</h5>
+              <div className="d-row"><div><b>Amoxicillin 500 mg</b><small>Three times daily · 7 days</small></div><span className="d-pill" style={{"background": "#ECFDF3", "borderColor": "#ABEFC6", "color": "#067647"}}>Dispensed</span></div>
+              <div className="d-row"><div><b>Metformin 500 mg</b><small>Twice daily · Lifeline Specialist Clinic</small></div><span className="d-pill" style={{"background": "#ECFDF3", "borderColor": "#ABEFC6", "color": "#067647"}}>Active</span></div>
+              <div className="d-row"><div><b>Amlodipine 5 mg</b><small>Once daily · Lifeline Specialist Clinic</small></div><span className="d-pill" style={{"background": "#ECFDF3", "borderColor": "#ABEFC6", "color": "#067647"}}>Active</span></div>
+            </div>
+            <div style={{"display": "flex", "flexDirection": "column", "gap": "16px"}}>
+              <div className="d-card" style={{"borderColor": "#FDDCAB", "background": "#FFFAF5"}}><h5 style={{"color": "#B54708"}}>Possible duplicate</h5><div style={{"fontSize": "13px", "color": "#41475C"}}>Amoxicillin is already active from 12 Oct.</div></div>
+              <div className="d-card"><h5>Recent visits</h5><div className="d-row"><div><b>Acute tonsillitis</b><small>12 Oct · Absolute Health</small></div></div><div className="d-row"><div><b>Type 2 diabetes</b><small>03 Sep · Lifeline</small></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <span className="edge"></span>
+    </div>
+  </section>
+
+  {/* PROBLEM */}
+  <section id="about" tabIndex={-1} className="problem" style={{"padding": "104px 0"}}>
+    <div className="wrap">
+      <div className="why r">
+        <span className="kick">Why MedTrail</span>
+        <h2 className="t">A prescription passes through many hands. Its record should too.</h2>
+        <p className="why-p">In most hospitals, that record still lives on paper slips and in people's memory. One Nigerian study found only <b>1.6%</b> of prescription errors were caught before the medicine reached the patient. We built MedTrail so everyone involved is looking at the same page.</p>
+      </div>
       <div className="stage">
         <div className="panel deep r" style={{"transitionDelay": ".38s"}} aria-label="Live activity example">
           <span className="live"><i></i>Live at Absolute Health Hospital</span>
@@ -228,16 +300,6 @@ export default function LandingPageV2() {
             <span><b>Possible duplicate</b><br /><span style={{"color": "var(--mute)"}}>Sarah already takes Amoxicillin 500 mg</span></span>
           </div>
         </div>
-      </div></div>
-  </section>
-
-  {/* PROBLEM */}
-  <section id="about" tabIndex={-1} className="problem" style={{"padding": "104px 0"}}>
-    <div className="wrap">
-      <div className="why r">
-        <span className="kick">Why MedTrail</span>
-        <h2 className="t">A prescription passes through many hands. Its record should too.</h2>
-        <p className="why-p">In most hospitals, that record still lives on paper slips and in people's memory. One Nigerian study found only <b>1.6%</b> of prescription errors were caught before the medicine reached the patient. We built MedTrail so everyone involved is looking at the same page.</p>
       </div>
     </div>
   </section>
@@ -472,7 +534,7 @@ export default function LandingPageV2() {
       <div><h4>For you</h4><a href="#who">Hospitals and clinics</a><a href="#who">Doctors and pharmacists</a><a href="#who">Patients</a></div>
       <div><h4>Company</h4><a href="#about">About</a><a href="mailto:hello@medtrail.ng">Contact</a><span className="unavailable-link" aria-disabled="true" title="Not available yet">Privacy notice</span><span className="unavailable-link" aria-disabled="true" title="Not available yet">Terms</span></div>
     </div>
-    <div className="legal"><span>©️ 2026 MedTrail</span><span>hello@medtrail.ng</span></div>
+    <div className="legal"><span>© 2026 MedTrail</span><span>hello@medtrail.ng</span></div>
   </div>
 </footer>
 
