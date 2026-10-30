@@ -109,6 +109,7 @@ export class SmsService {
       return { success: false, error: 'Invalid phone number' };
     }
 
+    const bulkSmsToken = this.configService.get<string>('BULKSMS_NIGERIA_API_TOKEN');
     const hospitalName = context?.hospitalName?.trim();
     let facility: Facility | null = null;
 
@@ -142,7 +143,7 @@ export class SmsService {
                 content: message,
                 channel: MessageChannel.SMS,
                 status: MessageStatus.FAILED,
-                provider: 'Termii',
+                provider: bulkSmsToken ? 'BulkSMSNigeria' : 'Termii',
                 failureReason: errorMsg,
               });
               await logRepo.save(failedLog);
@@ -163,8 +164,50 @@ export class SmsService {
 
     let result: SendSmsResult;
 
-    // 2. Dispatch via Termii or simulate if API key is not configured
-    if (!apiKey || apiKey.trim() === '' || apiKey === 'YOUR_TERMII_API_KEY') {
+    // 2. Dispatch via BulkSMS Nigeria (if configured) or Termii / Simulation
+    if (bulkSmsToken && bulkSmsToken.trim() !== '' && bulkSmsToken !== 'YOUR_BULKSMS_TOKEN') {
+      try {
+        const response = await fetch('https://www.bulksmsnigeria.com/api/v1/sms/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            api_token: bulkSmsToken.trim(),
+            from: senderId,
+            to: normalizedTo,
+            body: message,
+            gateway: 'corporate',
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data?.status === 'success') {
+          this.logger.log(`BulkSMS Nigeria SMS dispatched to ${normalizedTo} (ID: ${data.data?.message_id || 'sent'})`);
+          result = {
+            success: true,
+            messageId: data.data?.message_id,
+          };
+        } else if (data?.code === 'BSNG-2012') {
+          // Duplicate message safeguard: same message to same recipient within 60s
+          this.logger.log(`BulkSMS Nigeria duplicate protection triggered for ${normalizedTo}; treated as sent.`);
+          result = {
+            success: true,
+            messageId: `dup-${Date.now()}`,
+          };
+        } else {
+          const errorMsg = data?.error?.message || data?.message || `HTTP ${response.status} ${response.statusText}`;
+          this.logger.error(`BulkSMS Nigeria SMS failed for ${normalizedTo}: ${errorMsg}`);
+          result = { success: false, error: errorMsg };
+        }
+      } catch (err: any) {
+        this.logger.error(`BulkSMS Nigeria SMS exception for ${normalizedTo}: ${err.message}`);
+        result = { success: false, error: err.message };
+      }
+    } else if (!apiKey || apiKey.trim() === '' || apiKey === 'YOUR_TERMII_API_KEY') {
       this.logger.log(
         `\n╔════════════════════════════════════════════════════════════════╗\n` +
         `║ 📱 [MOCK TERMII SMS SENT]                                     ║\n` +
@@ -255,7 +298,7 @@ export class SmsService {
           content: message,
           channel: MessageChannel.SMS,
           status: result.success ? MessageStatus.DELIVERED : MessageStatus.FAILED,
-          provider: 'Termii',
+          provider: bulkSmsToken ? 'BulkSMSNigeria' : 'Termii',
           providerMessageId: result.messageId,
           failureReason: result.error,
         });
