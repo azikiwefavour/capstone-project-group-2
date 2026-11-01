@@ -106,9 +106,7 @@ export async function getDispensedMedications(signal) {
     patientName: text(record.patientName), dosage: text(record.dosage),
     frequency: text(record.frequency), doseAndFrequency: text(record.doseAndFrequency),
     doctorName: text(record.doctorName),
-    // The pharmacy contract has no dispensing-event timestamp. Its `date` is
-    // createdAt; updatedAt can also change after dispensing. Never relabel either.
-    dispensedOn: null,
+    dispensedOn: record.dispensedAt ? formatMedicationTimestamp(record.dispensedAt) : null,
   }))
 }
 
@@ -118,4 +116,3 @@ export async function verifyAndDispensePrescription(prescriptionId, signal) {
   }
   return pharmacistPost(`prescriptions/${encodeURIComponent(prescriptionId.trim())}/verify`, undefined, signal, 'prescription verification')
 }
-

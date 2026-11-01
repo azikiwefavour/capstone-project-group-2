@@ -53,7 +53,13 @@ export default function PharmacistDispensationHistory() {
               <td className="max-w-[220px] break-words px-4 py-3">{record.patientName || 'Name unavailable'}</td>
               <td className="max-w-[200px] break-words px-4 py-3">{record.dosage || record.frequency ? <><p>{record.dosage || '—'}</p><p className="mt-1 text-xs text-[#7A8190]">{record.frequency || '—'}</p></> : record.doseAndFrequency || '—'}</td>
               <td className="max-w-[220px] break-words px-4 py-3">{record.doctorName || '—'}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-xs text-[#7A8190]"><span aria-label="Dispensing date unavailable" title="Dispensing date unavailable">—</span></td>
+              <td className="whitespace-nowrap px-4 py-3 text-xs text-[#7A8190]">
+                {record.dispensedOn ? (
+                  <time dateTime={record.dispensedOn.dateTime}>{record.dispensedOn.label}</time>
+                ) : (
+                  <span aria-label="Dispensing date unavailable" title="Dispensing date unavailable">—</span>
+                )}
+              </td>
             </tr>)}
           </tbody>
         </table>

@@ -16,7 +16,7 @@ import { RaiseClarificationDto } from './dto/raise-clarification.dto';
 import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 import { SmsService } from '../sms/sms.service';
 
-function formatPrescriptionDate(date: Date): string {
+function formatPrescriptionDate(date?: Date | string | null): string {
   if (!date) return '';
   const d = new Date(date);
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -172,12 +172,15 @@ export class PharmacyService {
       const dose = rx.dosage || '';
       const freq = rx.frequency || '';
       const doseAndFreq = rx.doseAndFrequency || (freq && dose ? `${dose}, ${freq}` : dose || freq);
+      const dispensedTimestamp = rx.dispensedAt || (rx.status === PrescriptionStatus.DISPENSED ? rx.updatedAt : null);
 
       return {
         ...rx,
         patientId: rx.patientId || pharmacist.id,
         doseAndFrequency: doseAndFreq,
         date: formatPrescriptionDate(rx.createdAt),
+        dispensedAt: dispensedTimestamp,
+        dispensedDate: formatPrescriptionDate(dispensedTimestamp),
       };
     });
   }
@@ -302,6 +305,7 @@ export class PharmacyService {
     rx.status = PrescriptionStatus.DISPENSED;
     rx.pharmacistId = pharmacist.id;
     rx.pharmacistName = cleanPharmName;
+    rx.dispensedAt = new Date();
 
     const saved = await this.prescriptionRepo.save(rx);
 
