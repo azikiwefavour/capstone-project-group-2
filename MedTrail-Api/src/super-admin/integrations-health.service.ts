@@ -358,13 +358,18 @@ export class IntegrationsHealthService {
         },
         openIncidents: {
           count: openIncidents.length,
-          subtext: `${resolvedIncidentsCount} resolved this month`,
+          subtext:
+            openIncidents.length === 0
+              ? resolvedIncidentsCount > 0
+                ? `${resolvedIncidentsCount} resolved this month`
+                : 'All systems operational'
+              : `${openIncidents.length} open incident${openIncidents.length > 1 ? 's' : ''}`,
           resolvedThisMonth: resolvedIncidentsCount,
         },
       },
       platform: filteredPlatform,
       incidents: {
-        month: 'October 2026',
+        month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         openCount: openIncidents.length,
         resolvedThisMonth: resolvedIncidentsCount,
         items: formattedIncidents,

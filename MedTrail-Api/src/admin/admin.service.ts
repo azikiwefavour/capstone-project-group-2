@@ -242,7 +242,7 @@ export class AdminService {
     const resolvedHospital = adminUser?.hospitalName || dto.hospitalName || null;
 
     // Enforce subscription plan quotas for doctors, pharmacists, and patients
-    if (resolvedHospital) {
+    if (resolvedHospital && this.subscriptionService?.assertCanAddUser) {
       await this.subscriptionService.assertCanAddUser(resolvedHospital, dto.role, adminUser?.email);
     }
 

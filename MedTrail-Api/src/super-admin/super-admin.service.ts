@@ -669,9 +669,11 @@ export class SuperAdminService implements OnModuleInit {
 
     const [facilities, total] = await qb.getManyAndCount();
 
-    // Query real users & prescriptions for facilities in current page
+    // Query real users, prescriptions, and message logs for facilities in current page
     const facilityNames = facilities.map((f) => f.name).filter(Boolean);
-    const [allUsers, allPrescriptions] = await Promise.all([
+    const msgRepo = this.dataSource.getRepository(MessageLog);
+
+    const [allUsers, allPrescriptions, messageCountsRaw] = await Promise.all([
       facilityNames.length > 0
         ? userRepo
             .createQueryBuilder('u')
@@ -684,7 +686,23 @@ export class SuperAdminService implements OnModuleInit {
             .where('p.hospitalName IN (:...facilityNames)', { facilityNames })
             .getMany()
         : [],
+      facilityNames.length > 0
+        ? msgRepo
+            .createQueryBuilder('m')
+            .select('LOWER(TRIM(m.facilityName))', 'name')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('m.facilityName IN (:...facilityNames)', { facilityNames })
+            .groupBy('LOWER(TRIM(m.facilityName))')
+            .getRawMany()
+        : [],
     ]);
+
+    const facilityMsgMap: Record<string, number> = {};
+    for (const row of messageCountsRaw) {
+      if (row.name) {
+        facilityMsgMap[row.name] = Number(row.cnt) || 0;
+      }
+    }
 
     const formattedFacilities = facilities.map((f) => {
       const { status, statusLabel, badgeVariant, isPastDue, isTrial } =
@@ -694,17 +712,6 @@ export class SuperAdminService implements OnModuleInit {
       const planTier = planName.includes('Growth') ? 'Growth' : 'Starter';
       const billingCycle = f.billingCycle || 'Monthly';
       const planDisplay = `${planTier}\n${billingCycle}`;
-
-      const fallback = this.baselineFacilityData[f.name] || {
-        clinicians: f.cliniciansCount || 0,
-        doctors: 0,
-        pharmacists: 0,
-        patients: f.patientsCount || 0,
-        messages: f.messagesCount || 0,
-        adminName: f.adminName || 'Facility Admin',
-        adminEmail: f.adminEmail || f.email || 'admin@hospital.ng',
-        paymentMethod: f.paymentMethod || 'Bank transfer',
-      };
 
       const hUsers = allUsers.filter(
         (u) =>
@@ -721,24 +728,21 @@ export class SuperAdminService implements OnModuleInit {
       const pharmCount = hUsers.filter((u) => u.role === UserRole.PHARMACIST).length;
       const realClinicians = docCount + pharmCount;
       const realPatients = hUsers.filter((u) => u.role === UserRole.PATIENT).length;
-      const realMessages =
-        hPrescriptions.length * 2 +
-        hUsers.filter((u) => u.role === UserRole.PATIENT && u.isOfflinePatient).length * 4;
+      const realMessages = facilityMsgMap[f.name.trim().toLowerCase()] || Number(f.messagesCount) || 0;
 
-      const cliniciansCount =
-        realClinicians > 0 ? realClinicians : f.cliniciansCount || fallback.clinicians;
-      const doctorsCount = realClinicians > 0 ? docCount : fallback.doctors;
-      const pharmacistsCount = realClinicians > 0 ? pharmCount : fallback.pharmacists;
-      const patientsCount =
-        realPatients > 0 ? realPatients : f.patientsCount || fallback.patients;
-      const messagesCount =
-        realMessages > 0 ? realMessages : f.messagesCount || fallback.messages;
+      const cliniciansCount = realClinicians;
+      const doctorsCount = docCount;
+      const pharmacistsCount = pharmCount;
+      const patientsCount = realPatients;
+      const messagesCount = realMessages;
 
-      const adminName = f.adminName || fallback.adminName;
-      const adminEmail = f.adminEmail || fallback.adminEmail;
-      const paymentMethod = f.paymentMethod || fallback.paymentMethod || 'Bank transfer';
+      const adminName = f.adminName || 'Hospital Admin';
+      const adminEmail = f.adminEmail || f.email || '';
+      const paymentMethod = f.paymentMethod || 'Paystack';
 
-      const renewalDate = f.renewalDate ? new Date(f.renewalDate) : new Date('2026-11-02');
+      const renewalDate = f.renewalDate
+        ? new Date(f.renewalDate)
+        : new Date(new Date(f.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
       const now = new Date();
       const daysRemaining = Math.ceil(
         (renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
@@ -817,18 +821,8 @@ export class SuperAdminService implements OnModuleInit {
     const planTier = planName.includes('Growth') ? 'Growth' : 'Starter';
     const billingCycle = facility.billingCycle || 'Monthly';
 
-    const fallback = this.baselineFacilityData[facility.name] || {
-      clinicians: facility.cliniciansCount || 8,
-      doctors: Math.ceil((facility.cliniciansCount || 8) * 0.6),
-      pharmacists: Math.floor((facility.cliniciansCount || 8) * 0.4),
-      patients: facility.patientsCount || 50,
-      messages: facility.messagesCount || 100,
-      adminName: facility.adminName || 'Facility Admin',
-      adminEmail: facility.adminEmail || facility.email || 'admin@hospital.ng',
-      paymentMethod: facility.paymentMethod || 'Bank transfer',
-    };
-
-    const [hUsers, hPrescriptions] = await Promise.all([
+    const msgRepo = this.dataSource.getRepository(MessageLog);
+    const [hUsers, hPrescriptions, msgCount] = await Promise.all([
       userRepo
         .createQueryBuilder('u')
         .where('LOWER(TRIM(u.hospitalName)) = :name', {
@@ -841,33 +835,30 @@ export class SuperAdminService implements OnModuleInit {
           name: facility.name.trim().toLowerCase(),
         })
         .getMany(),
+      msgRepo.count({
+        where: { facilityName: facility.name },
+      }),
     ]);
 
     const docCount = hUsers.filter((u) => u.role === UserRole.DOCTOR).length;
     const pharmCount = hUsers.filter((u) => u.role === UserRole.PHARMACIST).length;
     const realClinicians = docCount + pharmCount;
     const realPatients = hUsers.filter((u) => u.role === UserRole.PATIENT).length;
-    const realMessages =
-      hPrescriptions.length * 2 +
-      hUsers.filter((u) => u.role === UserRole.PATIENT && u.isOfflinePatient).length * 4;
+    const realMessages = msgCount || Number(facility.messagesCount) || 0;
 
-    const cliniciansCount =
-      realClinicians > 0 ? realClinicians : facility.cliniciansCount || fallback.clinicians;
-    const doctorsCount = realClinicians > 0 ? docCount : fallback.doctors;
-    const pharmacistsCount = realClinicians > 0 ? pharmCount : fallback.pharmacists;
-    const patientsCount =
-      realPatients > 0 ? realPatients : facility.patientsCount || fallback.patients;
-    const messagesCount =
-      realMessages > 0 ? realMessages : facility.messagesCount || fallback.messages;
+    const cliniciansCount = realClinicians;
+    const doctorsCount = docCount;
+    const pharmacistsCount = pharmCount;
+    const patientsCount = realPatients;
+    const messagesCount = realMessages;
 
-    const adminName = facility.adminName || fallback.adminName;
-    const adminEmail = facility.adminEmail || fallback.adminEmail;
-    const paymentMethod =
-      facility.paymentMethod || fallback.paymentMethod || 'Bank transfer';
+    const adminName = facility.adminName || 'Hospital Admin';
+    const adminEmail = facility.adminEmail || facility.email || '';
+    const paymentMethod = facility.paymentMethod || 'Paystack';
 
     const renewalDate = facility.renewalDate
       ? new Date(facility.renewalDate)
-      : new Date('2026-11-02');
+      : new Date(new Date(facility.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
     const now = new Date();
     const daysRemaining = Math.ceil(
       (renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
@@ -1248,19 +1239,21 @@ export class SuperAdminService implements OnModuleInit {
 
     const facilities = await qb.getMany();
 
-    return facilities.map((f) => ({
-      id: f.id,
-      facilityName: f.name,
-      plan: f.plan,
-      renewalDate: f.renewalDate
-        ? this.formatRenewalDateDisplay(f.renewalDate)
-        : '02 Nov 2026',
-      rawRenewalDate: f.renewalDate,
-      amount: Number(f.monthlyFee),
-      formattedAmount: this.formatCurrency(Number(f.monthlyFee)),
-      status: f.status,
-      paymentStatus: f.paymentStatus,
-    }));
+    return facilities.map((f) => {
+      const renewalDateObj = f.renewalDate ? new Date(f.renewalDate) : null;
+      const amount = Number(f.monthlyFee) || (f.plan?.includes('Starter') ? 30000 : 70000);
+      return {
+        id: f.id,
+        facilityName: f.name,
+        plan: f.plan,
+        renewalDate: renewalDateObj ? this.formatRenewalDateDisplay(renewalDateObj) : 'Renewal date pending',
+        rawRenewalDate: f.renewalDate,
+        amount,
+        formattedAmount: this.formatCurrency(amount),
+        status: f.status,
+        paymentStatus: f.paymentStatus,
+      };
+    });
   }
 
   // ─── Platform Activities / Audit Log ──────────────────────────────────────
@@ -1629,23 +1622,50 @@ export class SuperAdminService implements OnModuleInit {
       }),
     ]);
 
-    const hospitalSet = new Set<string>();
+    const facilityRepo = this.dataSource.getRepository(Facility);
+    const messageLogRepo = this.dataSource.getRepository(MessageLog);
+
+    const [allFacilities, allLogs] = await Promise.all([
+      facilityRepo.find({ order: { createdAt: 'ASC' } }),
+      messageLogRepo.find({
+        select: {
+          id: true,
+          facilityName: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    const facilitiesMap = new Map<string, Facility>();
+    for (const fac of allFacilities) {
+      if (fac.name) facilitiesMap.set(fac.name.trim().toLowerCase(), fac);
+    }
+
+    const uniqueHospitalNames = new Set<string>();
+    for (const fac of allFacilities) {
+      if (fac.name && fac.name.trim()) uniqueHospitalNames.add(fac.name.trim());
+    }
     for (const u of allUsers) {
-      if (u.hospitalName && u.hospitalName.trim()) hospitalSet.add(u.hospitalName.trim());
+      if (u.hospitalName && u.hospitalName.trim()) uniqueHospitalNames.add(u.hospitalName.trim());
     }
     for (const p of allPrescriptions) {
-      if (p.hospitalName && p.hospitalName.trim()) hospitalSet.add(p.hospitalName.trim());
+      if (p.hospitalName && p.hospitalName.trim()) uniqueHospitalNames.add(p.hospitalName.trim());
     }
 
-// Real hospital adoption only
-
-
-    const hospitalList = Array.from(hospitalSet);
-
-    const facilities = hospitalList.map((hName, idx) => {
-      const hUsers = allUsers.filter((u) => u.hospitalName === hName);
-      const hPrescriptions = allPrescriptions.filter((p) => p.hospitalName === hName);
-      const hActivities = allActivities.filter((a) => a.hospitalName === hName);
+    const facilities = Array.from(uniqueHospitalNames).map((hName, idx) => {
+      const hFac = facilitiesMap.get(hName.toLowerCase());
+      const hUsers = allUsers.filter(
+        (u) => u.hospitalName && u.hospitalName.trim().toLowerCase() === hName.toLowerCase(),
+      );
+      const hPrescriptions = allPrescriptions.filter(
+        (p) => p.hospitalName && p.hospitalName.trim().toLowerCase() === hName.toLowerCase(),
+      );
+      const hActivities = allActivities.filter(
+        (a) => a.hospitalName && a.hospitalName.trim().toLowerCase() === hName.toLowerCase(),
+      );
+      const hLogs = allLogs.filter(
+        (l) => l.facilityName && l.facilityName.trim().toLowerCase() === hName.toLowerCase(),
+      );
 
       const doctors = hUsers.filter((u) => u.role === UserRole.DOCTOR);
       const pharmacists = hUsers.filter((u) => u.role === UserRole.PHARMACIST);
@@ -1667,11 +1687,19 @@ export class SuperAdminService implements OnModuleInit {
 
       const totalClinicians = doctors.length + pharmacists.length;
 
-      // Plan tier: Starter Plan (₦30k) or Growth Plan (₦70k)
-      const isStarter = idx % 4 === 1; // 2 of 8 are starter
-      const plan = isStarter ? SubscriptionPlan.STARTER : SubscriptionPlan.GROWTH;
-      const monthlyEquivalent = isStarter ? 30000 : 70000;
+      const plan = hFac?.plan || SubscriptionPlan.GROWTH;
+      const isStarter = plan.toLowerCase().includes('starter');
+      const monthlyEquivalent = Number(hFac?.monthlyFee) || (isStarter ? 30000 : 70000);
       const planAllowance = isStarter ? 2500 : 8000;
+
+      let status: 'active' | 'past-due' | 'trial' = 'active';
+      if (hFac?.status === FacilityStatus.TRIAL) {
+        status = 'trial';
+      } else if (hFac?.status === FacilityStatus.OVERDUE) {
+        status = 'past-due';
+      } else if (hFac?.status === FacilityStatus.PENDING_REVIEW) {
+        status = 'trial';
+      }
 
       let score = 0;
       if (doctors.length > 0) score += 20;
@@ -1679,37 +1707,33 @@ export class SuperAdminService implements OnModuleInit {
       if (patients.length > 0) score += 15;
       if (hPrescriptions.length > 0) score += 25;
       if (dispensedRx.length > 0) score += 20;
-      const adoptionScore = Math.min(100, score || (totalClinicians > 0 ? 55 : 30));
-
-      const status: 'active' | 'past-due' | 'trial' =
-        hName.includes('Kano')
-          ? 'trial'
-          : hName.includes('Harbor') || hName.includes('Cardiology')
-            ? 'past-due'
-            : 'active';
+      const adoptionScore = Math.min(100, score || (totalClinicians > 0 ? 55 : (patients.length > 0 ? 30 : 10)));
 
       const cleanName = hName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
-      const facilityId = `FAC-${cleanName}-${String(idx + 1).padStart(3, '0')}`;
+      const facilityId = hFac?.id || `FAC-${cleanName}-${String(idx + 1).padStart(3, '0')}`;
 
-      const joinedDate =
-        hUsers.length > 0
+      const joinedDate = hFac?.createdAt
+        ? new Date(hFac.createdAt)
+        : hUsers.length > 0
           ? new Date(Math.min(...hUsers.map((u) => new Date(u.createdAt).getTime())))
-          : new Date(now.getFullYear(), now.getMonth() - 4, 10);
+          : now;
 
-      const renewalDate = new Date(now.getFullYear(), now.getMonth() + 1, (idx % 28) + 1);
+      const renewalDate = hFac?.renewalDate
+        ? new Date(hFac.renewalDate)
+        : new Date(joinedDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      const messagesSent = offlinePatients.length * 4 + hPrescriptions.length * 2 + 30;
-      const messagesDelivered = Math.round(messagesSent * 0.976);
+      const messagesSent = hLogs.length;
+      const messagesDelivered = hLogs.filter((l) => l.status === MessageStatus.DELIVERED).length;
       const messagesFailed = messagesSent - messagesDelivered;
 
       return {
         facilityId,
         facilityName: hName,
-        state: 'Lagos',
-        area: 'Metropolitan',
+        state: hFac?.state || 'Lagos',
+        area: hFac?.address ? hFac.address.split(',')[0].trim() : 'Metropolitan',
         facilityType: 'General Hospital',
         plan,
-        billingCycle: 'Monthly',
+        billingCycle: hFac?.billingCycle || 'Monthly',
         status,
         monthlyEquivalent,
         clinicians: totalClinicians,
@@ -2066,15 +2090,39 @@ export class SuperAdminService implements OnModuleInit {
     // 1. Calculate Collected (last 90 days)
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const oneEightyDaysAgo = new Date();
+    oneEightyDaysAgo.setDate(oneEightyDaysAgo.getDate() - 180);
 
-    const collectedRaw = await txRepo
-      .createQueryBuilder('tx')
-      .select('SUM(tx.amount)', 'total')
-      .where('tx.status = :status', { status: PaymentTransactionStatus.SUCCESSFUL })
-      .andWhere('tx.createdAt >= :date', { date: ninetyDaysAgo })
-      .getRawOne();
+    const [collectedRaw, priorCollectedRaw] = await Promise.all([
+      txRepo
+        .createQueryBuilder('tx')
+        .select('SUM(tx.amount)', 'total')
+        .where('tx.status = :status', { status: PaymentTransactionStatus.SUCCESSFUL })
+        .andWhere('tx.createdAt >= :date', { date: ninetyDaysAgo })
+        .getRawOne(),
+      txRepo
+        .createQueryBuilder('tx')
+        .select('SUM(tx.amount)', 'total')
+        .where('tx.status = :status', { status: PaymentTransactionStatus.SUCCESSFUL })
+        .andWhere('tx.createdAt >= :startDate AND tx.createdAt < :endDate', {
+          startDate: oneEightyDaysAgo,
+          endDate: ninetyDaysAgo,
+        })
+        .getRawOne(),
+    ]);
 
     const collectedAmount = Number(collectedRaw?.total) || 0;
+    const priorCollectedAmount = Number(priorCollectedRaw?.total) || 0;
+    let collectedChangeText = '0% vs prior 90 days';
+    let collectedIsPositive = true;
+    if (priorCollectedAmount > 0) {
+      const diff = Math.round(((collectedAmount - priorCollectedAmount) / priorCollectedAmount) * 100);
+      collectedChangeText = `${diff >= 0 ? '+' : ''}${diff}% vs prior 90 days`;
+      collectedIsPositive = diff >= 0;
+    } else if (collectedAmount > 0) {
+      collectedChangeText = '+100% vs prior 90 days';
+      collectedIsPositive = true;
+    }
 
     // 2. Calculate Pending Settlement
     // "pending settlement: this are for those thta are yet to renew there plan thos that have not pay for that month"
@@ -2176,8 +2224,7 @@ export class SuperAdminService implements OnModuleInit {
     const [transactions, total] = await qb.getManyAndCount();
 
     const formattedTransactions = transactions.map((t) => {
-      // In the Figma mockup, reference displays cleanly like "PSK_8F2K19QX"
-      const displayReference = t.reference.replace(/-\d+$/, '').replace(/_HIST.*$/, 'PSK_8F2K19QX');
+      const displayReference = t.reference;
       const numAmount = Number(t.amount);
 
       let statusLabel = 'Successful';
@@ -2232,20 +2279,20 @@ export class SuperAdminService implements OnModuleInit {
         collectedLast90Days: {
           amount: collectedAmount,
           formatted: this.formatCurrency(collectedAmount),
-          change: '+1.2% vs last 90 days',
-          isPositive: true,
+          change: collectedChangeText,
+          isPositive: collectedIsPositive,
           periodLabel: 'Last 90 days',
         },
         pendingSettlement: {
           amount: pendingAmount,
           formatted: this.formatCurrency(pendingAmount),
-          change: '+1.2% vs last 90 days',
-          isPositive: true,
+          change: pendingAmount === 0 ? 'All current' : `${this.formatCurrency(pendingAmount)} uncollected`,
+          isPositive: pendingAmount === 0,
           description: 'Facilities yet to renew plan for that month',
         },
         failedCharges: {
           count: failedChargesCount,
-          subtext: 'Retries run after 2 and 5 days',
+          subtext: failedChargesCount === 0 ? 'No failed charges' : 'Retries run after 2 and 5 days',
           description: 'Failed subscription charges due to bank issues',
         },
       },
@@ -2479,19 +2526,19 @@ export class SuperAdminService implements OnModuleInit {
           return {
             balance: data.balance,
             formatted: `₦ ${Number(data.balance).toLocaleString('en-US')}`,
-            subtext: 'About 3 weeks at current rate',
+            subtext: 'Live Termii balance',
             currency: data.currency || 'NGN',
           };
         }
       } catch (err: any) {
-        this.logger.warn(`Termii balance query failed: ${err.message}. Using cached balance.`);
+        this.logger.warn(`Termii balance query failed: ${err.message}.`);
       }
     }
 
     return {
-      balance: 48000,
-      formatted: '₦ 48,000',
-      subtext: 'About 3 weeks at current rate',
+      balance: 0,
+      formatted: '₦ 0',
+      subtext: 'Live gateway balance',
       currency: 'NGN',
     };
   }
@@ -2652,26 +2699,44 @@ export class SuperAdminService implements OnModuleInit {
     ];
 
     // 5. Hospital Quota Usage (1,000 monthly SMS subscription quota per hospital)
-    const hospitals = await facilityRepo.find({
-      order: { messagesCount: 'DESC', createdAt: 'DESC' },
-    });
+    const [hospitals, facilityMsgCounts] = await Promise.all([
+      facilityRepo.find({ order: { createdAt: 'DESC' } }),
+      logRepo
+        .createQueryBuilder('m')
+        .select('LOWER(TRIM(m.facilityName))', 'name')
+        .addSelect('COUNT(*)', 'cnt')
+        .groupBy('LOWER(TRIM(m.facilityName))')
+        .getRawMany(),
+    ]);
 
-    const usageData = hospitals.map((h) => {
-      const used = Number(h.messagesCount) || 0;
-      const quota = 1000;
-      const percentage = Math.min(100, Number(((used / quota) * 100).toFixed(1)));
-      return {
-        id: h.id,
-        facilityName: h.name,
-        name: h.name,
-        used,
-        quota,
-        allowance: quota,
-        percentage,
-        barColor: percentage >= 90 ? 'amber' : 'blue',
-        status: percentage >= 90 ? 'warning' : 'normal',
-      };
-    });
+    const msgCountMap: Record<string, number> = {};
+    for (const row of facilityMsgCounts) {
+      if (row.name) {
+        msgCountMap[row.name] = Number(row.cnt) || 0;
+      }
+    }
+
+    const usageData = hospitals
+      .map((h) => {
+        const used = Math.max(
+          msgCountMap[h.name.toLowerCase().trim()] || 0,
+          Number(h.messagesCount) || 0,
+        );
+        const quota = 1000;
+        const percentage = Math.min(100, Number(((used / quota) * 100).toFixed(1)));
+        return {
+          id: h.id,
+          facilityName: h.name,
+          name: h.name,
+          used,
+          quota,
+          allowance: quota,
+          percentage,
+          barColor: percentage >= 90 ? 'amber' : 'blue',
+          status: percentage >= 90 ? 'warning' : 'normal',
+        };
+      })
+      .sort((a, b) => b.used - a.used);
 
     // Top 3 for the main dashboard card
     const topUsage = usageData.slice(0, 3);
@@ -2884,33 +2949,53 @@ export class SuperAdminService implements OnModuleInit {
    */
   async getHospitalMessagingUsage() {
     const facilityRepo = this.dataSource.getRepository(Facility);
-    const facilities = await facilityRepo.find({
-      order: { messagesCount: 'DESC', createdAt: 'DESC' },
-    });
+    const logRepo = this.dataSource.getRepository(MessageLog);
 
-    const facilityUsage = facilities.map((f) => {
-      const used = Number(f.messagesCount) || 0;
-      const quota = 1000;
-      const remaining = Math.max(0, quota - used);
-      const percentage = Math.min(100, Math.round((used / quota) * 100));
-      const status = percentage >= 90 ? 'warning' : 'normal';
-      return {
-        id: f.id,
-        facilityName: f.name,
-        name: f.name,
-        used,
-        quota,
-        allowance: quota,
-        remaining,
-        percentage,
-        status,
-        barColor: percentage >= 90 ? 'amber' : 'blue',
-        warningMessage:
-          percentage >= 90
-            ? 'Approaching monthly 1,000 message allocation limit (>90%)'
-            : undefined,
-      };
-    });
+    const [facilities, facilityMsgCounts] = await Promise.all([
+      facilityRepo.find({ order: { createdAt: 'DESC' } }),
+      logRepo
+        .createQueryBuilder('m')
+        .select('LOWER(TRIM(m.facilityName))', 'name')
+        .addSelect('COUNT(*)', 'cnt')
+        .groupBy('LOWER(TRIM(m.facilityName))')
+        .getRawMany(),
+    ]);
+
+    const msgCountMap: Record<string, number> = {};
+    for (const row of facilityMsgCounts) {
+      if (row.name) {
+        msgCountMap[row.name] = Number(row.cnt) || 0;
+      }
+    }
+
+    const facilityUsage = facilities
+      .map((f) => {
+        const used = Math.max(
+          msgCountMap[f.name.toLowerCase().trim()] || 0,
+          Number(f.messagesCount) || 0,
+        );
+        const quota = 1000;
+        const remaining = Math.max(0, quota - used);
+        const percentage = Math.min(100, Math.round((used / quota) * 100));
+        const status = percentage >= 90 ? 'warning' : 'normal';
+        return {
+          id: f.id,
+          facilityName: f.name,
+          name: f.name,
+          used,
+          quota,
+          allowance: quota,
+          remaining,
+          percentage,
+          status,
+          barColor: percentage >= 90 ? 'amber' : 'blue',
+          warningMessage:
+            percentage >= 90
+              ? 'Approaching monthly 1,000 message allocation limit (>90%)'
+              : undefined,
+        };
+      })
+      .sort((a, b) => b.used - a.used);
 
     return {
       title: 'Facility Message Usage & Allocation',
