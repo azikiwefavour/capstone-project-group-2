@@ -367,7 +367,7 @@ export default function SelectPlan() {
                     <ul className="mt-2 space-y-1 text-xs text-[#4B5563]">
                       <li>• Up to 15 clinicians (doctors & pharmacists)</li>
                       <li>• Up to 300 active patient profiles</li>
-                      <li>• 1,000 monthly SMS notifications via Termii</li>
+                      <li>• 1,000 monthly SMS notifications via Bulk SMS</li>
                       <li>• Pay with Debit/Credit Card or Bank Transfer</li>
                       <li>• Standard email & phone support</li>
                     </ul>
@@ -425,7 +425,7 @@ export default function SelectPlan() {
                     <ul className="mt-2 space-y-1 text-xs text-[#4B5563]">
                       <li>• Unlimited doctors, pharmacists & staff</li>
                       <li>• Unlimited patients & offline SMS reminders</li>
-                      <li>• 8,000 monthly SMS notifications via Termii</li>
+                      <li>• 8,000 monthly SMS notifications via Bulk SMS</li>
                       <li>• Pay with Debit/Credit Card or Bank Transfer</li>
                       <li>• Priority MDCN audit export & 24/7 dedicated support</li>
                     </ul>

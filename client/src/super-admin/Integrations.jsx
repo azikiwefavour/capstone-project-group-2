@@ -5,8 +5,8 @@ import OverviewSectionState from './OverviewSectionState.jsx'
 const services = [
   { id: 'medtrail', name: 'Medtrail API', path: 'M22 12h-4l-3 9L9 3l-3 9H2', bg: 'bg-[#E6F4EA] text-[#137333] dark:bg-[#132C1E] dark:text-[#86EFAC]' },
   { id: 'paystack', name: 'Paystack', path: 'M3 6h18v13H3z M3 10h18 M7 15h3', bg: 'bg-[#E0F2F1] text-[#00796B] dark:bg-[#112D29] dark:text-[#80CBC4]' },
-  { id: 'termii-sms', name: 'Termii SMS', path: 'M3 4h18v13H9l-6 4z M7 8h10 M7 12h6', bg: 'bg-[#F3E5F5] text-[#7B1FA2] dark:bg-[#2A1830] dark:text-[#CE93D8]' },
-  { id: 'termii-whatsapp', name: 'Termii WhatsApp', path: 'M21 11.5a9 9 0 0 1-13 8L3 21l1.5-5A9 9 0 1 1 21 11.5 M8 8c0 4 2 6 6 6', bg: 'bg-[#F3E5F5] text-[#7B1FA2] dark:bg-[#2A1830] dark:text-[#CE93D8]' },
+  { id: 'bulk-sms', matchIds: ['bulk-sms', 'termii-sms'], name: 'Bulk SMS', path: 'M3 4h18v13H9l-6 4z M7 8h10 M7 12h6', bg: 'bg-[#F3E5F5] text-[#7B1FA2] dark:bg-[#2A1830] dark:text-[#CE93D8]' },
+  { id: 'bulk-whatsapp', matchIds: ['bulk-whatsapp', 'termii-whatsapp'], name: 'Bulk WhatsApp', path: 'M21 11.5a9 9 0 0 1-13 8L3 21l1.5-5A9 9 0 1 1 21 11.5 M8 8c0 4 2 6 6 6', bg: 'bg-[#F3E5F5] text-[#7B1FA2] dark:bg-[#2A1830] dark:text-[#CE93D8]' },
 ]
 
 const statuses = {
@@ -28,7 +28,7 @@ export default function Integrations({ state = { status: 'unavailable' }, onRetr
       <OverviewSectionState state={viewState} onRetry={onRetry} emptyText="No integration health data available." unavailableText="Integration health monitoring is not connected yet." />
       <ul aria-label="Integration service health" className="mt-4 divide-y divide-[#E2E5ED] dark:divide-[#253248]">
         {services.map(service => {
-          const health = integrationHealth(viewState.status === 'ready' ? state.data.find(record => record?.id === service.id) : null)
+          const health = integrationHealth(viewState.status === 'ready' ? state.data.find(record => record?.id === service.id || service.matchIds?.includes(record?.id)) : null)
           const status = statuses[health.status] || statuses.unavailable
           return (
             <li key={service.id} className="flex items-center gap-3.5 py-3.5">

@@ -92,7 +92,7 @@ export function mapMessagingResponse(value) {
       }))
     : []
 
-  const credit = amount(value.summary?.termiiCredit?.balance) ?? 0
+  const credit = amount(value.summary?.bulkCredit?.balance ?? value.summary?.bulkSmsCredit?.balance ?? value.summary?.termiiCredit?.balance) ?? 0
 
   return {
     status: messageLog.length ? 'ready' : 'empty',

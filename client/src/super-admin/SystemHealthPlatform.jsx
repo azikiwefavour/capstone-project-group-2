@@ -12,7 +12,8 @@ const descriptions = {
   database: 'Application data storage',
   signin: 'Account access and verification',
   paystack: 'Subscription payment processing',
-  'termii-sms': 'SMS delivery',
+  'bulk-sms': 'SMS delivery via BulkSMS',
+  'termii-sms': 'SMS delivery via BulkSMS',
   'termii-whatsapp': 'WhatsApp delivery',
 }
 

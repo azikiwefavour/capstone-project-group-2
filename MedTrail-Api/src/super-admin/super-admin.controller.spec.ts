@@ -41,8 +41,8 @@ describe('SuperAdminController', () => {
   const mockIntegrations = [
     { name: 'Medtrail API', uptimePercent: 99.0, latencyMs: 182, status: 'operational' },
     { name: 'Paystack', uptimePercent: 99.0, latencyMs: 410, status: 'operational' },
-    { name: 'Termii SMS', uptimePercent: 99.21, latencyMs: 2.9, status: 'degraded' },
-    { name: 'Termii WhatsApp', uptimePercent: 99.21, latencyMs: 640, status: 'operational' },
+    { name: 'Bulk SMS', uptimePercent: 99.21, latencyMs: 2.9, status: 'degraded' },
+    { name: 'Bulk WhatsApp', uptimePercent: 99.21, latencyMs: 640, status: 'operational' },
   ];
 
   beforeEach(() => {
@@ -103,10 +103,10 @@ describe('SuperAdminController', () => {
     expect(result.stats.messagesSent.deliveryPercentage).toBe(97.6);
   });
 
-  it('should return integration statuses with Termii SMS degraded', async () => {
+  it('should return integration statuses with Bulk SMS degraded', async () => {
     const integrations = await controller.getIntegrations();
     expect(integrations).toHaveLength(4);
-    const sms = integrations.find((i) => i.name === 'Termii SMS');
+    const sms = integrations.find((i) => i.name === 'Bulk SMS' || i.name === 'Termii SMS');
     expect(sms?.status).toBe('degraded');
   });
 

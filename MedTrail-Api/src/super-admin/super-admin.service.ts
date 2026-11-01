@@ -1896,7 +1896,7 @@ export class SuperAdminService implements OnModuleInit {
       { metric: 'Growth Plan Subscribers', value: 8, unit: 'Count', definition: 'Subscribed at ₦70,000 / month' },
       { metric: 'Total Patients on Record', value: 5638, unit: 'Count', definition: 'Patients recorded across all 5 live facilities' },
       { metric: 'Total Messages Sent', value: 3366, unit: 'Count', definition: 'Total SMS & dosage notifications dispatched' },
-      { metric: 'Message Delivery Rate', value: 0.976, unit: 'Percentage', definition: 'Percentage confirmed delivered via Termii SMS gateway', isPercent: true },
+      { metric: 'Message Delivery Rate', value: 0.976, unit: 'Percentage', definition: 'Percentage confirmed delivered via BulkSMS Nigeria gateway', isPercent: true },
     ];
 
     summaryRows.forEach((r) => {
@@ -2026,7 +2026,7 @@ export class SuperAdminService implements OnModuleInit {
         delivered: f.messagesDelivered,
         failed: f.messagesFailed,
         rate: 0.976,
-        provider: 'Termii SMS / WhatsApp',
+        provider: 'BulkSMS Nigeria',
       });
       row.getCell(2).numFmt = '#,##0';
       row.getCell(3).numFmt = '#,##0';
@@ -2504,19 +2504,46 @@ export class SuperAdminService implements OnModuleInit {
   /**
    * Retrieves Termii wallet balance (via Termii API or fallback)
    */
-  async getTermiiBalance(): Promise<{
+  /**
+   * Retrieves BulkSMS wallet balance (via BulkSMS Nigeria API or Termii fallback)
+   */
+  async getBulkSmsBalance(): Promise<{
     balance: number;
     formatted: string;
     subtext: string;
     currency: string;
   }> {
+    const bulkToken = this.configService?.get<string>('BULKSMS_NIGERIA_API_TOKEN');
+    if (bulkToken && bulkToken.length > 10 && bulkToken !== 'YOUR_BULKSMS_TOKEN') {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(`https://www.bulksmsnigeria.com/api/v2/balance?api_token=${bulkToken.trim()}`, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+        const balanceVal = Number(data?.balance?.total_balance ?? data?.data?.balance ?? data?.balance);
+        if (Number.isFinite(balanceVal)) {
+          return {
+            balance: balanceVal,
+            formatted: `₦ ${balanceVal.toLocaleString('en-US')}`,
+            subtext: 'Live Bulk SMS balance',
+            currency: 'NGN',
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`BulkSMS balance query failed: ${err.message}.`);
+      }
+    }
+
     const apiKey = this.configService?.get<string>('TERMII_API_KEY');
     const baseUrl = this.configService?.get<string>('TERMII_BASE_URL') || 'https://api.ng.termii.com';
-
     if (apiKey && apiKey !== 'YOUR_TERMII_API_KEY' && apiKey.length > 10) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
         const res = await fetch(`${baseUrl}/api/get-balance?api_key=${apiKey}`, {
           signal: controller.signal,
         });
@@ -2526,12 +2553,12 @@ export class SuperAdminService implements OnModuleInit {
           return {
             balance: data.balance,
             formatted: `₦ ${Number(data.balance).toLocaleString('en-US')}`,
-            subtext: 'Live Termii balance',
+            subtext: 'Live SMS balance',
             currency: data.currency || 'NGN',
           };
         }
       } catch (err: any) {
-        this.logger.warn(`Termii balance query failed: ${err.message}.`);
+        this.logger.warn(`SMS balance query failed: ${err.message}.`);
       }
     }
 
@@ -2541,6 +2568,10 @@ export class SuperAdminService implements OnModuleInit {
       subtext: 'Live gateway balance',
       currency: 'NGN',
     };
+  }
+
+  async getTermiiBalance() {
+    return this.getBulkSmsBalance();
   }
 
   /**
@@ -2576,7 +2607,7 @@ export class SuperAdminService implements OnModuleInit {
     const facilityRepo = this.dataSource.getRepository(Facility);
 
     // 1. Termii Credit
-    const termii = await this.getTermiiBalance();
+    const termii = await this.getBulkSmsBalance();
 
     // 2. Calendar Month Boundaries
     const now = new Date();
@@ -2694,7 +2725,7 @@ export class SuperAdminService implements OnModuleInit {
         channel: 'SMS',
         percentage: totalSent > 0 ? Number(((prescriptionDetailsCount / totalSent) * 100).toFixed(1)) : 0,
         progressBarWidth: totalSent > 0 ? `${Math.round((prescriptionDetailsCount / totalSent) * 100)}%` : '0%',
-        description: 'Prescription dosage and pharmacy dispense notices via Termii SMS',
+        description: 'Prescription dosage and pharmacy dispense notices via Bulk SMS',
       },
     ];
 
@@ -2900,6 +2931,22 @@ export class SuperAdminService implements OnModuleInit {
           subtext: currentMonthFailed === 0 ? 'No delivery failures recorded' : `${currentMonthFailed} delivery ${currentMonthFailed === 1 ? 'failure' : 'failures'} recorded`,
           statusColor: currentMonthFailed > 0 ? 'red' : 'green',
         },
+        bulkCredit: {
+          balance: termii.balance,
+          formatted: termii.formatted,
+          subtext: termii.subtext,
+          currency: termii.currency,
+          remainingNaira: termii.balance,
+          estimatedWeeks: 3,
+        },
+        bulkSmsCredit: {
+          balance: termii.balance,
+          formatted: termii.formatted,
+          subtext: termii.subtext,
+          currency: termii.currency,
+          remainingNaira: termii.balance,
+          estimatedWeeks: 3,
+        },
         termiiCredit: {
           balance: termii.balance,
           formatted: termii.formatted,
@@ -2911,7 +2958,7 @@ export class SuperAdminService implements OnModuleInit {
       },
       months: monthsData,
       provider: {
-        name: 'Termii',
+        name: 'BulkSMS',
         status: 'active',
         isLive: true,
         supportedChannels: ['SMS', 'WhatsApp', 'Email'],
@@ -3030,7 +3077,7 @@ export class SuperAdminService implements OnModuleInit {
         content: params.content,
         channel: params.channel || MessageChannel.SMS,
         status: params.status || MessageStatus.DELIVERED,
-        provider: params.provider || 'Termii',
+        provider: params.provider || 'BulkSMS',
         failureReason: params.failureReason,
         cost: params.cost || 0,
       });

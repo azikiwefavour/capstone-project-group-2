@@ -60,7 +60,7 @@ export default function SuperAdminLayout({ profile, onLogout, preview = false, p
                   : page === 'payments'
                   ? 'Local design preview — no active login, payment data or gateway connection.'
                   : page === 'messaging'
-                  ? 'Local design preview — no active login, messaging data or Termii connection.'
+                  ? 'Local design preview — no active login, messaging data or Bulk SMS connection.'
                   : page === 'system-health'
                   ? 'Local design preview — no active login, monitoring data or automatic checks.'
                   : page === 'audit-log'

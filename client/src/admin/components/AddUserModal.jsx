@@ -216,7 +216,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
       const invitedName = name.trim()
       const invitedRole = role
       resetForm()
-      onSuccess(isPatient && isOffline ? 'Patient registered as SMS-only patient! Welcome SMS sent via Termii.' : 'Invitation created successfully.')
+      onSuccess(isPatient && isOffline ? 'Patient registered as SMS-only patient! Welcome SMS sent via Bulk SMS.' : 'Invitation created successfully.')
       if (directInviteLink && !isOffline) {
         setCreatedInvite({ link: directInviteLink, name: invitedName, role: invitedRole })
       } else if (testLink) {
@@ -365,7 +365,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
                 <div>
                   <span>SMS-only / Offline Patient (no email needed)</span>
                   <p className="text-xs font-normal text-[#52556C] mt-0.5">
-                    Offline patients receive prescriptions and alerts via Termii SMS without needing portal email access.
+                    Offline patients receive prescriptions and alerts via Bulk SMS SMS without needing portal email access.
                   </p>
                 </div>
               </label>
@@ -429,7 +429,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
             <FieldError id="new-user-phone-error" message={phoneError} />
             {isPatient && (
               <p className="mt-1 text-xs text-[#52556C]">
-                Prescription updates and reminders are sent to this number via Termii SMS.
+                Prescription updates and reminders are sent to this number via Bulk SMS SMS.
               </p>
             )}
           </div>
@@ -541,7 +541,7 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
                     className="h-10 w-full rounded-xl border border-[#D8DCE5] bg-white px-3 text-sm text-[#111827] outline-none placeholder:text-[#A6ADBA] focus:border-[#475AA2] focus:ring-4 focus:ring-[#475AA2]/15"
                   />
                   <p className="mt-1 text-[11px] text-[#7A8190]">
-                    Caregivers automatically receive SMS copies of all prescriptions & dosage alerts via Termii. Leave blank if patient has no guardian.
+                    Caregivers automatically receive SMS copies of all prescriptions & dosage alerts via Bulk SMS. Leave blank if patient has no guardian.
                   </p>
                 </div>
               </div>
