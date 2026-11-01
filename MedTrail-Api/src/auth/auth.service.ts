@@ -379,6 +379,11 @@ export class AuthService implements OnModuleInit {
 
     // Users with no password yet must set one first
     if (!user.password) {
+      if (user.isInvited || user.invitationStatus === 'pending') {
+        throw new UnauthorizedException(
+          'Your account registration is pending. Please complete your registration via the invitation link sent to your email, or click "Forgot password" to set your password.',
+        );
+      }
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -402,16 +407,20 @@ export class AuthService implements OnModuleInit {
       user.role = UserRole.ADMIN;
     }
 
-    if (userRole) {
-      if (userRole === UserRole.SUPER_ADMIN) {
-        if (dto.role && dto.role !== UserRole.ADMIN && dto.role !== UserRole.SUPER_ADMIN) {
+    const userRoleLower = userRole?.toLowerCase();
+    const dtoRoleLower = dto.role?.toLowerCase();
+
+    if (userRoleLower) {
+      if (userRoleLower === UserRole.SUPER_ADMIN) {
+        if (dtoRoleLower && dtoRoleLower !== UserRole.ADMIN && dtoRoleLower !== UserRole.SUPER_ADMIN) {
           throw new UnauthorizedException('Invalid email or password');
         }
-      } else if (userRole === UserRole.ADMIN && dto.role && dto.role !== UserRole.ADMIN) {
+      } else if (userRoleLower === UserRole.ADMIN && dtoRoleLower && dtoRoleLower !== UserRole.ADMIN) {
         throw new UnauthorizedException('Invalid email or password');
-      } else if (userRole !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
-        throw new UnauthorizedException('Invalid email or password');
-      } else if (dto.role && userRole !== dto.role) {
+      } else if (userRoleLower !== UserRole.ADMIN && dtoRoleLower === UserRole.ADMIN) {
+        // User logged in via generic /login (which defaults to 'admin'), but belongs to Doctor, Pharmacist, or Patient role.
+        // Allow seamless login into their actual assigned role.
+      } else if (dtoRoleLower && userRoleLower !== dtoRoleLower) {
         throw new UnauthorizedException('Invalid email or password');
       }
     } else {

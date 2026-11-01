@@ -149,9 +149,16 @@ function AdminDashboard() {
       <AdminHeader adminName={adminName} />
 
       <section className="mt-4">
-        <h1 className="text-2xl font-semibold tracking-normal text-[#111827]">
-          Admin dashboard
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-normal text-[#111827]">
+            Admin dashboard
+          </h1>
+          {dashboard.stats?.planLimits?.planName && (
+            <span className="inline-flex items-center rounded-full bg-[#EEF0FF] px-3 py-1 text-xs font-semibold text-[#475AA2]">
+              {dashboard.stats.planLimits.planName}
+            </span>
+          )}
+        </div>
         <p className="mt-2 max-w-2xl text-base leading-relaxed text-[#7A8190]">
           Manage accounts and review activity. Clinical medication data is available here.
         </p>
@@ -159,26 +166,37 @@ function AdminDashboard() {
 
       {dashboard.statsError && <div role="alert" className="mt-3 text-sm text-[#E5484D]">{dashboard.statsError} <button type="button" className="font-semibold text-[#475AA2]" onClick={() => setReloadKey((key) => key + 1)}>Try again</button></div>}
       <section className="mt-[22px] grid gap-4 lg:grid-cols-3 lg:gap-[22px]" aria-busy={dashboard.loading}>
-        {summaryCards.map((card) => (
-          <article
-            key={card.label}
-            className="flex min-h-[112px] items-center justify-between rounded-2xl border border-[#E2E5ED] bg-white p-5 shadow-sm shadow-[#111827]/[0.03] lg:h-[110px] lg:min-h-0"
-          >
-            <div>
-              <p className="text-3xl font-semibold tracking-normal text-[#111827]">
-                {dashboard.loading ? '...' : dashboard.stats ? dashboard.stats.byRole[card.role] ?? 0 : '-'}
-              </p>
-              <p className="mt-1.5 text-sm font-medium text-[#7A8190]">
-                {card.label}
-              </p>
-            </div>
-            <div
-              className={`flex h-14 w-14 items-center justify-center rounded-2xl ${card.iconClassName}`}
+        {summaryCards.map((card) => {
+          const count = dashboard.loading ? '...' : dashboard.stats ? dashboard.stats.byRole[card.role] ?? 0 : '-'
+          const limits = dashboard.stats?.planLimits
+          const max = limits ? (card.role === 'doctor' ? limits.maxDoctors : card.role === 'pharmacist' ? limits.maxPharmacists : limits.maxPatients) : null
+
+          return (
+            <article
+              key={card.label}
+              className="flex min-h-[112px] items-center justify-between rounded-2xl border border-[#E2E5ED] bg-white p-5 shadow-sm shadow-[#111827]/[0.03] lg:h-[110px] lg:min-h-0"
             >
-              {card.icon}
-            </div>
-          </article>
-        ))}
+              <div>
+                <p className="text-3xl font-semibold tracking-normal text-[#111827]">
+                  {count}
+                </p>
+                <p className="mt-1.5 text-sm font-medium text-[#7A8190]">
+                  {card.label}
+                  {max && typeof count === 'number' && (
+                    <span className="ml-1.5 text-xs text-[#52556C] font-normal">
+                      ({count}/{max} limit)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div
+                className={`flex h-14 w-14 items-center justify-center rounded-2xl ${card.iconClassName}`}
+              >
+                {card.icon}
+              </div>
+            </article>
+          )
+        })}
       </section>
 
       <section className="mt-[38px] grid gap-4 xl:grid-cols-2 lg:gap-[22px]">

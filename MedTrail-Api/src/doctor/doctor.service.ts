@@ -6,8 +6,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { Repository, ILike, DataSource } from 'typeorm';
+import { Facility, FacilityStatus, SubscriptionPlan } from '../super-admin/entities/facility.entity';
 import { Prescription, PrescriptionStatus } from './entities/prescription.entity';
 import { Activity } from './entities/activity.entity';
 import { UsersService } from '../users/users.service';
@@ -66,6 +67,7 @@ export class DoctorService {
     private readonly usersService: UsersService,
     private readonly mailService: MailService,
     private readonly smsService: SmsService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   // ─── Invite / Register Patient ──────────────────────────────────────────
@@ -79,6 +81,32 @@ export class DoctorService {
     let effectiveEmail = dto.email ? dto.email.trim().toLowerCase() : '';
     const cleanPhone = dto.phone ? dto.phone.trim() : null;
     const isOffline = !effectiveEmail;
+
+    // Enforce patient quota based on hospital subscription plan
+    try {
+      const facilityRepo = this.dataSource.getRepository(Facility);
+      const facility = await facilityRepo.findOne({
+        where: { name: ILike(hospitalName.trim()) },
+      });
+      const isStarter = facility?.plan === SubscriptionPlan.STARTER || String(facility?.plan || '').toLowerCase().includes('starter');
+      const isTrial = facility?.status === FacilityStatus.TRIAL || facility?.paymentStatus === 'trial';
+      const maxPatients = isTrial ? 50 : isStarter ? 300 : 1500;
+      const planName = isTrial ? 'Free Trial' : isStarter ? 'Starter Plan' : 'Growth Plan';
+
+      const allUsers = await this.usersService.findAll();
+      const currentPatients = allUsers.filter(
+        (u) => u.hospitalName && u.hospitalName.trim().toLowerCase() === hospitalName.trim().toLowerCase() && (u.role === UserRole.PATIENT || u.invitedRole === UserRole.PATIENT),
+      ).length;
+
+      if (currentPatients >= maxPatients) {
+        throw new BadRequestException(
+          `Patient quota reached: Your facility has reached the maximum of ${maxPatients} patients allowed on the ${planName}. Please ask your hospital administrator to upgrade in Payment Settings.`,
+        );
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.warn(`Could not verify patient quota: ${err.message}`);
+    }
 
     if (!effectiveEmail && !cleanPhone) {
       throw new BadRequestException('Either an email or phone number is required to register a patient');

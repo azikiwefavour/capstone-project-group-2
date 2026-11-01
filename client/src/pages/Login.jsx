@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
+import { setDoctorAccessToken } from '../auth/doctorSession'
+import { setPharmacistAccessToken } from '../auth/pharmacistSession'
+import { setPatientAccessToken } from '../auth/patientSession'
 import { isValidPreviewPassword, startDoctorPreviewSession } from '../doctor/previewAuth'
 import medicationImage from '../assets/medication-image.png'
 import PaymentGatingModal from '../components/PaymentGatingModal'
@@ -253,7 +256,14 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
         }
         navigate('/admin/dashboard', { replace: true })
       } else if (data.user.role === 'doctor') {
+        setDoctorAccessToken(data.accessToken)
         navigate('/doctor/dashboard', { replace: true })
+      } else if (data.user.role === 'pharmacist') {
+        setPharmacistAccessToken(data.accessToken)
+        navigate('/pharmacist/dashboard', { replace: true })
+      } else if (data.user.role === 'patient') {
+        setPatientAccessToken(data.accessToken)
+        navigate('/patient/prescriptions', { replace: true })
       } else {
         setLoginNotice('Login successful. The dashboard for your role is not available yet.')
       }

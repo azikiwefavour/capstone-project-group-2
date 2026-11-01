@@ -51,6 +51,8 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [patientTestLink, setPatientTestLink] = useState(null)
+  const [createdInvite, setCreatedInvite] = useState(null)
+  const [copied, setCopied] = useState(false)
   const submissionInFlight = useRef(false)
   const isEditing = Boolean(initialUser)
 
@@ -151,6 +153,8 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
     setTouchedFields({})
     setSubmitClicked(false)
     setPatientTestLink(null)
+    setCreatedInvite(null)
+    setCopied(false)
   }
 
   function handleRoleChange(nextRole) {
@@ -208,11 +212,18 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
         },
       })
       const testLink = import.meta.env.DEV && isPatient && !isOffline ? patientRegistrationTestUrl(result, window.location.origin) : null
+      const directInviteLink = result?.frontendInviteUrl || testLink
+      const invitedName = name.trim()
+      const invitedRole = role
       resetForm()
-      // The current API does not report mail delivery failures.
       onSuccess(isPatient && isOffline ? 'Patient registered as SMS-only patient! Welcome SMS sent via Termii.' : 'Invitation created successfully.')
-      if (testLink) setPatientTestLink(testLink)
-      else onClose()
+      if (directInviteLink && !isOffline) {
+        setCreatedInvite({ link: directInviteLink, name: invitedName, role: invitedRole })
+      } else if (testLink) {
+        setPatientTestLink(testLink)
+      } else {
+        onClose()
+      }
     } catch (error) {
       setSubmitError(error.message)
     } finally {
@@ -242,10 +253,10 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
               id="add-user-title"
               className="text-2xl font-semibold tracking-normal text-[#111827]"
             >
-              {patientTestLink ? 'Patient invitation created' : isEditing ? 'Edit user' : 'Add new user'}
+              {createdInvite ? 'Invitation created' : patientTestLink ? 'Patient invitation created' : isEditing ? 'Edit user' : 'Add new user'}
             </h2>
             <p id="add-user-description" className="mt-2 text-base text-[#7A8190]">
-              {patientTestLink ? 'Email delivery has not been confirmed.' : 'Fill in the users details'}
+              {createdInvite ? 'Share the registration link with the user' : patientTestLink ? 'Email delivery has not been confirmed.' : 'Fill in the users details'}
             </p>
           </div>
 
@@ -272,7 +283,49 @@ function AddUserModal({ isOpen, onClose, onSuccess, initialUser = null }) {
           </button>
         </div>
 
-        {patientTestLink ? <div className="mt-7 space-y-4 text-sm text-[#7A8190]">
+        {createdInvite ? (
+          <div className="mt-7 space-y-4 text-sm text-[#7A8190]">
+            <div className="rounded-2xl border border-[#D0E7DC] bg-[#F4FBF7] p-5 text-[#111827]">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#D0E7DC] text-[#2F7D59]">
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="h-3.5 w-3.5"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+                <p className="font-semibold text-[#2F7D59]">
+                  Invitation created for {createdInvite.name} ({createdInvite.role})
+                </p>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-[#52556C]">
+                An invitation email has been sent. You can also copy and share the direct registration link with them:
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={createdInvite.link}
+                  className="h-10 flex-1 rounded-xl border border-[#D8DCE5] bg-white px-3 text-xs text-[#111827] outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(createdInvite.link)
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  }}
+                  className="h-10 shrink-0 rounded-xl bg-[#475AA2] px-4 text-xs font-semibold text-white transition hover:bg-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
+                >
+                  {copied ? 'Copied!' : 'Copy Link'}
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="inline-flex min-h-11 items-center rounded-xl bg-[#475AA2] px-6 font-semibold text-white focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25"
+            >
+              Done
+            </button>
+          </div>
+        ) : patientTestLink ? <div className="mt-7 space-y-4 text-sm text-[#7A8190]">
           <p>For local testing, open Patient registration on this frontend. The invitation token remains in this browser link only.</p>
           <a href={patientTestLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-xl bg-[#475AA2] px-4 font-semibold text-white focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">Open Patient registration</a>
           <p>Email links use the backend’s FRONTEND_URL setting. This testing link does not change email configuration.</p>

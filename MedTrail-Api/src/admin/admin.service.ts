@@ -15,6 +15,7 @@ import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { Activity } from '../doctor/entities/activity.entity';
 import { UserRole } from '../users/entities/user.entity';
 import { SmsService } from '../sms/sms.service';
+import { SubscriptionService } from './subscription.service';
 
 function formatActivityDate(date: Date): string {
   if (!date) return '';
@@ -46,6 +47,7 @@ export class AdminService {
     private mailService: MailService,
     private configService: ConfigService,
     private readonly smsService: SmsService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   private getFrontendUrl(): string {
@@ -139,6 +141,8 @@ export class AdminService {
       };
     });
 
+    const planLimits = await this.subscriptionService.getHospitalPlanLimits(admin.hospitalName, admin.email);
+
     return {
       totalUsers: total,
       byRole,
@@ -147,6 +151,13 @@ export class AdminService {
       invitedPending: pending,
       invitedAccepted: accepted,
       recentActivities,
+      planLimits: {
+        ...planLimits,
+        currentDoctors: byRole['doctor'] || 0,
+        currentPharmacists: byRole['pharmacist'] || 0,
+        currentClinicians: (byRole['doctor'] || 0) + (byRole['pharmacist'] || 0),
+        currentPatients: byRole['patient'] || 0,
+      },
     };
   }
 
@@ -230,6 +241,11 @@ export class AdminService {
     const adminUser = adminId ? await this.usersService.findById(adminId) : null;
     const resolvedHospital = adminUser?.hospitalName || dto.hospitalName || null;
 
+    // Enforce subscription plan quotas for doctors, pharmacists, and patients
+    if (resolvedHospital) {
+      await this.subscriptionService.assertCanAddUser(resolvedHospital, dto.role, adminUser?.email);
+    }
+
     // 2. Generate a secure invitation token (UUID) and set 48h expiry
     const token = randomUUID();
     const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
@@ -310,6 +326,7 @@ export class AdminService {
       this.logger.warn(`Failed to log admin invite activity: ${err.message}`);
     }
 
+    await this.subscriptionService.syncFacilityCounts(resolvedHospital, adminUser?.email);
     this.logger.log(`Invitation created for ${user.email} (${dto.role})`);
 
     return {
