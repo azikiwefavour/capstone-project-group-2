@@ -45,6 +45,17 @@ function DoctorLayout({ view = 'overview', background = 'default', children }) {
     return () => { window.clearTimeout(timer); window.removeEventListener('focus', onFocus) }
   }, [token])
 
+  
+  useEffect(() => {
+    function onProfileUpdated(event) {
+      if (event?.detail?.name) {
+        setVerification(current => current ? { ...current, name: event.detail.name } : current)
+      }
+    }
+    window.addEventListener('medtrail:profile-updated', onProfileUpdated)
+    return () => window.removeEventListener('medtrail:profile-updated', onProfileUpdated)
+  }, [])
+
   function handleLogout() {
     setDoctorAccessToken(null)
     endDoctorPreviewSession()

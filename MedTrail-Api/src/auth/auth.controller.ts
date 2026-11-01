@@ -28,6 +28,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { renderAcceptInviteHtml, renderInvalidInviteHtml } from './templates/accept-invite.template';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';

@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import SettingsProfileContext from '../../auth/SettingsProfileContext'
 import SettingsModal from '../../components/SettingsModal'
 
@@ -16,15 +16,41 @@ function IconButton({ label, onClick, disabled, children }) {
   )
 }
 
-function AdminHeader({ adminName }) {
+function AdminHeader({ adminName, onProfileUpdate }) {
   const profile = useContext(SettingsProfileContext)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const effectiveProfile = profile || { name: adminName || 'Admin', email: '' }
+  const [localName, setLocalName] = useState('')
+  const currentName = localName || adminName || profile?.name || ''
+  const effectiveProfile = {
+    name: currentName || 'Admin',
+    email: profile?.email || '',
+  }
+
+  useEffect(() => {
+    function onEvent(event) {
+      if (event?.detail?.name) {
+        setLocalName(event.detail.name)
+      }
+    }
+    window.addEventListener('medtrail:profile-updated', onEvent)
+    return () => window.removeEventListener('medtrail:profile-updated', onEvent)
+  }, [])
+
+  function handleProfileUpdated(newName) {
+    setLocalName(newName)
+    if (typeof onProfileUpdate === 'function') {
+      onProfileUpdate(newName)
+    }
+  }
+
+  const initial = currentName
+    ? currentName.replace(/^(Dr\.?|Pharm\.?)\s+/i, '').charAt(0).toUpperCase() || currentName.charAt(0).toUpperCase()
+    : 'A'
 
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xl font-bold tracking-tight text-[#0F172A] dark:text-[#F8FAFC]">
-        {adminName ? `Welcome, ${adminName}` : 'Welcome'}
+        {currentName ? `Welcome, ${currentName}` : 'Welcome'}
       </p>
       <div className="flex items-center justify-end gap-2.5">
         <IconButton label="Open settings" onClick={() => setSettingsOpen(true)}>
@@ -43,10 +69,10 @@ function AdminHeader({ adminName }) {
           </svg>
         </IconButton>
         <div aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-[#475AA2] to-[#7B8ED8] text-sm font-bold text-white shadow-xs">
-          {adminName ? adminName.charAt(0).toUpperCase() : 'A'}
+          {initial}
         </div>
       </div>
-      {settingsOpen && <SettingsModal profile={effectiveProfile} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal profile={effectiveProfile} onProfileUpdate={handleProfileUpdated} onClose={() => setSettingsOpen(false)} />}
     </header>
   )
 }

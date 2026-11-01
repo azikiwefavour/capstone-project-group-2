@@ -19,6 +19,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -716,6 +717,27 @@ export class AuthService implements OnModuleInit {
       isSubscriptionExpired: planInfo.isSubscriptionExpired,
       renewalDate: planInfo.renewalDate,
     };
+  }
+
+  // ─── Update Profile ────────────────────────────────────────────────────────
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const updateData: Partial<User> = {};
+    if (typeof dto?.name === 'string' && dto.name.trim().length > 0) {
+      updateData.name = dto.name.trim();
+    }
+    if (typeof dto?.phone === 'string') {
+      updateData.phone = dto.phone.trim();
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.usersService.updateById(userId, updateData);
+    }
+
+    return this.getProfile(userId);
   }
 
   // ─── Dev Admin Token (for testing/development) ─────────────────────────────

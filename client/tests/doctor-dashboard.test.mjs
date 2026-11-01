@@ -42,7 +42,7 @@ test('dashboard sends only the Doctor bearer token to the configured GET endpoin
   const result = await api.getDoctorDashboard(controller.signal)
   assert.equal(request.url, 'http://api.example.test/api/doctor/dashboard')
   assert.equal(request.method, 'GET')
-  assert.equal(request.headers.Authorization, `Bearer ${token()}`)
+  assert.equal(request.headers.Authorization, `Bearer ${doctorToken}`)
   assert.deepEqual(Object.keys(request.headers), ['Authorization'])
   assert.equal(request.body, undefined)
   assert.equal(request.cache, 'no-store')
