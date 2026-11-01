@@ -41,7 +41,7 @@ export async function createDoctorPrescription(patientId, values, signal) {
   // Re-read before writing; never override an existing record or silently allow duplicates.
   const latest = await getDoctorPatientDetails(patientId, signal)
   const duplicate = checkMedicationDuplicate(values, patientId, latest.duplicateRecords)
-  if (duplicate.status !== 'none') throw new Error(duplicate.status === 'found'
+  if (duplicate.status !== 'none' && !values.confirmDuplicate && !values.overrideDuplicate) throw new Error(duplicate.status === 'found'
     ? 'An exact duplicate exists. Prescription submission is disabled.'
     : 'Duplicate checking is unavailable. Refresh the medication records before submitting.')
 

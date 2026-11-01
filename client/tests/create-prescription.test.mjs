@@ -124,6 +124,12 @@ test('a fresh exact duplicate blocks creation, while a different frequency is no
   assert.equal(different.requests.filter(r => r.method === 'POST').length, 1)
 })
 
+test('a doctor can confirm and approve an exact duplicate prescription', async () => {
+  const duplicate = await load(undefined, details({ currentMedications: [medication({ medicationName: '  CONTRACT MEDICATION  ' })] }))
+  await duplicate.api.createDoctorPrescription(patientId, { ...values, confirmDuplicate: true })
+  assert.equal(duplicate.requests.filter(r => r.method === 'POST').length, 1)
+})
+
 test('incomplete duplicate data cannot falsely authorize submission', async () => {
   const { api, requests } = await load(undefined, details({ currentMedications: [medication({ reason: null })] }))
   await assert.rejects(api.createDoctorPrescription(patientId, values), /Duplicate checking is unavailable/)
