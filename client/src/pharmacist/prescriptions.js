@@ -89,7 +89,7 @@ export async function getPharmacistPrescriptionDetails(prescriptionId, signal) {
     // Match the Doctor backend definition: current = active + pending. Never
     // group by name, or confuse unavailable patient identity with an empty list.
     currentMedications: patientId ? records.filter(candidate => candidate.patientId === patientId
-      && ['active', 'pending', 'dispensed', 'clarified', 'awaiting_clarification'].includes(text(candidate.status).toLowerCase())).map(prescriptionDetails) : null,
+      && ['active', 'pending'].includes(text(candidate.status).toLowerCase())).map(prescriptionDetails) : null,
   }
 }
 
@@ -106,9 +106,7 @@ export async function getDispensedMedications(signal) {
     patientName: text(record.patientName), dosage: text(record.dosage),
     frequency: text(record.frequency), doseAndFrequency: text(record.doseAndFrequency),
     doctorName: text(record.doctorName),
-    // The pharmacy contract has no dispensing-event timestamp. Its `date` is
-    // createdAt; updatedAt can also change after dispensing. Never relabel either.
-    dispensedOn: null,
+    dispensedOn: record.dispensedAt ? formatMedicationTimestamp(record.dispensedAt) : null,
   }))
 }
 
@@ -118,4 +116,3 @@ export async function verifyAndDispensePrescription(prescriptionId, signal) {
   }
   return pharmacistPost(`prescriptions/${encodeURIComponent(prescriptionId.trim())}/verify`, undefined, signal, 'prescription verification')
 }
-

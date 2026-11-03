@@ -116,6 +116,10 @@ export class Prescription {
   @Column({ type: 'varchar', length: 255, nullable: true })
   pharmacistName: string | null;
 
+  @ApiProperty({ example: '2026-10-31T12:00:00.000Z', nullable: true })
+  @Column({ type: 'timestamp with time zone', nullable: true, default: null })
+  dispensedAt: Date | null;
+
   @ApiProperty()
   @CreateDateColumn()
   createdAt: Date;

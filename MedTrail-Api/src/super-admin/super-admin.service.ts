@@ -1,11 +1,12 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, MoreThanOrEqual, Between } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Optional } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 import * as os from 'node:os';
 import { performance } from 'node:perf_hooks';
+import * as bcrypt from 'bcrypt';
 import { RedisService } from '../cache/redis.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Prescription } from '../doctor/entities/prescription.entity';
@@ -90,9 +91,9 @@ export class SuperAdminService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      await this.seedInitialDataIfEmpty();
+      await this.seedSuperAdminUserIfEmpty();
     } catch (err: any) {
-      this.logger.warn(`Initial data seeding skipped or error: ${err?.message}`);
+      this.logger.warn(`Initial super admin seeding skipped or error: ${err?.message}`);
     }
   }
 
@@ -139,395 +140,45 @@ export class SuperAdminService implements OnModuleInit {
    * if the database tables are currently empty.
    */
   async seedInitialDataIfEmpty() {
-    const facilityRepo = this.dataSource.getRepository(Facility);
-    const activityRepo = this.dataSource.getRepository(PlatformActivity);
+    await this.seedSuperAdminUserIfEmpty();
+  }
 
-    const facilityCount = await facilityRepo.count();
-    if (facilityCount === 0) {
-      this.logger.log('Seeding initial facilities for Super Admin dashboard...');
+  /**
+   * Seeds the default Super Admin user if one does not already exist.
+   */
+  async seedSuperAdminUserIfEmpty() {
+    try {
+      const userRepo = this.dataSource.getRepository(User);
+      const existing = await userRepo.findOne({
+        where: [
+          { email: 'superadmin@medtrail.ng' },
+          { role: UserRole.SUPER_ADMIN },
+        ],
+      });
 
-      const initialFacilities: Partial<Facility>[] = [
-        {
-          name: 'Royal Bay Clinic',
-          slug: 'royal-bay-clinic',
-          code: 'FAC-ROY-001',
-          state: 'Lagos',
-          address: 'Plot 14 Admiralty Way, Lekki Phase 1',
-          email: 'contact@royalbayclinic.ng',
-          phone: '+2348039281726',
-          adminName: 'Femi Ogunleye',
-          adminEmail: 'femi@royalbayclinic.ng',
-          status: FacilityStatus.PENDING_REVIEW,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'pending',
-          cacNumber: 'RC-1928491',
-          licenseNumber: 'MDCN-HOSP-2024-8192',
-          certificateUrl: 'https://medtrail-docs.s3.amazonaws.com/certificates/royal-bay-clinic-license.pdf',
-          reviewNotes: 'Facility application submitted with clinical practice license. Awaiting super admin qualification review.',
-          createdAt: new Date('2026-10-01T11:12:00Z'),
-        },
-        {
-          name: 'Absolute Health Hospital',
-          slug: 'absolute-health-hospital',
-          code: 'FAC-ABS-002',
-          state: 'Lagos',
-          address: '22 Victoria Island Boulevard, Lagos',
-          email: 'info@absolutehealth.ng',
-          phone: '+2348023456781',
-          adminName: 'Dr. Adeyemi',
-          adminEmail: 'admin@absolutehealth.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Bank transfer',
-          cliniciansCount: 12,
-          patientsCount: 12,
-          messagesCount: 12,
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-10-01'),
-          createdAt: new Date('2026-05-15T09:00:00Z'),
-        },
-        {
-          name: 'Sunrise Family Clinic',
-          slug: 'sunrise-family-clinic',
-          code: 'FAC-SUN-003',
-          state: 'Oyo',
-          address: '8 Ring Road, Ibadan',
-          email: 'info@sunriseclinic.ng',
-          phone: '+2348056789123',
-          adminName: 'Amos Ibekwe',
-          adminEmail: 'amos@sunrisefamilyclinic.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Bank transfer',
-          cliniciansCount: 8,
-          patientsCount: 248,
-          messagesCount: 640,
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-10-02'),
-          createdAt: new Date('2026-06-10T10:30:00Z'),
-        },
-        {
-          name: 'Kano Women & Children Hospital',
-          slug: 'kano-women-children-hospital',
-          code: 'FAC-KAN-004',
-          state: 'Kano',
-          address: '45 Bompai Road, Kano',
-          email: 'admin@kanowch.gov.ng',
-          phone: '+2348098765432',
-          adminName: 'Dr. Fatima Umar',
-          adminEmail: 'fatima@kanowch.gov.ng',
-          status: FacilityStatus.TRIAL,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'trial',
-          paymentMethod: 'Bank transfer',
-          cliniciansCount: 14,
-          patientsCount: 42,
-          messagesCount: 42,
-          renewalDate: new Date('2026-11-03'),
-          lastPaymentDate: new Date('2026-10-01'),
-          reviewedBy: 'Adekemi (Super admin)',
-          reviewedAt: new Date('2026-10-01T11:12:00Z'),
-          reviewNotes: 'Facility approved for 30-day subsidized public health trial',
-          createdAt: new Date('2026-07-01T08:00:00Z'),
-        },
-        {
-          name: 'Harbor Medical Center',
-          slug: 'harbor-medical-center',
-          code: 'FAC-HAR-005',
-          state: 'Rivers',
-          address: '10 Old Aba Road, Port Harcourt',
-          email: 'billing@harbormed.ng',
-          phone: '+2348076543210',
-          adminName: 'Dr. Nnamdi',
-          adminEmail: 'admin@harbormed.ng',
-          status: FacilityStatus.OVERDUE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.YEARLY,
-          monthlyFee: 70000,
-          paymentStatus: 'failed',
-          paymentMethod: 'Bank transfer',
-          cliniciansCount: 12,
-          patientsCount: 13,
-          messagesCount: 13,
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-09-03'),
-          createdAt: new Date('2026-04-12T14:00:00Z'),
-        },
-        {
-          name: 'St. Nicholas Hospital',
-          slug: 'st-nicholas-hospital',
-          code: 'FAC-NIC-006',
-          state: 'Lagos',
-          address: '57 Campbell Street, Lagos Island',
-          email: 'admin@saintnicholas.ng',
-          phone: '+2348034567890',
-          adminName: 'Dr. Craig',
-          adminEmail: 'admin@saintnicholas.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Card',
-          cliniciansCount: 16,
-          patientsCount: 310,
-          messagesCount: 820,
-          renewalDate: new Date('2026-11-15'),
-          lastPaymentDate: new Date('2026-10-15'),
-          createdAt: new Date('2026-03-20T11:00:00Z'),
-        },
-        {
-          name: 'Reddington Multi-Specialist Hospital',
-          slug: 'reddington-multi-specialist',
-          code: 'FAC-RED-007',
-          state: 'Lagos',
-          address: '12 Idowu Martins Street, Victoria Island',
-          email: 'management@reddington.ng',
-          phone: '+2348011122334',
-          adminName: 'Dr. Shenouda',
-          adminEmail: 'management@reddington.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Bank transfer',
-          cliniciansCount: 22,
-          patientsCount: 450,
-          messagesCount: 1100,
-          renewalDate: new Date('2026-11-20'),
-          lastPaymentDate: new Date('2026-10-20'),
-          createdAt: new Date('2026-02-18T10:00:00Z'),
-        },
-        {
-          name: 'First Cardiology Consultants',
-          slug: 'first-cardiology-consultants',
-          code: 'FAC-FCC-008',
-          state: 'Lagos',
-          address: '20 Thompson Avenue, Ikoyi',
-          email: 'billing@firstcardio.ng',
-          phone: '+2348099887766',
-          adminName: 'Dr. Yemi Johnson',
-          adminEmail: 'billing@firstcardio.ng',
-          status: FacilityStatus.OVERDUE,
-          plan: SubscriptionPlan.STARTER,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 30000,
-          paymentStatus: 'failed',
-          paymentMethod: 'Card',
-          cliniciansCount: 6,
-          patientsCount: 85,
-          messagesCount: 190,
-          renewalDate: new Date('2026-10-28'),
-          lastPaymentDate: new Date('2026-09-28'),
-          createdAt: new Date('2026-05-02T13:00:00Z'),
-        },
-      ];
-
-      for (const f of initialFacilities) {
-        const item = facilityRepo.create(f);
-        await facilityRepo.save(item);
+      if (!existing) {
+        this.logger.log('Seeding default Super Admin user account (superadmin@medtrail.ng)...');
+        const hashedPassword = await bcrypt.hash('Password123!', 12);
+        const superAdmin = userRepo.create({
+          name: 'MedTrail Super Admin',
+          email: 'superadmin@medtrail.ng',
+          password: hashedPassword,
+          role: UserRole.SUPER_ADMIN,
+          isEmailVerified: true,
+          invitationStatus: 'accepted',
+        });
+        await userRepo.save(superAdmin);
+        this.logger.log('Default Super Admin account created successfully.');
+      } else if (existing.role !== UserRole.SUPER_ADMIN || !existing.isEmailVerified) {
+        existing.role = UserRole.SUPER_ADMIN;
+        existing.isEmailVerified = true;
+        existing.invitationStatus = 'accepted';
+        await userRepo.save(existing);
+        this.logger.log('Updated existing superadmin account to active SUPER_ADMIN role.');
       }
-    } else {
-      // Ensure all facilities have default paymentMethod if missing
-      await facilityRepo
-        .createQueryBuilder()
-        .update(Facility)
-        .set({ paymentMethod: 'Bank transfer' })
-        .where('paymentMethod IS NULL')
-        .execute();
-
-      // Upsert / sync the 6 exact subscribers from the Figma mockup
-      const mockupSubscribers: Partial<Facility>[] = [
-        {
-          name: 'Absolute Health Hospital',
-          slug: 'absolute-health-hospital',
-          code: 'FAC-ABS-002',
-          state: 'Lagos',
-          adminName: 'Dr. Adeyemi',
-          adminEmail: 'admin@absolutehealth.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Visa ****4417',
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-10-02'),
-        },
-        {
-          name: 'Lifetime Specialist Clinic',
-          slug: 'lifetime-specialist-clinic',
-          code: 'FAC-LIF-009',
-          state: 'Lagos',
-          adminName: 'Dr. Chidi',
-          adminEmail: 'admin@lifetimespecialist.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.STARTER,
-          billingCycle: BillingCycle.YEARLY,
-          monthlyFee: 300000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Bank transfer',
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2025-11-02'),
-        },
-        {
-          name: 'Mercy Cross Clinic',
-          slug: 'mercy-cross-clinic',
-          code: 'FAC-MER-010',
-          state: 'Abuja',
-          adminName: 'Dr. Bello',
-          adminEmail: 'admin@mercycross.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.STARTER,
-          billingCycle: BillingCycle.YEARLY,
-          monthlyFee: 700000,
-          paymentStatus: 'paid',
-          paymentMethod: 'Mastercard ****2910',
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2025-11-02'),
-        },
-        {
-          name: 'Harbor Medical Center',
-          slug: 'harbor-medical-center',
-          code: 'FAC-HAR-005',
-          state: 'Rivers',
-          adminName: 'Dr. Nnamdi',
-          adminEmail: 'admin@harbormed.ng',
-          status: FacilityStatus.OVERDUE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'failed',
-          paymentMethod: 'Verve ****8812',
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-09-02'),
-        },
-        {
-          name: 'Crestview Clinic',
-          slug: 'crestview-clinic',
-          code: 'FAC-CRE-011',
-          state: 'Lagos',
-          adminName: 'Dr. Alabi',
-          adminEmail: 'admin@crestview.ng',
-          status: FacilityStatus.ACTIVE,
-          plan: SubscriptionPlan.GROWTH,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 70000,
-          paymentStatus: 'paid',
-          paymentMethod: 'USSD',
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-10-02'),
-        },
-        {
-          name: 'Sunrise Family Clinic',
-          slug: 'sunrise-family-clinic',
-          code: 'FAC-SUN-003',
-          state: 'Oyo',
-          adminName: 'Amos Ibekwe',
-          adminEmail: 'amos@sunrisefamilyclinic.ng',
-          status: FacilityStatus.TRIAL,
-          plan: SubscriptionPlan.STARTER,
-          billingCycle: BillingCycle.MONTHLY,
-          monthlyFee: 30000,
-          paymentStatus: 'trial',
-          paymentMethod: '--',
-          cliniciansCount: 8,
-          patientsCount: 248,
-          messagesCount: 640,
-          renewalDate: new Date('2026-11-02'),
-          lastPaymentDate: new Date('2026-10-02'),
-        },
-      ];
-
-      for (const sub of mockupSubscribers) {
-        const existing = await facilityRepo.findOne({ where: { name: sub.name } });
-        if (existing) {
-          Object.assign(existing, sub);
-          await facilityRepo.save(existing);
-        } else {
-          const item = facilityRepo.create(sub);
-          await facilityRepo.save(item);
-        }
-      }
+    } catch (err: any) {
+      this.logger.warn(`Could not seed Super Admin user: ${err?.message}`);
     }
-
-    const activityCount = await activityRepo.count();
-    if (activityCount === 0) {
-      this.logger.log('Seeding initial platform activities for Super Admin dashboard...');
-
-      const initialActivities: Partial<PlatformActivity>[] = [
-        {
-          facilityName: 'Royal Bay Clinic',
-          actorName: 'Femi Ogunleye',
-          actorRole: 'Facility admin',
-          action: 'Facility application submitted',
-          status: ActivitySeverity.INFO,
-          metadata: { note: 'Awaiting certificate review' },
-          createdAt: new Date('2026-10-01T11:12:00Z'),
-        },
-        {
-          facilityName: 'Harbor Medical Center',
-          actorName: 'System',
-          actorRole: 'Billing',
-          action: 'Payment retry scheduled',
-          status: ActivitySeverity.WARNING,
-          metadata: { retryAttempt: 2, gateway: 'Paystack' },
-          createdAt: new Date('2026-10-01T11:12:00Z'),
-        },
-        {
-          facilityName: 'Harbor Medical Center',
-          actorName: 'System',
-          actorRole: 'Billing',
-          action: 'Card charge failed',
-          status: ActivitySeverity.DANGER,
-          metadata: { reason: 'Insufficient funds or card expired', gateway: 'Paystack' },
-          createdAt: new Date('2026-10-01T11:12:00Z'),
-        },
-        {
-          facilityName: 'Kano Women & Children Hospital',
-          actorName: 'Adekemi',
-          actorRole: 'Super admin',
-          action: 'Facility approved for trial',
-          status: ActivitySeverity.SUCCESS,
-          metadata: { trialDurationDays: 30 },
-          createdAt: new Date('2026-10-01T11:12:00Z'),
-        },
-        {
-          facilityName: 'Absolute Health Hospital',
-          actorName: 'System',
-          actorRole: 'Billing',
-          action: 'Subscription renewed',
-          status: ActivitySeverity.SUCCESS,
-          metadata: { plan: 'Growth Plan', amount: 70000, reference: 'PAY-AB-202610' },
-          createdAt: new Date('2026-10-01T11:12:00Z'),
-        },
-      ];
-
-      for (const a of initialActivities) {
-        const item = activityRepo.create(a);
-        await activityRepo.save(item);
-      }
-    }
-
-    // Seed and sync Payments & Transactions matching Figma
-    await this.seedInitialPaymentsIfEmpty();
-
-    // Seed and sync Messaging logs & usage matching Figma
-    await this.seedInitialMessagesIfEmpty();
-
-    // Seed and sync System Incidents matching Figma
-    await this.integrationsHealthService.seedInitialIncidentsIfEmpty();
   }
 
   // ─── Super Admin Dashboard Overview ───────────────────────────────────────
@@ -583,15 +234,22 @@ export class SuperAdminService implements OnModuleInit {
 
     // 3. Plan Mix (Starter ₦30,000 vs Growth ₦70,000)
     const starterSubscribers = allFacilities.filter(
-      (f) => f.plan === SubscriptionPlan.STARTER,
+      (f) =>
+        f.plan === SubscriptionPlan.STARTER &&
+        f.paymentStatus === 'paid' &&
+        f.status === FacilityStatus.ACTIVE,
     ).length;
     const growthSubscribers = allFacilities.filter(
-      (f) => f.plan === SubscriptionPlan.GROWTH,
+      (f) =>
+        f.plan === SubscriptionPlan.GROWTH &&
+        f.paymentStatus === 'paid' &&
+        f.status === FacilityStatus.ACTIVE,
     ).length;
-    const totalSubscribers = starterSubscribers + growthSubscribers || 10;
+    const totalSubscribers = starterSubscribers + growthSubscribers;
 
-    const starterPercent = Math.round((starterSubscribers / totalSubscribers) * 100);
-    const growthPercent = 100 - starterPercent;
+    const starterPercent =
+      totalSubscribers > 0 ? Math.round((starterSubscribers / totalSubscribers) * 100) : 0;
+    const growthPercent = totalSubscribers > 0 ? 100 - starterPercent : 0;
 
     const planMix = {
       totalSubscribers,
@@ -618,63 +276,100 @@ export class SuperAdminService implements OnModuleInit {
     };
 
     // 4. Monthly Recurring Revenue & 6-month growth chart
-    // Exact value from design: ₦ 676,667 (+7.4% vs September)
-    const mrr = 676667;
-    const growthPercentage = 7.4;
-    const comparisonPeriod = 'vs September';
+    // Real calculation: only active facilities with paymentStatus === 'paid'
+    const paidActiveFacilities = allFacilities.filter(
+      (f) => f.status === FacilityStatus.ACTIVE && f.paymentStatus === 'paid',
+    );
+    const mrr = paidActiveFacilities.reduce(
+      (sum, f) => sum + (Number(f.monthlyFee) || 0),
+      0,
+    );
+    const growthPercentage = 0;
+    const comparisonPeriod = 'vs previous month';
 
-    const revenueChart = [
-      { month: 'May', amount: 180000, isCurrent: false },
-      { month: 'Jun', amount: 320000, isCurrent: false },
-      { month: 'Jul', amount: 390000, isCurrent: false },
-      { month: 'Aug', amount: 480000, isCurrent: false },
-      { month: 'Sep', amount: 630000, isCurrent: false },
-      { month: 'Oct', amount: 676667, isCurrent: true },
-    ];
+    const txRepo = this.dataSource.getRepository(PaymentTransaction);
+    const successfulTxs = await txRepo.find({
+      where: { status: PaymentTransactionStatus.SUCCESSFUL },
+    });
+    const monthShortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const monthsLabels: string[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      monthsLabels.push(monthShortNames[d.getUTCMonth()]);
+    }
+    const revenueChart = monthsLabels.map((month, idx) => {
+      const isCurrent = idx === monthsLabels.length - 1;
+      const targetMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - idx), 1));
+      const targetYear = targetMonthDate.getUTCFullYear();
+      const targetMonth = targetMonthDate.getUTCMonth();
+      const monthTotal = successfulTxs
+        .filter((tx) => {
+          const d = new Date(tx.createdAt);
+          return d.getUTCFullYear() === targetYear && d.getUTCMonth() === targetMonth;
+        })
+        .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
+      const displayAmount = isCurrent ? Math.max(monthTotal, mrr) : monthTotal;
+      return {
+        month,
+        amount: displayAmount,
+        isCurrent,
+      };
+    });
 
     // 5. Stat Cards
     // Total patients on record
     const totalPatientsInDb = await userRepo.count({
       where: { role: UserRole.PATIENT },
     });
-    const patientsOnRecordCount = Math.max(5638, totalPatientsInDb);
+    const patientsOnRecordCount = totalPatientsInDb;
 
     // Messages sent & delivered stats
-    const totalMessagesSent = 3366;
-    const deliveredMessages = Math.round(totalMessagesSent * 0.976);
-    const deliveryPercentage = 97.6;
+    const messageLogRepo = this.dataSource.getRepository(MessageLog);
+    const dbTotalMessages = await messageLogRepo.count();
+    const dbDelivered = await messageLogRepo.count({
+      where: { status: MessageStatus.DELIVERED },
+    });
+    const facilityMessagesSum = allFacilities.reduce(
+      (sum, f) => sum + (Number(f.messagesCount) || 0),
+      0,
+    );
+    const totalMessagesSent = dbTotalMessages > 0 ? dbTotalMessages : facilityMessagesSum;
+    const deliveredMessages = dbTotalMessages > 0 ? dbDelivered : totalMessagesSent;
+    const deliveryPercentage =
+      totalMessagesSent > 0
+        ? Number(((deliveredMessages / totalMessagesSent) * 100).toFixed(1))
+        : 0;
 
     const stats = {
       registeredFacilities: {
-        total: totalFacilities || 8,
+        total: totalFacilities,
         awaitingReview: pendingReviewFacilities.length,
         subtitle: `${pendingReviewFacilities.length} awaiting review`,
       },
       activeSubscribers: {
-        total: activeSubscribers.length || 4,
-        inTrial: inTrialSubscribers.length || 1,
-        overdue: overdueSubscribers.length || 2,
-        subtitle: `${inTrialSubscribers.length || 1} in trial period, ${overdueSubscribers.length || 2} overdue`,
+        total: activeSubscribers.length,
+        inTrial: inTrialSubscribers.length,
+        overdue: overdueSubscribers.length,
+        subtitle: `${inTrialSubscribers.length} in trial period, ${overdueSubscribers.length} overdue`,
       },
       messagesSent: {
         total: totalMessagesSent,
         delivered: deliveredMessages,
         deliveryPercentage,
-        subtitle: `${deliveryPercentage}% delivered`,
+        subtitle: totalMessagesSent > 0 ? `${deliveryPercentage}% delivered` : '0 delivered',
       },
       patientsOnRecord: {
         total: patientsOnRecordCount,
-        liveFacilitiesCount: 5,
-        subtitle: 'Across 5 live facilities',
+        liveFacilitiesCount: activeSubscribers.length,
+        subtitle: `Across ${activeSubscribers.length} live facilities`,
       },
     };
 
-    // 6. Upcoming Renewals
+    // 6. Upcoming Renewals (only active facilities that have paid and have renewalDate)
     const renewalsQuery = await facilityRepo.find({
       where: [
-        { status: FacilityStatus.ACTIVE },
-        { status: FacilityStatus.OVERDUE },
-        { status: FacilityStatus.TRIAL },
+        { status: FacilityStatus.ACTIVE, paymentStatus: 'paid' },
       ],
       order: { renewalDate: 'ASC' },
       take: 4,
@@ -687,7 +382,7 @@ export class SuperAdminService implements OnModuleInit {
       rawRenewalDate: f.renewalDate,
       renewalDate: f.renewalDate
         ? this.formatRenewalDateDisplay(f.renewalDate)
-        : '02 Nov 2026',
+        : '',
       amount: Number(f.monthlyFee),
       formattedAmount: this.formatCurrency(Number(f.monthlyFee)),
       status: f.status,
@@ -783,7 +478,7 @@ export class SuperAdminService implements OnModuleInit {
       throw new NotFoundException(`Facility with ID ${id} not found`);
     }
 
-    const reviewerName = reviewer?.name || reviewer?.email || 'Adekemi (Super admin)';
+    const reviewerName = reviewer?.name || reviewer?.email || 'Super admin';
 
     if (dto.action === ReviewAction.APPROVE) {
       facility.status = FacilityStatus.TRIAL;
@@ -804,7 +499,7 @@ export class SuperAdminService implements OnModuleInit {
       const activity = activityRepo.create({
         facilityName: facility.name,
         facilityId: facility.id,
-        actorName: reviewerName.split(' ')[0] || 'Adekemi',
+        actorName: reviewerName.split(' ')[0] || 'Super admin',
         actorRole: 'Super admin',
         action: 'Facility approved for trial',
         status: ActivitySeverity.SUCCESS,
@@ -829,7 +524,7 @@ export class SuperAdminService implements OnModuleInit {
       const activity = activityRepo.create({
         facilityName: facility.name,
         facilityId: facility.id,
-        actorName: reviewerName.split(' ')[0] || 'Adekemi',
+        actorName: reviewerName.split(' ')[0] || 'Super admin',
         actorRole: 'Super admin',
         action: 'Facility application rejected',
         status: ActivitySeverity.WARNING,
@@ -859,88 +554,7 @@ export class SuperAdminService implements OnModuleInit {
       adminEmail: string;
       paymentMethod: string;
     }
-  > = {
-    'Absolute Health Hospital': {
-      clinicians: 12,
-      doctors: 8,
-      pharmacists: 4,
-      patients: 12,
-      messages: 12,
-      adminName: 'Dr. Adeyemi',
-      adminEmail: 'admin@absolutehealth.ng',
-      paymentMethod: 'Bank transfer',
-    },
-    'Sunrise Family Clinic': {
-      clinicians: 8,
-      doctors: 5,
-      pharmacists: 3,
-      patients: 248,
-      messages: 640,
-      adminName: 'Amos Ibekwe',
-      adminEmail: 'amos@sunrisefamilyclinic.ng',
-      paymentMethod: 'Bank transfer',
-    },
-    'Kano Women & Children Hospital': {
-      clinicians: 14,
-      doctors: 9,
-      pharmacists: 5,
-      patients: 42,
-      messages: 42,
-      adminName: 'Dr. Fatima Umar',
-      adminEmail: 'fatima@kanowch.gov.ng',
-      paymentMethod: 'Bank transfer',
-    },
-    'Harbor Medical Center': {
-      clinicians: 12,
-      doctors: 7,
-      pharmacists: 5,
-      patients: 13,
-      messages: 13,
-      adminName: 'Dr. Nnamdi',
-      adminEmail: 'admin@harbormed.ng',
-      paymentMethod: 'Bank transfer',
-    },
-    'St. Nicholas Hospital': {
-      clinicians: 16,
-      doctors: 10,
-      pharmacists: 6,
-      patients: 310,
-      messages: 820,
-      adminName: 'Dr. Craig',
-      adminEmail: 'admin@saintnicholas.ng',
-      paymentMethod: 'Card',
-    },
-    'Reddington Multi-Specialist Hospital': {
-      clinicians: 22,
-      doctors: 14,
-      pharmacists: 8,
-      patients: 450,
-      messages: 1100,
-      adminName: 'Dr. Shenouda',
-      adminEmail: 'management@reddington.ng',
-      paymentMethod: 'Bank transfer',
-    },
-    'First Cardiology Consultants': {
-      clinicians: 6,
-      doctors: 4,
-      pharmacists: 2,
-      patients: 85,
-      messages: 190,
-      adminName: 'Dr. Yemi Johnson',
-      adminEmail: 'billing@firstcardio.ng',
-      paymentMethod: 'Card',
-    },
-    'Royal Bay Clinic': {
-      clinicians: 3,
-      doctors: 2,
-      pharmacists: 1,
-      patients: 15,
-      messages: 30,
-      adminName: 'Femi Ogunleye',
-      adminEmail: 'femi@royalbayclinic.ng',
-      paymentMethod: 'Bank transfer',
-    },
-  };
+  > = {};
 
   private formatFacilityStatus(f: Facility) {
     const rawStatus = (f.status || '').toLowerCase().trim();
@@ -1055,9 +669,11 @@ export class SuperAdminService implements OnModuleInit {
 
     const [facilities, total] = await qb.getManyAndCount();
 
-    // Query real users & prescriptions for facilities in current page
+    // Query real users, prescriptions, and message logs for facilities in current page
     const facilityNames = facilities.map((f) => f.name).filter(Boolean);
-    const [allUsers, allPrescriptions] = await Promise.all([
+    const msgRepo = this.dataSource.getRepository(MessageLog);
+
+    const [allUsers, allPrescriptions, messageCountsRaw] = await Promise.all([
       facilityNames.length > 0
         ? userRepo
             .createQueryBuilder('u')
@@ -1070,7 +686,23 @@ export class SuperAdminService implements OnModuleInit {
             .where('p.hospitalName IN (:...facilityNames)', { facilityNames })
             .getMany()
         : [],
+      facilityNames.length > 0
+        ? msgRepo
+            .createQueryBuilder('m')
+            .select('LOWER(TRIM(m.facilityName))', 'name')
+            .addSelect('COUNT(*)', 'cnt')
+            .where('m.facilityName IN (:...facilityNames)', { facilityNames })
+            .groupBy('LOWER(TRIM(m.facilityName))')
+            .getRawMany()
+        : [],
     ]);
+
+    const facilityMsgMap: Record<string, number> = {};
+    for (const row of messageCountsRaw) {
+      if (row.name) {
+        facilityMsgMap[row.name] = Number(row.cnt) || 0;
+      }
+    }
 
     const formattedFacilities = facilities.map((f) => {
       const { status, statusLabel, badgeVariant, isPastDue, isTrial } =
@@ -1080,17 +712,6 @@ export class SuperAdminService implements OnModuleInit {
       const planTier = planName.includes('Growth') ? 'Growth' : 'Starter';
       const billingCycle = f.billingCycle || 'Monthly';
       const planDisplay = `${planTier}\n${billingCycle}`;
-
-      const fallback = this.baselineFacilityData[f.name] || {
-        clinicians: f.cliniciansCount || 8,
-        doctors: Math.ceil((f.cliniciansCount || 8) * 0.6),
-        pharmacists: Math.floor((f.cliniciansCount || 8) * 0.4),
-        patients: f.patientsCount || 50,
-        messages: f.messagesCount || 100,
-        adminName: f.adminName || 'Facility Admin',
-        adminEmail: f.adminEmail || f.email || 'admin@hospital.ng',
-        paymentMethod: f.paymentMethod || 'Bank transfer',
-      };
 
       const hUsers = allUsers.filter(
         (u) =>
@@ -1107,24 +728,21 @@ export class SuperAdminService implements OnModuleInit {
       const pharmCount = hUsers.filter((u) => u.role === UserRole.PHARMACIST).length;
       const realClinicians = docCount + pharmCount;
       const realPatients = hUsers.filter((u) => u.role === UserRole.PATIENT).length;
-      const realMessages =
-        hPrescriptions.length * 2 +
-        hUsers.filter((u) => u.role === UserRole.PATIENT && u.isOfflinePatient).length * 4;
+      const realMessages = facilityMsgMap[f.name.trim().toLowerCase()] || Number(f.messagesCount) || 0;
 
-      const cliniciansCount =
-        realClinicians > 0 ? realClinicians : f.cliniciansCount || fallback.clinicians;
-      const doctorsCount = realClinicians > 0 ? docCount : fallback.doctors;
-      const pharmacistsCount = realClinicians > 0 ? pharmCount : fallback.pharmacists;
-      const patientsCount =
-        realPatients > 0 ? realPatients : f.patientsCount || fallback.patients;
-      const messagesCount =
-        realMessages > 0 ? realMessages : f.messagesCount || fallback.messages;
+      const cliniciansCount = realClinicians;
+      const doctorsCount = docCount;
+      const pharmacistsCount = pharmCount;
+      const patientsCount = realPatients;
+      const messagesCount = realMessages;
 
-      const adminName = f.adminName || fallback.adminName;
-      const adminEmail = f.adminEmail || fallback.adminEmail;
-      const paymentMethod = f.paymentMethod || fallback.paymentMethod || 'Bank transfer';
+      const adminName = f.adminName || 'Hospital Admin';
+      const adminEmail = f.adminEmail || f.email || '';
+      const paymentMethod = f.paymentMethod || 'Paystack';
 
-      const renewalDate = f.renewalDate ? new Date(f.renewalDate) : new Date('2026-11-02');
+      const renewalDate = f.renewalDate
+        ? new Date(f.renewalDate)
+        : new Date(new Date(f.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
       const now = new Date();
       const daysRemaining = Math.ceil(
         (renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
@@ -1203,18 +821,8 @@ export class SuperAdminService implements OnModuleInit {
     const planTier = planName.includes('Growth') ? 'Growth' : 'Starter';
     const billingCycle = facility.billingCycle || 'Monthly';
 
-    const fallback = this.baselineFacilityData[facility.name] || {
-      clinicians: facility.cliniciansCount || 8,
-      doctors: Math.ceil((facility.cliniciansCount || 8) * 0.6),
-      pharmacists: Math.floor((facility.cliniciansCount || 8) * 0.4),
-      patients: facility.patientsCount || 50,
-      messages: facility.messagesCount || 100,
-      adminName: facility.adminName || 'Facility Admin',
-      adminEmail: facility.adminEmail || facility.email || 'admin@hospital.ng',
-      paymentMethod: facility.paymentMethod || 'Bank transfer',
-    };
-
-    const [hUsers, hPrescriptions] = await Promise.all([
+    const msgRepo = this.dataSource.getRepository(MessageLog);
+    const [hUsers, hPrescriptions, msgCount] = await Promise.all([
       userRepo
         .createQueryBuilder('u')
         .where('LOWER(TRIM(u.hospitalName)) = :name', {
@@ -1227,33 +835,30 @@ export class SuperAdminService implements OnModuleInit {
           name: facility.name.trim().toLowerCase(),
         })
         .getMany(),
+      msgRepo.count({
+        where: { facilityName: facility.name },
+      }),
     ]);
 
     const docCount = hUsers.filter((u) => u.role === UserRole.DOCTOR).length;
     const pharmCount = hUsers.filter((u) => u.role === UserRole.PHARMACIST).length;
     const realClinicians = docCount + pharmCount;
     const realPatients = hUsers.filter((u) => u.role === UserRole.PATIENT).length;
-    const realMessages =
-      hPrescriptions.length * 2 +
-      hUsers.filter((u) => u.role === UserRole.PATIENT && u.isOfflinePatient).length * 4;
+    const realMessages = msgCount || Number(facility.messagesCount) || 0;
 
-    const cliniciansCount =
-      realClinicians > 0 ? realClinicians : facility.cliniciansCount || fallback.clinicians;
-    const doctorsCount = realClinicians > 0 ? docCount : fallback.doctors;
-    const pharmacistsCount = realClinicians > 0 ? pharmCount : fallback.pharmacists;
-    const patientsCount =
-      realPatients > 0 ? realPatients : facility.patientsCount || fallback.patients;
-    const messagesCount =
-      realMessages > 0 ? realMessages : facility.messagesCount || fallback.messages;
+    const cliniciansCount = realClinicians;
+    const doctorsCount = docCount;
+    const pharmacistsCount = pharmCount;
+    const patientsCount = realPatients;
+    const messagesCount = realMessages;
 
-    const adminName = facility.adminName || fallback.adminName;
-    const adminEmail = facility.adminEmail || fallback.adminEmail;
-    const paymentMethod =
-      facility.paymentMethod || fallback.paymentMethod || 'Bank transfer';
+    const adminName = facility.adminName || 'Hospital Admin';
+    const adminEmail = facility.adminEmail || facility.email || '';
+    const paymentMethod = facility.paymentMethod || 'Paystack';
 
     const renewalDate = facility.renewalDate
       ? new Date(facility.renewalDate)
-      : new Date('2026-11-02');
+      : new Date(new Date(facility.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
     const now = new Date();
     const daysRemaining = Math.ceil(
       (renewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
@@ -1427,7 +1032,7 @@ export class SuperAdminService implements OnModuleInit {
           '300 messages/month',
           'Audit log and role-based access',
         ],
-        subscribers: starterSubscribers || 1,
+        subscribers: starterSubscribers,
       },
       growth: {
         name: 'Growth Plan',
@@ -1441,7 +1046,7 @@ export class SuperAdminService implements OnModuleInit {
           'Unlimited messages',
           'Audit log and role-based access',
         ],
-        subscribers: growthSubscribers || 5,
+        subscribers: growthSubscribers,
       },
     };
 
@@ -1579,7 +1184,7 @@ export class SuperAdminService implements OnModuleInit {
         formattedAmount: this.formatCurrency(Number(f.monthlyFee)),
         nextCharge: f.renewalDate
           ? this.formatRenewalDateDisplay(f.renewalDate)
-          : '02 Nov 2026',
+          : '',
         rawNextChargeDate: f.renewalDate,
         method,
         status,
@@ -1634,19 +1239,21 @@ export class SuperAdminService implements OnModuleInit {
 
     const facilities = await qb.getMany();
 
-    return facilities.map((f) => ({
-      id: f.id,
-      facilityName: f.name,
-      plan: f.plan,
-      renewalDate: f.renewalDate
-        ? this.formatRenewalDateDisplay(f.renewalDate)
-        : '02 Nov 2026',
-      rawRenewalDate: f.renewalDate,
-      amount: Number(f.monthlyFee),
-      formattedAmount: this.formatCurrency(Number(f.monthlyFee)),
-      status: f.status,
-      paymentStatus: f.paymentStatus,
-    }));
+    return facilities.map((f) => {
+      const renewalDateObj = f.renewalDate ? new Date(f.renewalDate) : null;
+      const amount = Number(f.monthlyFee) || (f.plan?.includes('Starter') ? 30000 : 70000);
+      return {
+        id: f.id,
+        facilityName: f.name,
+        plan: f.plan,
+        renewalDate: renewalDateObj ? this.formatRenewalDateDisplay(renewalDateObj) : 'Renewal date pending',
+        rawRenewalDate: f.renewalDate,
+        amount,
+        formattedAmount: this.formatCurrency(amount),
+        status: f.status,
+        paymentStatus: f.paymentStatus,
+      };
+    });
   }
 
   // ─── Platform Activities / Audit Log ──────────────────────────────────────
@@ -2015,31 +1622,50 @@ export class SuperAdminService implements OnModuleInit {
       }),
     ]);
 
-    const hospitalSet = new Set<string>();
+    const facilityRepo = this.dataSource.getRepository(Facility);
+    const messageLogRepo = this.dataSource.getRepository(MessageLog);
+
+    const [allFacilities, allLogs] = await Promise.all([
+      facilityRepo.find({ order: { createdAt: 'ASC' } }),
+      messageLogRepo.find({
+        select: {
+          id: true,
+          facilityName: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    const facilitiesMap = new Map<string, Facility>();
+    for (const fac of allFacilities) {
+      if (fac.name) facilitiesMap.set(fac.name.trim().toLowerCase(), fac);
+    }
+
+    const uniqueHospitalNames = new Set<string>();
+    for (const fac of allFacilities) {
+      if (fac.name && fac.name.trim()) uniqueHospitalNames.add(fac.name.trim());
+    }
     for (const u of allUsers) {
-      if (u.hospitalName && u.hospitalName.trim()) hospitalSet.add(u.hospitalName.trim());
+      if (u.hospitalName && u.hospitalName.trim()) uniqueHospitalNames.add(u.hospitalName.trim());
     }
     for (const p of allPrescriptions) {
-      if (p.hospitalName && p.hospitalName.trim()) hospitalSet.add(p.hospitalName.trim());
+      if (p.hospitalName && p.hospitalName.trim()) uniqueHospitalNames.add(p.hospitalName.trim());
     }
 
-    if (hospitalSet.size === 0) {
-      hospitalSet.add('Royal Bay Clinic');
-      hospitalSet.add('Absolute Health Hospital');
-      hospitalSet.add('Sunrise Family Clinic');
-      hospitalSet.add('Kano Women & Children Hospital');
-      hospitalSet.add('Harbor Medical Center');
-      hospitalSet.add('St. Nicholas Hospital');
-      hospitalSet.add('Reddington Multi-Specialist Hospital');
-      hospitalSet.add('First Cardiology Consultants');
-    }
-
-    const hospitalList = Array.from(hospitalSet);
-
-    const facilities = hospitalList.map((hName, idx) => {
-      const hUsers = allUsers.filter((u) => u.hospitalName === hName);
-      const hPrescriptions = allPrescriptions.filter((p) => p.hospitalName === hName);
-      const hActivities = allActivities.filter((a) => a.hospitalName === hName);
+    const facilities = Array.from(uniqueHospitalNames).map((hName, idx) => {
+      const hFac = facilitiesMap.get(hName.toLowerCase());
+      const hUsers = allUsers.filter(
+        (u) => u.hospitalName && u.hospitalName.trim().toLowerCase() === hName.toLowerCase(),
+      );
+      const hPrescriptions = allPrescriptions.filter(
+        (p) => p.hospitalName && p.hospitalName.trim().toLowerCase() === hName.toLowerCase(),
+      );
+      const hActivities = allActivities.filter(
+        (a) => a.hospitalName && a.hospitalName.trim().toLowerCase() === hName.toLowerCase(),
+      );
+      const hLogs = allLogs.filter(
+        (l) => l.facilityName && l.facilityName.trim().toLowerCase() === hName.toLowerCase(),
+      );
 
       const doctors = hUsers.filter((u) => u.role === UserRole.DOCTOR);
       const pharmacists = hUsers.filter((u) => u.role === UserRole.PHARMACIST);
@@ -2061,11 +1687,19 @@ export class SuperAdminService implements OnModuleInit {
 
       const totalClinicians = doctors.length + pharmacists.length;
 
-      // Plan tier: Starter Plan (₦30k) or Growth Plan (₦70k)
-      const isStarter = idx % 4 === 1; // 2 of 8 are starter
-      const plan = isStarter ? SubscriptionPlan.STARTER : SubscriptionPlan.GROWTH;
-      const monthlyEquivalent = isStarter ? 30000 : 70000;
+      const plan = hFac?.plan || SubscriptionPlan.GROWTH;
+      const isStarter = plan.toLowerCase().includes('starter');
+      const monthlyEquivalent = Number(hFac?.monthlyFee) || (isStarter ? 30000 : 70000);
       const planAllowance = isStarter ? 2500 : 8000;
+
+      let status: 'active' | 'past-due' | 'trial' = 'active';
+      if (hFac?.status === FacilityStatus.TRIAL) {
+        status = 'trial';
+      } else if (hFac?.status === FacilityStatus.OVERDUE) {
+        status = 'past-due';
+      } else if (hFac?.status === FacilityStatus.PENDING_REVIEW) {
+        status = 'trial';
+      }
 
       let score = 0;
       if (doctors.length > 0) score += 20;
@@ -2073,37 +1707,33 @@ export class SuperAdminService implements OnModuleInit {
       if (patients.length > 0) score += 15;
       if (hPrescriptions.length > 0) score += 25;
       if (dispensedRx.length > 0) score += 20;
-      const adoptionScore = Math.min(100, score || (totalClinicians > 0 ? 55 : 30));
-
-      const status: 'active' | 'past-due' | 'trial' =
-        hName.includes('Kano')
-          ? 'trial'
-          : hName.includes('Harbor') || hName.includes('Cardiology')
-            ? 'past-due'
-            : 'active';
+      const adoptionScore = Math.min(100, score || (totalClinicians > 0 ? 55 : (patients.length > 0 ? 30 : 10)));
 
       const cleanName = hName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
-      const facilityId = `FAC-${cleanName}-${String(idx + 1).padStart(3, '0')}`;
+      const facilityId = hFac?.id || `FAC-${cleanName}-${String(idx + 1).padStart(3, '0')}`;
 
-      const joinedDate =
-        hUsers.length > 0
+      const joinedDate = hFac?.createdAt
+        ? new Date(hFac.createdAt)
+        : hUsers.length > 0
           ? new Date(Math.min(...hUsers.map((u) => new Date(u.createdAt).getTime())))
-          : new Date(now.getFullYear(), now.getMonth() - 4, 10);
+          : now;
 
-      const renewalDate = new Date(now.getFullYear(), now.getMonth() + 1, (idx % 28) + 1);
+      const renewalDate = hFac?.renewalDate
+        ? new Date(hFac.renewalDate)
+        : new Date(joinedDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      const messagesSent = offlinePatients.length * 4 + hPrescriptions.length * 2 + 30;
-      const messagesDelivered = Math.round(messagesSent * 0.976);
+      const messagesSent = hLogs.length;
+      const messagesDelivered = hLogs.filter((l) => l.status === MessageStatus.DELIVERED).length;
       const messagesFailed = messagesSent - messagesDelivered;
 
       return {
         facilityId,
         facilityName: hName,
-        state: 'Lagos',
-        area: 'Metropolitan',
+        state: hFac?.state || 'Lagos',
+        area: hFac?.address ? hFac.address.split(',')[0].trim() : 'Metropolitan',
         facilityType: 'General Hospital',
         plan,
-        billingCycle: 'Monthly',
+        billingCycle: hFac?.billingCycle || 'Monthly',
         status,
         monthlyEquivalent,
         clinicians: totalClinicians,
@@ -2144,8 +1774,10 @@ export class SuperAdminService implements OnModuleInit {
     const totalDispensed = facilities.reduce((sum, f) => sum + f.dispensedCount, 0);
     const totalMessagesSent = facilities.reduce((sum, f) => sum + f.messagesSent, 0);
 
-    const mrr = 676667;
-    const totalRevenueYTD = mrr * 8;
+    const mrr = facilities
+      .filter((f) => f.status === 'active')
+      .reduce((sum, f) => sum + (Number(f.monthlyEquivalent) || 0), 0);
+    const totalRevenueYTD = mrr;
     const dispensationRate =
       totalPrescriptions > 0 ? Math.round((totalDispensed / totalPrescriptions) * 100) : 85;
 
@@ -2264,7 +1896,7 @@ export class SuperAdminService implements OnModuleInit {
       { metric: 'Growth Plan Subscribers', value: 8, unit: 'Count', definition: 'Subscribed at ₦70,000 / month' },
       { metric: 'Total Patients on Record', value: 5638, unit: 'Count', definition: 'Patients recorded across all 5 live facilities' },
       { metric: 'Total Messages Sent', value: 3366, unit: 'Count', definition: 'Total SMS & dosage notifications dispatched' },
-      { metric: 'Message Delivery Rate', value: 0.976, unit: 'Percentage', definition: 'Percentage confirmed delivered via Termii SMS gateway', isPercent: true },
+      { metric: 'Message Delivery Rate', value: 0.976, unit: 'Percentage', definition: 'Percentage confirmed delivered via BulkSMS Nigeria gateway', isPercent: true },
     ];
 
     summaryRows.forEach((r) => {
@@ -2394,7 +2026,7 @@ export class SuperAdminService implements OnModuleInit {
         delivered: f.messagesDelivered,
         failed: f.messagesFailed,
         rate: 0.976,
-        provider: 'Termii SMS / WhatsApp',
+        provider: 'BulkSMS Nigeria',
       });
       row.getCell(2).numFmt = '#,##0';
       row.getCell(3).numFmt = '#,##0';
@@ -2431,180 +2063,7 @@ export class SuperAdminService implements OnModuleInit {
    * historical 90-day transactions equal ₦1,500,000.
    */
   async seedInitialPaymentsIfEmpty() {
-    const txRepo = this.dataSource.getRepository(PaymentTransaction);
-
-    const figmaTransactions: Partial<PaymentTransaction>[] = [
-      {
-        reference: 'PSK_8F2K19QX-01',
-        facilityName: 'Absolute Health Hospital',
-        customerName: 'Dr. Michael Adeyemi',
-        customerEmail: 'admin@absolutehealth.ng',
-        amount: 70000,
-        currency: 'NGN',
-        channel: 'Card',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'Transaction approved by issuing bank',
-        plan: 'Growth',
-        billingCycle: 'Monthly',
-        paidAt: new Date('2026-11-02T09:14:00Z'),
-        createdAt: new Date('2026-11-02T09:14:00Z'),
-      },
-      {
-        reference: 'PSK_8F2K19QX-02',
-        facilityName: 'Lifetime Specialist Clinic',
-        customerName: 'Dr. Chidi',
-        customerEmail: 'admin@lifetimespecialist.ng',
-        amount: 300000,
-        currency: 'NGN',
-        channel: 'Card',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'Card payment verified via 3D Secure',
-        plan: 'Starter',
-        billingCycle: 'Annual',
-        paidAt: new Date('2026-11-02T09:30:00Z'),
-        createdAt: new Date('2026-11-02T09:30:00Z'),
-      },
-      {
-        reference: 'PSK_8F2K19QX-03',
-        facilityName: 'Mercy Cross Clinic',
-        customerName: 'Dr. Bello',
-        customerEmail: 'admin@mercycross.ng',
-        amount: 700000,
-        currency: 'NGN',
-        channel: 'Bank Transfer',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.PENDING,
-        statusReason: 'Awaiting settlement confirmation from bank',
-        plan: 'Starter',
-        billingCycle: 'Annual',
-        createdAt: new Date('2026-11-02T10:05:00Z'),
-      },
-      {
-        reference: 'PSK_8F2K19QX-04',
-        facilityName: 'Harbor Medical Center',
-        customerName: 'Dr. Nnamdi',
-        customerEmail: 'admin@harbormed.ng',
-        amount: 70000,
-        currency: 'NGN',
-        channel: 'Card',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.FAILED,
-        statusReason: 'Failed due to bank issue: Card declined by processor / network timeout',
-        plan: 'Growth',
-        billingCycle: 'Monthly',
-        retriesCount: 1,
-        nextRetryDate: new Date('2026-11-04T10:00:00Z'),
-        createdAt: new Date('2026-11-02T10:15:00Z'),
-      },
-      {
-        reference: 'PSK_8F2K19QX-05',
-        facilityName: 'Crestview Clinic',
-        customerName: 'Dr. Alabi',
-        customerEmail: 'admin@crestview.ng',
-        amount: 70000,
-        currency: 'NGN',
-        channel: 'USSD',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'USSD session confirmed and debited',
-        plan: 'Growth',
-        billingCycle: 'Monthly',
-        paidAt: new Date('2026-11-02T11:22:00Z'),
-        createdAt: new Date('2026-11-02T11:22:00Z'),
-      },
-      {
-        reference: 'PSK_8F2K19QX-06',
-        facilityName: 'Sunrise Family Clinic',
-        customerName: 'Amos Ibekwe',
-        customerEmail: 'amos@sunrisefamilyclinic.ng',
-        amount: 30000,
-        currency: 'NGN',
-        channel: 'Card',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.FAILED,
-        statusReason: 'Failed due to bank issue: Insufficient funds in bank account',
-        plan: 'Starter',
-        billingCycle: 'Monthly',
-        retriesCount: 0,
-        nextRetryDate: new Date('2026-11-04T11:00:00Z'),
-        createdAt: new Date('2026-11-02T11:45:00Z'),
-      },
-      // Historical 90-day transactions to equal ₦1,500,000 collected in last 90 days
-      {
-        reference: 'PSK_HIST_90D_01',
-        facilityName: 'Absolute Health Hospital',
-        customerName: 'Dr. Michael Adeyemi',
-        customerEmail: 'admin@absolutehealth.ng',
-        amount: 70000,
-        currency: 'NGN',
-        channel: 'Card',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'Recurring subscription charge processed',
-        plan: 'Growth',
-        billingCycle: 'Monthly',
-        paidAt: new Date('2026-10-02T09:14:00Z'),
-        createdAt: new Date('2026-10-02T09:14:00Z'),
-      },
-      {
-        reference: 'PSK_HIST_90D_02',
-        facilityName: 'Crestview Clinic',
-        customerName: 'Dr. Alabi',
-        customerEmail: 'admin@crestview.ng',
-        amount: 70000,
-        currency: 'NGN',
-        channel: 'USSD',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'Recurring subscription charge processed',
-        plan: 'Growth',
-        billingCycle: 'Monthly',
-        paidAt: new Date('2026-10-02T11:22:00Z'),
-        createdAt: new Date('2026-10-02T11:22:00Z'),
-      },
-      {
-        reference: 'PSK_HIST_90D_03',
-        facilityName: 'Federal Medical Center Lekki',
-        customerName: 'Dr. S. Okonkwo',
-        customerEmail: 'admin@fmclekki.ng',
-        amount: 420000,
-        currency: 'NGN',
-        channel: 'Bank Transfer',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'Annual institutional license renewal',
-        plan: 'Growth',
-        billingCycle: 'Annual',
-        paidAt: new Date('2026-09-18T14:30:00Z'),
-        createdAt: new Date('2026-09-18T14:30:00Z'),
-      },
-      {
-        reference: 'PSK_HIST_90D_04',
-        facilityName: 'St. Nicholas Specialist Hospital',
-        customerName: 'Dr. K. George',
-        customerEmail: 'billing@stnicholas.ng',
-        amount: 500000,
-        currency: 'NGN',
-        channel: 'Card',
-        gateway: 'Paystack',
-        status: PaymentTransactionStatus.SUCCESSFUL,
-        statusReason: 'Multi-clinician annual subscription verified',
-        plan: 'Growth',
-        billingCycle: 'Annual',
-        paidAt: new Date('2026-08-28T16:10:00Z'),
-        createdAt: new Date('2026-08-28T16:10:00Z'),
-      },
-    ];
-
-    for (const tx of figmaTransactions) {
-      const existing = await txRepo.findOne({ where: { reference: tx.reference } });
-      if (!existing) {
-        const item = txRepo.create(tx);
-        await txRepo.save(item);
-      }
-    }
+    // Only real transactions from DB should be used
   }
 
   /**
@@ -2631,30 +2090,54 @@ export class SuperAdminService implements OnModuleInit {
     // 1. Calculate Collected (last 90 days)
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const oneEightyDaysAgo = new Date();
+    oneEightyDaysAgo.setDate(oneEightyDaysAgo.getDate() - 180);
 
-    const collectedRaw = await txRepo
-      .createQueryBuilder('tx')
-      .select('SUM(tx.amount)', 'total')
-      .where('tx.status = :status', { status: PaymentTransactionStatus.SUCCESSFUL })
-      .andWhere('tx.createdAt >= :date', { date: ninetyDaysAgo })
-      .getRawOne();
+    const [collectedRaw, priorCollectedRaw] = await Promise.all([
+      txRepo
+        .createQueryBuilder('tx')
+        .select('SUM(tx.amount)', 'total')
+        .where('tx.status = :status', { status: PaymentTransactionStatus.SUCCESSFUL })
+        .andWhere('tx.createdAt >= :date', { date: ninetyDaysAgo })
+        .getRawOne(),
+      txRepo
+        .createQueryBuilder('tx')
+        .select('SUM(tx.amount)', 'total')
+        .where('tx.status = :status', { status: PaymentTransactionStatus.SUCCESSFUL })
+        .andWhere('tx.createdAt >= :startDate AND tx.createdAt < :endDate', {
+          startDate: oneEightyDaysAgo,
+          endDate: ninetyDaysAgo,
+        })
+        .getRawOne(),
+    ]);
 
-    const collectedAmount = Number(collectedRaw?.total) > 0 ? Number(collectedRaw.total) : 1500000;
+    const collectedAmount = Number(collectedRaw?.total) || 0;
+    const priorCollectedAmount = Number(priorCollectedRaw?.total) || 0;
+    let collectedChangeText = '0% vs prior 90 days';
+    let collectedIsPositive = true;
+    if (priorCollectedAmount > 0) {
+      const diff = Math.round(((collectedAmount - priorCollectedAmount) / priorCollectedAmount) * 100);
+      collectedChangeText = `${diff >= 0 ? '+' : ''}${diff}% vs prior 90 days`;
+      collectedIsPositive = diff >= 0;
+    } else if (collectedAmount > 0) {
+      collectedChangeText = '+100% vs prior 90 days';
+      collectedIsPositive = true;
+    }
 
     // 2. Calculate Pending Settlement
     // "pending settlement: this are for those thta are yet to renew there plan thos that have not pay for that month"
     const pendingFacilities = await facilityRepo
       .createQueryBuilder('f')
       .select('SUM(f.monthlyFee)', 'total')
-      .where('f.status = :overdue OR f.paymentStatus = :failed OR f.paymentStatus = :pending', {
+      .where('(f.status = :overdue OR f.status = :active) AND (f.paymentStatus = :failed OR f.paymentStatus = :pending)', {
         overdue: FacilityStatus.OVERDUE,
+        active: FacilityStatus.ACTIVE,
         failed: 'failed',
         pending: 'pending',
       })
       .getRawOne();
 
-    const pendingAmount =
-      Number(pendingFacilities?.total) > 0 ? Number(pendingFacilities.total) : 70000;
+    const pendingAmount = Number(pendingFacilities?.total) || 0;
 
     // 3. Calculate Failed Charges
     const failedChargesCount = await txRepo
@@ -2741,8 +2224,7 @@ export class SuperAdminService implements OnModuleInit {
     const [transactions, total] = await qb.getManyAndCount();
 
     const formattedTransactions = transactions.map((t) => {
-      // In the Figma mockup, reference displays cleanly like "PSK_8F2K19QX"
-      const displayReference = t.reference.replace(/-\d+$/, '').replace(/_HIST.*$/, 'PSK_8F2K19QX');
+      const displayReference = t.reference;
       const numAmount = Number(t.amount);
 
       let statusLabel = 'Successful';
@@ -2797,20 +2279,20 @@ export class SuperAdminService implements OnModuleInit {
         collectedLast90Days: {
           amount: collectedAmount,
           formatted: this.formatCurrency(collectedAmount),
-          change: '+1.2% vs last 90 days',
-          isPositive: true,
+          change: collectedChangeText,
+          isPositive: collectedIsPositive,
           periodLabel: 'Last 90 days',
         },
         pendingSettlement: {
           amount: pendingAmount,
           formatted: this.formatCurrency(pendingAmount),
-          change: '+1.2% vs last 90 days',
-          isPositive: true,
+          change: pendingAmount === 0 ? 'All current' : `${this.formatCurrency(pendingAmount)} uncollected`,
+          isPositive: pendingAmount === 0,
           description: 'Facilities yet to renew plan for that month',
         },
         failedCharges: {
-          count: failedChargesCount || 2,
-          subtext: 'Retries run after 2 and 5 days',
+          count: failedChargesCount,
+          subtext: failedChargesCount === 0 ? 'No failed charges' : 'Retries run after 2 and 5 days',
           description: 'Failed subscription charges due to bank issues',
         },
       },
@@ -3022,19 +2504,46 @@ export class SuperAdminService implements OnModuleInit {
   /**
    * Retrieves Termii wallet balance (via Termii API or fallback)
    */
-  async getTermiiBalance(): Promise<{
+  /**
+   * Retrieves BulkSMS wallet balance (via BulkSMS Nigeria API or Termii fallback)
+   */
+  async getBulkSmsBalance(): Promise<{
     balance: number;
     formatted: string;
     subtext: string;
     currency: string;
   }> {
+    const bulkToken = this.configService?.get<string>('BULKSMS_NIGERIA_API_TOKEN');
+    if (bulkToken && bulkToken.length > 10 && bulkToken !== 'YOUR_BULKSMS_TOKEN') {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(`https://www.bulksmsnigeria.com/api/v2/balance?api_token=${bulkToken.trim()}`, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+        const balanceVal = Number(data?.balance?.total_balance ?? data?.data?.balance ?? data?.balance);
+        if (Number.isFinite(balanceVal)) {
+          return {
+            balance: balanceVal,
+            formatted: `₦ ${balanceVal.toLocaleString('en-US')}`,
+            subtext: 'Live Bulk SMS balance',
+            currency: 'NGN',
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`BulkSMS balance query failed: ${err.message}.`);
+      }
+    }
+
     const apiKey = this.configService?.get<string>('TERMII_API_KEY');
     const baseUrl = this.configService?.get<string>('TERMII_BASE_URL') || 'https://api.ng.termii.com';
-
     if (apiKey && apiKey !== 'YOUR_TERMII_API_KEY' && apiKey.length > 10) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
         const res = await fetch(`${baseUrl}/api/get-balance?api_key=${apiKey}`, {
           signal: controller.signal,
         });
@@ -3044,158 +2553,32 @@ export class SuperAdminService implements OnModuleInit {
           return {
             balance: data.balance,
             formatted: `₦ ${Number(data.balance).toLocaleString('en-US')}`,
-            subtext: 'About 3 weeks at current rate',
+            subtext: 'Live SMS balance',
             currency: data.currency || 'NGN',
           };
         }
       } catch (err: any) {
-        this.logger.warn(`Termii balance query failed: ${err.message}. Using cached balance.`);
+        this.logger.warn(`SMS balance query failed: ${err.message}.`);
       }
     }
 
     return {
-      balance: 48000,
-      formatted: '₦ 48,000',
-      subtext: 'About 3 weeks at current rate',
+      balance: 0,
+      formatted: '₦ 0',
+      subtext: 'Live gateway balance',
       currency: 'NGN',
     };
+  }
+
+  async getTermiiBalance() {
+    return this.getBulkSmsBalance();
   }
 
   /**
    * Seeds initial messaging logs and historical distribution matching Figma
    */
   async seedInitialMessagesIfEmpty() {
-    const logRepo = this.dataSource.getRepository(MessageLog);
-    const count = await logRepo.count();
-
-    if (count > 0) return;
-
-    this.logger.log('Seeding initial message logs for Super Admin Messaging screen...');
-
-    const todayAt1206 = new Date();
-    todayAt1206.setHours(0, 6, 0, 0);
-
-    const figmaLogs: Partial<MessageLog>[] = [
-      {
-        facilityName: 'Absolute Health Hospital',
-        recipient: 'john.doe9@gmail.com',
-        recipientMasked: 'jo****9@gmail.com',
-        messageType: MessageType.STAFF_INVITE,
-        content: 'You have been invited to join Absolute Health Hospital clinical staff.',
-        channel: MessageChannel.EMAIL,
-        status: MessageStatus.DELIVERED,
-        provider: 'Gmail / SMTP',
-        createdAt: todayAt1206,
-      },
-      {
-        facilityName: 'Absolute Health Hospital',
-        recipient: 'john.doe9@gmail.com',
-        recipientMasked: 'jo****9@gmail.com',
-        messageType: MessageType.VERIFICATION_CODE,
-        content: 'Your MedTrail verification security code is 849201.',
-        channel: MessageChannel.EMAIL,
-        status: MessageStatus.DELIVERED,
-        provider: 'Gmail / SMTP',
-        createdAt: todayAt1206,
-      },
-      {
-        facilityName: 'Absolute Health Hospital',
-        recipient: '2348023456447',
-        recipientMasked: '+234802****447',
-        messageType: MessageType.PRESCRIPTION_DETAILS,
-        content: 'MedTrail Rx: Absolute Health Hospital has prescribed Amoxicillin 500mg (1 tid x 7d).',
-        channel: MessageChannel.SMS,
-        status: MessageStatus.DELIVERED,
-        provider: 'Termii',
-        createdAt: todayAt1206,
-      },
-      {
-        facilityName: 'Absolute Health Hospital',
-        recipient: 'john.doe9@gmail.com',
-        recipientMasked: 'jo****9@gmail.com',
-        messageType: MessageType.STAFF_INVITE,
-        content: 'You have been invited to join Absolute Health Hospital clinical staff.',
-        channel: MessageChannel.EMAIL,
-        status: MessageStatus.FAILED,
-        failureReason: 'Mostly DND registered numbers / recipient mailbox temporarily offline',
-        provider: 'Gmail / SMTP',
-        createdAt: todayAt1206,
-      },
-      {
-        facilityName: 'Absolute Health Hospital',
-        recipient: 'john.doe9@gmail.com',
-        recipientMasked: 'jo****9@gmail.com',
-        messageType: MessageType.STAFF_INVITE,
-        content: 'You have been invited to join Absolute Health Hospital clinical staff.',
-        channel: MessageChannel.EMAIL,
-        status: MessageStatus.DELIVERED,
-        provider: 'Gmail / SMTP',
-        createdAt: todayAt1206,
-      },
-      {
-        facilityName: 'Absolute Health Hospital',
-        recipient: '2348023456447',
-        recipientMasked: '+234802****447',
-        messageType: MessageType.PRESCRIPTION_DETAILS,
-        content: 'MedTrail Rx: Absolute Health Hospital has prescribed Paracetamol 1000mg.',
-        channel: MessageChannel.SMS,
-        status: MessageStatus.QUEUED,
-        failureReason: 'Awaiting delivery report from telecom provider',
-        provider: 'Termii',
-        createdAt: todayAt1206,
-      },
-      // Additional logs across other hospitals and channels
-      {
-        facilityName: 'Lifeline Specialist Clinic',
-        recipient: '2348039182390',
-        recipientMasked: '+234803****390',
-        messageType: MessageType.PRESCRIPTION_DETAILS,
-        content: 'Prescription ready for collection at pharmacy.',
-        channel: MessageChannel.WHATSAPP,
-        status: MessageStatus.DELIVERED,
-        provider: 'Termii WhatsApp',
-        createdAt: new Date(Date.now() - 3600000 * 2),
-      },
-      {
-        facilityName: 'Mercy Cross Clinic',
-        recipient: 'amina.bello@gmail.com',
-        recipientMasked: 'am****o@gmail.com',
-        messageType: MessageType.VERIFICATION_CODE,
-        content: 'Your login verification OTP is 392019.',
-        channel: MessageChannel.EMAIL,
-        status: MessageStatus.DELIVERED,
-        provider: 'Gmail / SMTP',
-        createdAt: new Date(Date.now() - 3600000 * 4),
-      },
-      {
-        facilityName: 'Harbor Medical Center',
-        recipient: '2348076543210',
-        recipientMasked: '+234807****210',
-        messageType: MessageType.PRESCRIPTION_DETAILS,
-        content: 'MedTrail prescription reminder.',
-        channel: MessageChannel.SMS,
-        status: MessageStatus.FAILED,
-        failureReason: 'DND active on recipient mobile line',
-        provider: 'Termii',
-        createdAt: new Date(Date.now() - 3600000 * 6),
-      },
-      {
-        facilityName: 'Crestview Clinic',
-        recipient: 'dr.alabi@crestview.ng',
-        recipientMasked: 'dr****i@crestview.ng',
-        messageType: MessageType.STAFF_INVITE,
-        content: 'Staff invitation link sent to clinical doctor.',
-        channel: MessageChannel.EMAIL,
-        status: MessageStatus.QUEUED,
-        provider: 'Gmail / SMTP',
-        createdAt: new Date(Date.now() - 3600000 * 8),
-      },
-    ];
-
-    for (const log of figmaLogs) {
-      const item = logRepo.create(log);
-      await logRepo.save(item);
-    }
+    // Only real message logs from DB should be used
   }
 
   /**
@@ -3224,110 +2607,172 @@ export class SuperAdminService implements OnModuleInit {
     const facilityRepo = this.dataSource.getRepository(Facility);
 
     // 1. Termii Credit
-    const termii = await this.getTermiiBalance();
+    const termii = await this.getBulkSmsBalance();
 
-    // 2. High-level aggregates (matching the Figma specifications & live counts)
-    const totalSent = 3366;
-    const totalDelivered = 3285;
-    const totalFailed = 81;
-    const deliveryRate = 97.6;
+    // 2. Calendar Month Boundaries
+    const now = new Date();
+    const startOfCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const startOfPrevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const endOfPrevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    const currentMonthName = monthNames[now.getUTCMonth()];
+    const prevMonthName = monthNames[startOfPrevMonth.getUTCMonth()];
 
-    // 3. Messages breakdown by category
+    // 3. High-level aggregates from real database logs
+    const [
+      totalSent,
+      totalDelivered,
+      totalFailed,
+      currentMonthSent,
+      currentMonthDelivered,
+      currentMonthFailed,
+      prevMonthSent,
+      smsDelivered,
+      smsFailed,
+      smsQueued,
+      waDelivered,
+      waFailed,
+      waQueued,
+      prevSmsDelivered,
+      prevSmsFailed,
+      prevSmsQueued,
+      prevWaDelivered,
+      prevWaFailed,
+      prevWaQueued,
+    ] = await Promise.all([
+      logRepo.count(),
+      logRepo.count({ where: { status: MessageStatus.DELIVERED } }),
+      logRepo.count({ where: { status: MessageStatus.FAILED } }),
+      logRepo.count({ where: { createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { createdAt: MoreThanOrEqual(startOfCurrentMonth), status: MessageStatus.DELIVERED } }),
+      logRepo.count({ where: { createdAt: MoreThanOrEqual(startOfCurrentMonth), status: MessageStatus.FAILED } }),
+      logRepo.count({ where: { createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.SMS, status: MessageStatus.DELIVERED, createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.SMS, status: MessageStatus.FAILED, createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.SMS, status: MessageStatus.QUEUED, createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.WHATSAPP, status: MessageStatus.DELIVERED, createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.WHATSAPP, status: MessageStatus.FAILED, createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.WHATSAPP, status: MessageStatus.QUEUED, createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.SMS, status: MessageStatus.DELIVERED, createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.SMS, status: MessageStatus.FAILED, createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.SMS, status: MessageStatus.QUEUED, createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.WHATSAPP, status: MessageStatus.DELIVERED, createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.WHATSAPP, status: MessageStatus.FAILED, createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+      logRepo.count({ where: { channel: MessageChannel.WHATSAPP, status: MessageStatus.QUEUED, createdAt: Between(startOfPrevMonth, endOfPrevMonth) } }),
+    ]);
+
+    // Calculate delivery rates (if 0 failed, delivery rate is 100%)
+    const smsAttempted = smsDelivered + smsFailed;
+    const smsRate = smsFailed === 0 ? 100 : (smsAttempted > 0 ? Number(((smsDelivered / smsAttempted) * 100).toFixed(1)) : 100);
+
+    const waAttempted = waDelivered + waFailed;
+    const waRate = waFailed === 0 ? 100 : (waAttempted > 0 ? Number(((waDelivered / waAttempted) * 100).toFixed(1)) : 100);
+
+    const currentAttempted = currentMonthDelivered + currentMonthFailed;
+    const deliveryRate = currentMonthFailed === 0 ? 100 : (currentAttempted > 0 ? Number(((currentMonthDelivered / currentAttempted) * 100).toFixed(1)) : 100);
+
+    // Month vs Month comparison
+    let changeText = `0% vs ${prevMonthName}`;
+    let isPositive = true;
+    if (prevMonthSent > 0) {
+      const diff = Math.round(((currentMonthSent - prevMonthSent) / prevMonthSent) * 100);
+      changeText = `${diff >= 0 ? '+' : ''}${diff}% vs ${prevMonthName}`;
+      isPositive = diff >= 0;
+    } else if (currentMonthSent > 0) {
+      changeText = `+100% vs ${prevMonthName}`;
+      isPositive = true;
+    }
+
+    // 4. Messages breakdown by category across all hospitals
+    const [staffInvitesCount, verificationCodesCount, prescriptionDetailsCount] = await Promise.all([
+      logRepo.count({ where: { messageType: MessageType.STAFF_INVITE } }),
+      logRepo.count({ where: { messageType: MessageType.VERIFICATION_CODE } }),
+      logRepo.count({ where: { messageType: MessageType.PRESCRIPTION_DETAILS } }),
+    ]);
+
     const messageTypesBreakdown = [
       {
         type: 'Staff invites',
         category: 'Staff invites',
-        count: 1120,
-        formattedCount: '1,120',
+        name: 'Staff invites',
+        count: staffInvitesCount,
+        formattedCount: staffInvitesCount.toLocaleString('en-US'),
         channel: 'Email',
-        percentage: Number(((1120 / totalSent) * 100).toFixed(1)),
-        progressBarWidth: '33.3%',
+        percentage: totalSent > 0 ? Number(((staffInvitesCount / totalSent) * 100).toFixed(1)) : 0,
+        progressBarWidth: totalSent > 0 ? `${Math.round((staffInvitesCount / totalSent) * 100)}%` : '0%',
         description: 'Staff onboarding invitations sent via Gmail/SMTP',
       },
       {
         type: 'Verification codes',
         category: 'Verification codes',
-        count: 640,
-        formattedCount: '640',
+        name: 'Verification codes',
+        count: verificationCodesCount,
+        formattedCount: verificationCodesCount.toLocaleString('en-US'),
         channel: 'Email',
-        percentage: Number(((640 / totalSent) * 100).toFixed(1)),
-        progressBarWidth: '19.0%',
+        percentage: totalSent > 0 ? Number(((verificationCodesCount / totalSent) * 100).toFixed(1)) : 0,
+        progressBarWidth: totalSent > 0 ? `${Math.round((verificationCodesCount / totalSent) * 100)}%` : '0%',
         description: 'Two-factor and login security verification OTP codes',
       },
       {
         type: 'Prescription details',
         category: 'Prescription details',
-        count: 520,
-        formattedCount: '520',
+        name: 'Prescription details',
+        count: prescriptionDetailsCount,
+        formattedCount: prescriptionDetailsCount.toLocaleString('en-US'),
         channel: 'SMS',
-        percentage: Number(((520 / totalSent) * 100).toFixed(1)),
-        progressBarWidth: '15.4%',
-        description: 'Prescription dosage and pharmacy dispense notices via Termii SMS',
+        percentage: totalSent > 0 ? Number(((prescriptionDetailsCount / totalSent) * 100).toFixed(1)) : 0,
+        progressBarWidth: totalSent > 0 ? `${Math.round((prescriptionDetailsCount / totalSent) * 100)}%` : '0%',
+        description: 'Prescription dosage and pharmacy dispense notices via Bulk SMS',
       },
     ];
 
-    // 4. Hospital Quota Usage (1,000 monthly quota per hospital)
-    const hospitals = await facilityRepo.find({
-      take: 20,
-      order: { messagesCount: 'DESC' },
-    });
+    // 5. Hospital Quota Usage (1,000 monthly SMS subscription quota per hospital)
+    const [hospitals, facilityMsgCounts] = await Promise.all([
+      facilityRepo.find({ order: { createdAt: 'DESC' } }),
+      logRepo
+        .createQueryBuilder('m')
+        .select('LOWER(TRIM(m.facilityName))', 'name')
+        .addSelect('COUNT(*)', 'cnt')
+        .groupBy('LOWER(TRIM(m.facilityName))')
+        .getRawMany(),
+    ]);
 
-    // Seeded usage matching Figma
-    const usageData = [
-      {
-        facilityName: 'Absolute Health Hospital',
-        used: 640,
-        quota: 1000,
-        percentage: 64,
-        barColor: 'blue',
-        status: 'normal',
-      },
-      {
-        facilityName: 'Lifeline Specialist Clinic',
-        used: 910,
-        quota: 1000,
-        percentage: 91,
-        barColor: 'amber',
-        status: 'warning',
-      },
-      {
-        facilityName: 'Mercy Cross Clinic',
-        used: 640,
-        quota: 1000,
-        percentage: 64,
-        barColor: 'blue',
-        status: 'normal',
-      },
-      {
-        facilityName: 'Harbor Medical Center',
-        used: 320,
-        quota: 1000,
-        percentage: 32,
-        barColor: 'blue',
-        status: 'normal',
-      },
-      {
-        facilityName: 'Crestview Clinic',
-        used: 480,
-        quota: 1000,
-        percentage: 48,
-        barColor: 'blue',
-        status: 'normal',
-      },
-      {
-        facilityName: 'Sunrise Family Clinic',
-        used: 376,
-        quota: 1000,
-        percentage: 37.6,
-        barColor: 'blue',
-        status: 'normal',
-      },
-    ];
+    const msgCountMap: Record<string, number> = {};
+    for (const row of facilityMsgCounts) {
+      if (row.name) {
+        msgCountMap[row.name] = Number(row.cnt) || 0;
+      }
+    }
+
+    const usageData = hospitals
+      .map((h) => {
+        const used = Math.max(
+          msgCountMap[h.name.toLowerCase().trim()] || 0,
+          Number(h.messagesCount) || 0,
+        );
+        const quota = 1000;
+        const percentage = Math.min(100, Number(((used / quota) * 100).toFixed(1)));
+        return {
+          id: h.id,
+          facilityName: h.name,
+          name: h.name,
+          used,
+          quota,
+          allowance: quota,
+          percentage,
+          barColor: percentage >= 90 ? 'amber' : 'blue',
+          status: percentage >= 90 ? 'warning' : 'normal',
+        };
+      })
+      .sort((a, b) => b.used - a.used);
 
     // Top 3 for the main dashboard card
     const topUsage = usageData.slice(0, 3);
 
-    // 5. Query Message Logs Table
+    // 6. Query Message Logs Table
     const qb = logRepo.createQueryBuilder('log');
 
     // Tab filter: 'all' | 'failed' | 'queued'
@@ -3435,7 +2880,7 @@ export class SuperAdminService implements OnModuleInit {
         rawTime: l.createdAt,
         facility: l.facilityName,
         facilityShort: shortFacility,
-        to: l.recipientMasked || this.maskRecipient(l.recipient),
+        to: this.maskRecipient(l.recipient) || l.recipientMasked,
         rawTo: l.recipient,
         message: l.messageType,
         channel: l.channel,
@@ -3448,37 +2893,72 @@ export class SuperAdminService implements OnModuleInit {
       };
     });
 
+    const curKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const prevKey = `${startOfPrevMonth.getUTCFullYear()}-${String(startOfPrevMonth.getUTCMonth() + 1).padStart(2, '0')}`;
+
+    const monthsData = [
+      {
+        month: curKey,
+        sms: { delivered: smsDelivered, failed: smsFailed, queued: smsQueued },
+        whatsapp: { delivered: waDelivered, failed: waFailed, queued: waQueued },
+      },
+      {
+        month: prevKey,
+        sms: { delivered: prevSmsDelivered, failed: prevSmsFailed, queued: prevSmsQueued },
+        whatsapp: { delivered: prevWaDelivered, failed: prevWaFailed, queued: prevWaQueued },
+      },
+    ];
+
     return {
       summary: {
         sentInOctober: {
-          count: totalSent,
-          formatted: '3,366',
-          change: '+18% vs September',
-          isPositive: true,
-          month: 'October',
+          count: currentMonthSent,
+          formatted: currentMonthSent.toLocaleString('en-US'),
+          change: changeText,
+          isPositive,
+          month: currentMonthName,
         },
         deliveryRate: {
           rate: deliveryRate,
           formatted: `${deliveryRate}%`,
-          whatsappRate: '99.1%',
-          smsRate: '96.4%',
-          subtext: 'WhatsApp: 99.1%, SMS: 96.4%',
+          whatsappRate: `${waRate}%`,
+          smsRate: `${smsRate}%`,
+          subtext: `WhatsApp: ${waRate}%, SMS: ${smsRate}%`,
         },
         failed: {
-          count: totalFailed,
-          formatted: '81',
-          subtext: 'Mostly DND registered numbers',
-          statusColor: 'red',
+          count: currentMonthFailed,
+          formatted: String(currentMonthFailed),
+          subtext: currentMonthFailed === 0 ? 'No delivery failures recorded' : `${currentMonthFailed} delivery ${currentMonthFailed === 1 ? 'failure' : 'failures'} recorded`,
+          statusColor: currentMonthFailed > 0 ? 'red' : 'green',
+        },
+        bulkCredit: {
+          balance: termii.balance,
+          formatted: termii.formatted,
+          subtext: termii.subtext,
+          currency: termii.currency,
+          remainingNaira: termii.balance,
+          estimatedWeeks: 3,
+        },
+        bulkSmsCredit: {
+          balance: termii.balance,
+          formatted: termii.formatted,
+          subtext: termii.subtext,
+          currency: termii.currency,
+          remainingNaira: termii.balance,
+          estimatedWeeks: 3,
         },
         termiiCredit: {
           balance: termii.balance,
           formatted: termii.formatted,
           subtext: termii.subtext,
           currency: termii.currency,
+          remainingNaira: termii.balance,
+          estimatedWeeks: 3,
         },
       },
+      months: monthsData,
       provider: {
-        name: 'Termii',
+        name: 'BulkSMS',
         status: 'active',
         isLive: true,
         supportedChannels: ['SMS', 'WhatsApp', 'Email'],
@@ -3495,10 +2975,10 @@ export class SuperAdminService implements OnModuleInit {
         items: topUsage,
       },
       counts: {
-        all: allCount || 6,
-        failed: failedCount || 1,
-        queued: queuedCount || 1,
-        delivered: deliveredCount || 4,
+        all: allCount,
+        failed: failedCount,
+        queued: queuedCount,
+        delivered: deliveredCount,
       },
       logs: formattedLogs,
       pagination: {
@@ -3515,66 +2995,59 @@ export class SuperAdminService implements OnModuleInit {
    * Powers the "View all" modal/view for Hospital Usage
    */
   async getHospitalMessagingUsage() {
+    const facilityRepo = this.dataSource.getRepository(Facility);
+    const logRepo = this.dataSource.getRepository(MessageLog);
+
+    const [facilities, facilityMsgCounts] = await Promise.all([
+      facilityRepo.find({ order: { createdAt: 'DESC' } }),
+      logRepo
+        .createQueryBuilder('m')
+        .select('LOWER(TRIM(m.facilityName))', 'name')
+        .addSelect('COUNT(*)', 'cnt')
+        .groupBy('LOWER(TRIM(m.facilityName))')
+        .getRawMany(),
+    ]);
+
+    const msgCountMap: Record<string, number> = {};
+    for (const row of facilityMsgCounts) {
+      if (row.name) {
+        msgCountMap[row.name] = Number(row.cnt) || 0;
+      }
+    }
+
+    const facilityUsage = facilities
+      .map((f) => {
+        const used = Math.max(
+          msgCountMap[f.name.toLowerCase().trim()] || 0,
+          Number(f.messagesCount) || 0,
+        );
+        const quota = 1000;
+        const remaining = Math.max(0, quota - used);
+        const percentage = Math.min(100, Math.round((used / quota) * 100));
+        const status = percentage >= 90 ? 'warning' : 'normal';
+        return {
+          id: f.id,
+          facilityName: f.name,
+          name: f.name,
+          used,
+          quota,
+          allowance: quota,
+          remaining,
+          percentage,
+          status,
+          barColor: percentage >= 90 ? 'amber' : 'blue',
+          warningMessage:
+            percentage >= 90
+              ? 'Approaching monthly 1,000 message allocation limit (>90%)'
+              : undefined,
+        };
+      })
+      .sort((a, b) => b.used - a.used);
+
     return {
       title: 'Facility Message Usage & Allocation',
       quotaPerFacility: 1000,
-      facilities: [
-        {
-          facilityName: 'Absolute Health Hospital',
-          used: 640,
-          quota: 1000,
-          remaining: 360,
-          percentage: 64,
-          status: 'normal',
-          barColor: 'blue',
-        },
-        {
-          facilityName: 'Lifeline Specialist Clinic',
-          used: 910,
-          quota: 1000,
-          remaining: 90,
-          percentage: 91,
-          status: 'warning',
-          barColor: 'amber',
-          warningMessage: 'Approaching monthly 1,000 message allocation limit (>90%)',
-        },
-        {
-          facilityName: 'Mercy Cross Clinic',
-          used: 640,
-          quota: 1000,
-          remaining: 360,
-          percentage: 64,
-          status: 'normal',
-          barColor: 'blue',
-        },
-        {
-          facilityName: 'Harbor Medical Center',
-          used: 320,
-          quota: 1000,
-          remaining: 680,
-          percentage: 32,
-          status: 'normal',
-          barColor: 'blue',
-        },
-        {
-          facilityName: 'Crestview Clinic',
-          used: 480,
-          quota: 1000,
-          remaining: 520,
-          percentage: 48,
-          status: 'normal',
-          barColor: 'blue',
-        },
-        {
-          facilityName: 'Sunrise Family Clinic',
-          used: 376,
-          quota: 1000,
-          remaining: 624,
-          percentage: 37.6,
-          status: 'normal',
-          barColor: 'blue',
-        },
-      ],
+      facilities: facilityUsage,
     };
   }
 
@@ -3604,7 +3077,7 @@ export class SuperAdminService implements OnModuleInit {
         content: params.content,
         channel: params.channel || MessageChannel.SMS,
         status: params.status || MessageStatus.DELIVERED,
-        provider: params.provider || 'Termii',
+        provider: params.provider || 'BulkSMS',
         failureReason: params.failureReason,
         cost: params.cost || 0,
       });

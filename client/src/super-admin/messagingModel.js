@@ -14,13 +14,16 @@ function channelStats(channel) {
   // This aggregate model contains delivered, failed and queued only. Completed
   // attempts are delivered + failed; queued messages have not been attempted.
   const attempted = channel.delivered + channel.failed
-  return { attempted, delivered: channel.delivered, failed: channel.failed, deliveryRate: attempted ? channel.delivered / attempted * 100 : null }
+  const deliveryRate = channel.failed === 0 ? 100 : (attempted ? channel.delivered / attempted * 100 : 0)
+  return { attempted, delivered: channel.delivered, failed: channel.failed, deliveryRate }
 }
 function monthStats(month) {
   const sms = channelStats(month?.sms), whatsapp = channelStats(month?.whatsapp)
   if (sms.attempted === null || whatsapp.attempted === null) return { sms, whatsapp, sent: null, failed: null, deliveryRate: null }
   const sent = sms.attempted + whatsapp.attempted
-  return { sms, whatsapp, sent, failed: sms.failed + whatsapp.failed, deliveryRate: sent ? (sms.delivered + whatsapp.delivered) / sent * 100 : null }
+  const failed = sms.failed + whatsapp.failed
+  const deliveryRate = sent ? (failed === 0 ? 100 : (sms.delivered + whatsapp.delivered) / sent * 100) : null
+  return { sms, whatsapp, sent, failed, deliveryRate }
 }
 export function messagingSummary(months, referenceDate) {
   const context = messagingMonths(referenceDate)

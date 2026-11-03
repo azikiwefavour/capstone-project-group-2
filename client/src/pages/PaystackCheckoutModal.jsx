@@ -8,6 +8,7 @@ export default function PaystackCheckoutModal({
   billingCycle,
   email,
   hospitalName,
+  onVerify,
   onSuccess,
 }) {
   const [method, setMethod] = useState('card') // 'card' | 'transfer'
@@ -39,15 +40,25 @@ export default function PaystackCheckoutModal({
 
   const handleCompletePayment = async () => {
     setStatus('processing')
-    // Realistic short delay for processing simulated payment
-    await new Promise((r) => setTimeout(r, 1200))
-    setStatus('success')
+    const selectedChannel = method === 'card' ? 'Card' : 'Bank Transfer'
 
     try {
-      // Trigger backend verification and facility activation
-      await onSuccess()
-    } catch {
-      // Continue so user is not stuck
+      if (onVerify) {
+        await onVerify(selectedChannel)
+      }
+      // Small visual pause for smooth transition
+      await new Promise((r) => setTimeout(r, 600))
+      setStatus('success')
+
+      // Auto-redirect to dashboard after 2.5 seconds
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess(selectedChannel)
+        }
+      }, 2500)
+    } catch (err) {
+      setStatus('idle')
+      alert(err?.message || 'Payment processing failed. Please try again.')
     }
   }
 
@@ -131,7 +142,7 @@ export default function PaystackCheckoutModal({
             <div className="mt-6 flex w-full flex-col gap-2">
               <button
                 type="button"
-                onClick={onSuccess}
+                onClick={() => onSuccess(method === 'card' ? 'Card' : 'Bank Transfer')}
                 className="w-full rounded-xl bg-[#5063BF] py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#4353A4] active:scale-[0.99]"
               >
                 Proceed to Admin Dashboard →

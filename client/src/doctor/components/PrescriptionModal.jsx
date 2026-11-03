@@ -105,7 +105,7 @@ function PrescriptionModal({
   const previewResult = useMemo(() => (previewValues ? { status: 'found', existing: previewValues } : null), [previewValues])
   const showingPreview = Boolean(previewValues && fields.every(({ key }) => values[key] === previewValues[key]))
   const reviewResult = showingPreview ? previewResult : duplicateResult
-  const canSubmit = !previewValues && isValid && (modifying || reviewResult.status === 'none')
+  const canSubmit = !previewValues && isValid && (modifying || reviewResult.status === 'none' || reviewResult.status === 'found')
     && typeof onSubmitPrescription === 'function' && !isSubmitting && !saveUncertain
 
   useEffect(() => () => submitController.current?.abort(), [])
@@ -211,7 +211,14 @@ function PrescriptionModal({
     setIsSubmitting(true)
     setSubmitError('')
     try {
-      const payload = modifying ? { ...values } : { ...multiValues }
+      const isDuplicate = reviewResult.status === 'found'
+      const payload = modifying
+        ? { ...values, confirmDuplicate: isDuplicate, overrideDuplicate: isDuplicate }
+        : {
+            ...multiValues,
+            confirmDuplicate: isDuplicate,
+            overrideDuplicate: isDuplicate,
+          }
       await onSubmitPrescription(payload, controller.signal)
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -465,11 +472,29 @@ function PrescriptionModal({
                       </span>
                       <button
                         type="button"
+                        onClick={() => {
+                          setCurrentItem({
+                            medication: item.medication,
+                            dose: item.dose,
+                            frequency: item.frequency,
+                            duration: item.duration,
+                          })
+                          handleRemoveItem(item.id)
+                        }}
+                        aria-label={`Edit ${item.medication}`}
+                        title="Edit drug details"
+                        className="text-[#7A8190] hover:text-[#475AA2] focus:outline-none cursor-pointer"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleRemoveItem(item.id)}
                         aria-label={`Remove ${item.medication}`}
                         title="Remove drug"
-                        className="text-[#7A8190] hover:text-[#E5484D] focus:outline-none"
-                      >
+                        className="text-[#7A8190] hover:text-[#E5484D] focus:outline-none cursor-pointer">
                         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
                           <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                         </svg>
@@ -565,9 +590,7 @@ function PrescriptionModal({
                     ? 'Saving prescription changes is not available yet. No changes have been saved.'
                     : previewValues
                       ? 'Development preview only. Prescription submission remains unavailable.'
-                      : duplicateResult.status === 'found'
-                        ? 'An exact duplicate exists. Submission is disabled until duplicate handling is confirmed.'
-                        : 'Submission requires verified patient medication records and a completed duplicate check.'}
+                      : 'Submission requires verified patient medication records and a completed duplicate check.'}
             </p>
           )}
         </section>

@@ -36,4 +36,8 @@ export class CheckDuplicateDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @ApiProperty({ required: false, description: 'Optional medications list' })
+  @IsOptional()
+  medications?: any;
 }

@@ -2,9 +2,10 @@ import { useState } from 'react'
 import PrescriptionDialog from '../../doctor/components/PrescriptionDialog'
 import PharmacistPrescriptionInformation from './PharmacistPrescriptionInformation'
 
-export default function VerifyPrescriptionModal({ patient, prescription, onClose, onVerify }) {
+export default function VerifyPrescriptionModal({ patient, prescription, medications = null, onClose, onVerify }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const isMulti = medications && medications.length > 1
 
   async function handleVerify(e) {
     e?.preventDefault()
@@ -22,12 +23,36 @@ export default function VerifyPrescriptionModal({ patient, prescription, onClose
   return (
     <PrescriptionDialog
       patient={patient}
-      title="Verify prescription"
+      title={isMulti ? `Verify ${medications.length} prescriptions` : 'Verify prescription'}
       subtitle="Be sure to review the prescription details before verification. Your name and time will be logged."
       idPrefix="pharmacist-verify-prescription"
       onClose={isSubmitting ? () => {} : onClose}
     >
-      <PharmacistPrescriptionInformation prescription={prescription} divided />
+      {isMulti ? (
+        <div className="mt-4 rounded-lg border border-[#E2E5ED] bg-[#F7F8FB] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#7A8190] mb-2.5">
+            Medications to verify & dispense ({medications.length})
+          </p>
+          <div className="space-y-2.5 divide-y divide-[#E2E5ED]">
+            {medications.map((m, idx) => (
+              <div key={m.id || idx} className={idx > 0 ? 'pt-2.5' : ''}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-[#111827]">{m.medicationName || 'Medication'}</span>
+                  <span className="font-medium text-[#475AA2]">{m.dosage || m.doseAndFrequency || '—'}</span>
+                </div>
+                {(m.frequency || m.duration) && (
+                  <p className="text-xs text-[#7A8190] mt-0.5">
+                    {m.frequency}{m.frequency && m.duration ? ' · ' : ''}{m.duration}
+                  </p>
+                )}
+                {m.reason && <p className="text-xs text-[#7A8190] mt-0.5">Reason: {m.reason}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <PharmacistPrescriptionInformation prescription={prescription} divided />
+      )}
 
       {submitError && (
         <p role="alert" className="mt-3 text-xs font-medium text-[#E5484D]">
@@ -50,10 +75,13 @@ export default function VerifyPrescriptionModal({ patient, prescription, onClose
           onClick={handleVerify}
           className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#475AA2] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? 'Verifying & dispensing...' : 'Verify and dispense prescription'}
+          {isSubmitting
+            ? 'Verifying & dispensing...'
+            : isMulti
+              ? `Verify & dispense all ${medications.length} medications`
+              : 'Verify and dispense prescription'}
         </button>
       </div>
     </PrescriptionDialog>
   )
 }
-

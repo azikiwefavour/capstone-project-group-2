@@ -14,10 +14,10 @@ export function systemHealthSummary(data) {
   const api = Array.isArray(data?.services) ? data.services.find(service => service?.id === 'medtrail') : undefined
   const incidents = openHealthIncidents(data?.incidents)
   return {
-    apiUptime: monitoringPercentage(api?.monitoring?.availableSeconds, api?.monitoring?.totalSeconds),
-    apiResponseTime: averageResponseTime(api?.responseTimesMs),
-    paymentWebhooks: monitoringPercentage(data?.webhooks?.successful, data?.webhooks?.totalProcessed),
-    openIncidents: incidents?.length ?? null,
+    apiUptime: monitoringPercentage(api?.monitoring?.availableSeconds, api?.monitoring?.totalSeconds) ?? data?.summary?.apiUptime ?? (api?.uptimePercentage ?? null),
+    apiResponseTime: averageResponseTime(api?.responseTimesMs) ?? data?.summary?.apiResponseTime ?? (api?.responseTimeMs ?? null),
+    paymentWebhooks: monitoringPercentage(data?.webhooks?.successful, data?.webhooks?.totalProcessed) ?? data?.summary?.paymentWebhooks ?? null,
+    openIncidents: incidents?.length ?? data?.summary?.openIncidents ?? null,
   }
 }
 

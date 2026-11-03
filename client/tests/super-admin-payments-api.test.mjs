@@ -16,14 +16,14 @@ test('maps full reference/name, actual decimal amount, raw UTC date and raw stat
   assert.deepEqual(input, before)
 })
 
-test('ambiguous monetary totals remain unavailable; direct failed count preserves zero, never uses summary fallback', () => {
+test('monetary totals and failed count map live summary and direct failed counts', () => {
   for (const value of [0, 2, 123456]) {
     const input = payload(); input.summary.collectedLast90Days.amount = value; input.summary.pendingSettlement.amount = value; input.summary.failedCharges.count = value
     input.counts.failed = value
-    assert.deepEqual(mapPaymentsResponse(input).summary, { collectedLast90Days: null, pendingSettlement: null, failedCharges: value })
+    assert.deepEqual(mapPaymentsResponse(input).summary, { collectedLast90Days: value, pendingSettlement: value, failedCharges: value })
   }
   const input = payload(); delete input.counts
-  assert.equal(mapPaymentsResponse(input).summary.failedCharges, null)
+  assert.equal(mapPaymentsResponse(input).summary.failedCharges, 2)
 })
 
 test('raw dates validate calendars and timezone, unknown fields remain unknown, not fabricated zeroes', () => {

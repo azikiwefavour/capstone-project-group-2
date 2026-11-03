@@ -151,66 +151,9 @@ export class IntegrationsHealthService {
    * 2 Resolved incidents this month: Paystack webhook delivery delay & Database replica sync
    */
   async seedInitialIncidentsIfEmpty() {
-    try {
-      const incidentRepo = this.dataSource.getRepository(SystemIncident);
-      const count = await incidentRepo.count();
-      if (count > 0) return;
-
-      this.logger.log('Seeding initial system health incidents...');
-
-      const todayAt1340 = new Date();
-      todayAt1340.setHours(13, 40, 0, 0);
-
-      const incidents: Partial<SystemIncident>[] = [
-        {
-          title: 'SMS Delays to MTN numbers',
-          serviceName: 'Termii SMS',
-          status: IncidentStatus.INVESTIGATING,
-          severity: IncidentSeverity.MINOR,
-          impact: 'Facilities and Patients may experience delays',
-          description:
-            'Downstream carrier queue backlog observed on MTN Nigeria gateway. Termii team is rerouting SMS traffic.',
-          createdAt: todayAt1340,
-        },
-        {
-          title: 'Paystack webhook delivery latency spike',
-          serviceName: 'Paystack',
-          status: IncidentStatus.RESOLVED,
-          severity: IncidentSeverity.MINOR,
-          impact: 'Brief 30-second delay in payment confirmation receipt',
-          description: 'Temporary DNS routing degradation upstream, resolved by Paystack engineering.',
-          createdAt: new Date('2026-10-15T15:30:00Z'),
-          resolvedAt: new Date('2026-10-15T16:20:00Z'),
-        },
-        {
-          title: 'Database replica synchronization lag',
-          serviceName: 'Database',
-          status: IncidentStatus.RESOLVED,
-          severity: IncidentSeverity.MINOR,
-          impact: 'Read replica lagged by 1.2s during bulk report export',
-          description: 'Automatic catch-up replication buffer completed without data inconsistency.',
-          createdAt: new Date('2026-10-08T09:10:00Z'),
-          resolvedAt: new Date('2026-10-08T09:45:00Z'),
-        },
-      ];
-
-      for (const inc of incidents) {
-        const item = incidentRepo.create(inc);
-        await incidentRepo.save(item);
-      }
-    } catch (err: any) {
-      this.logger.warn(`Could not seed system incidents: ${err.message}`);
-    }
+    // No-op: only real incidents recorded by live monitoring are retained
   }
 
-  /**
-   * Complete System Health Overview
-   * Delivers:
-   * 1. Alert banner: "1 service degraded: Termii SMS. Facilities and Patients may experience delays"
-   * 2. Stat cards: API uptime (99.98%), Response time (182 ms), Webhooks (99.8%), Open incidents (1)
-   * 3. Platform table: Medtrail API, Database, Auth/Sessions, Paystack, Termii SMS, Termii WhatsApp
-   * 4. Open incidents: "SMS Delays to MTN numbers • Termii SMS • Today, 13:40 • Investigating"
-   */
   async getSystemHealthOverview(filter?: string): Promise<SystemHealthOverview> {
     const timestamp = new Date().toISOString();
     const incidentRepo = this.dataSource.getRepository(SystemIncident);
@@ -308,24 +251,24 @@ export class IntegrationsHealthService {
         lastChecked: timestamp,
       },
       {
-        id: 'termii-sms',
-        name: 'Termii SMS',
-        reference: 'Termii SMS',
+        id: 'bulk-sms',
+        name: 'Bulk SMS',
+        reference: 'Bulk SMS',
         description: 'Messaging',
         category: 'messaging',
-        uptimePercent: 99.21,
-        formattedUptime: '99.21%',
-        latencyMs: 2.9,
-        formattedResponse: '2.9 ms',
-        status: 'degraded',
-        statusLabel: 'Degraded',
-        statusVariant: 'warning',
+        uptimePercent: 99.98,
+        formattedUptime: '99.98%',
+        latencyMs: 120,
+        formattedResponse: '120 ms',
+        status: 'operational',
+        statusLabel: 'Operational',
+        statusVariant: 'success',
         lastChecked: timestamp,
       },
       {
-        id: 'termii-whatsapp',
-        name: 'Termii WhatsApp',
-        reference: 'Termii WhatsApp',
+        id: 'bulk-whatsapp',
+        name: 'Bulk WhatsApp',
+        reference: 'Bulk WhatsApp',
         description: 'Messaging',
         category: 'messaging',
         uptimePercent: 99.21,
@@ -414,16 +357,21 @@ export class IntegrationsHealthService {
           subtext: 'Delivered first time',
         },
         openIncidents: {
-          count: openIncidents.length || 1,
-          subtext: `${resolvedIncidentsCount || 2} resolved this month`,
-          resolvedThisMonth: resolvedIncidentsCount || 2,
+          count: openIncidents.length,
+          subtext:
+            openIncidents.length === 0
+              ? resolvedIncidentsCount > 0
+                ? `${resolvedIncidentsCount} resolved this month`
+                : 'All systems operational'
+              : `${openIncidents.length} open incident${openIncidents.length > 1 ? 's' : ''}`,
+          resolvedThisMonth: resolvedIncidentsCount,
         },
       },
       platform: filteredPlatform,
       incidents: {
-        month: 'October 2026',
-        openCount: openIncidents.length || 1,
-        resolvedThisMonth: resolvedIncidentsCount || 2,
+        month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        openCount: openIncidents.length,
+        resolvedThisMonth: resolvedIncidentsCount,
         items: formattedIncidents,
       },
     };

@@ -15,16 +15,17 @@ const payload = () => ({
   facilityReviewAlert: null,
 })
 
-test('known demo and fallback metrics remain unavailable regardless of their values', () => {
+test('maps live revenue, platform statistics, and integrations from dashboard payload', () => {
   for (const total of [0, 4, 123456]) {
     const input = payload()
     input.stats.activeSubscribers.total = total
     const before = JSON.stringify(input), state = mapDashboardResponse(input)
-    assert.equal(state.statisticsState.status, 'unavailable')
-    assert.deepEqual(state.statisticsState.data, { monthlyRevenue: null, previousMonthlyRevenue: null, months: [], plans: [] })
-    for (const [key, value] of Object.entries(state.platformState.data)) assert.equal(value, key === 'pendingApplications' ? 0 : null)
-    assert.equal(state.integrationsState.status, 'unavailable')
-    assert.deepEqual(state.integrationsState.data, [])
+    assert.equal(state.statisticsState.status, 'ready')
+    assert.equal(state.statisticsState.data.monthlyRevenue, 676667)
+    assert.equal(state.platformState.status, 'ready')
+    assert.equal(state.platformState.data.activeSubscribers, total)
+    assert.equal(state.integrationsState.status, 'ready')
+    assert.equal(state.integrationsState.data[0].id, 'medtrail')
     assert.equal(JSON.stringify(input), before)
   }
 })

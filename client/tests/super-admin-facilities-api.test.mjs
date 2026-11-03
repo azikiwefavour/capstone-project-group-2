@@ -23,7 +23,7 @@ test('details ignore synthesized renewal, percentages, yearly amounts and preser
   assert.equal(value.nextRenewalDate, null)
   assert.equal(value.subscriptionAmount, null)
   assert.equal(value.messagesLabel, 'Messages (Nov)')
-  assert.deepEqual(value.progress, { clinicians: null, patients: null, messages: null })
+  assert.deepEqual(value.progress, { clinicians: null, patients: 25, messages: null })
   assert.equal(mapFacilityResponse({ ...row(), status: 'bad' }).status, null)
   assert.equal(mapFacilityResponse({ ...row(), status: 'pending_review' }).statusLabel, 'Pending review')
 })

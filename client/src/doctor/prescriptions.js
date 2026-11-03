@@ -7,9 +7,12 @@ const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-
 const hasId = record => typeof record?.id === 'string' && Boolean(record.id.trim())
 
 export async function getDoctorPatientDetails(patientId, signal) {
-  if (!patientId || typeof patientId !== 'string') throw new Error('Please select a valid patient from Patients.')
+  if (!uuid(patientId)) throw new Error('Please select a valid patient from Patients.')
+  // The list is hospital-scoped. Do not expose arbitrary patients through a typed URL.
+  const patients = await getDoctorPatients(signal)
+  if (!patients.some(patient => patient.id?.toLowerCase() === patientId?.toLowerCase())) throw new Error('This patient is not available in your Patients list.')
   const data = await doctorRequest(`patients/${encodeURIComponent(patientId)}`, { signal })
-  if (!data?.patient?.id || data.patient.id.toLowerCase() !== patientId.toLowerCase() || !Array.isArray(data.currentMedications) || !Array.isArray(data.medicationHistory)) {
+  if (!data?.patient?.id || data.patient.id.toLowerCase() !== patientId.toLowerCase() || ![data.currentMedications, data.medicationHistory].every(records => Array.isArray(records) && records.every(hasId))) {
     throw new Error('The server returned unexpected patient medication records. Please try again.')
   }
   const medication = record => ({
@@ -38,7 +41,7 @@ export async function createDoctorPrescription(patientId, values, signal) {
   // Re-read before writing; never override an existing record or silently allow duplicates.
   const latest = await getDoctorPatientDetails(patientId, signal)
   const duplicate = checkMedicationDuplicate(values, patientId, latest.duplicateRecords)
-  if (duplicate.status !== 'none') throw new Error(duplicate.status === 'found'
+  if (duplicate.status !== 'none' && !values.confirmDuplicate && !values.overrideDuplicate) throw new Error(duplicate.status === 'found'
     ? 'An exact duplicate exists. Prescription submission is disabled.'
     : 'Duplicate checking is unavailable. Refresh the medication records before submitting.')
 

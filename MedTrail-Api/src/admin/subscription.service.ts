@@ -7,7 +7,55 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { User } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
+
+export interface FacilityQuotaLimits {
+  planName: string;
+  isTrial: boolean;
+  isStarter: boolean;
+  isGrowth: boolean;
+  maxClinicians: number;
+  maxDoctors: number;
+  maxPharmacists: number;
+  maxPatients: number;
+  maxMonthlyMessages: number;
+}
+
+export const PLAN_QUOTAS: Record<string, FacilityQuotaLimits> = {
+  TRIAL: {
+    planName: 'Free Trial',
+    isTrial: true,
+    isStarter: false,
+    isGrowth: false,
+    maxClinicians: 5,
+    maxDoctors: 3,
+    maxPharmacists: 2,
+    maxPatients: 50,
+    maxMonthlyMessages: 50,
+  },
+  STARTER: {
+    planName: 'Starter Plan',
+    isTrial: false,
+    isStarter: true,
+    isGrowth: false,
+    maxClinicians: 15,
+    maxDoctors: 10,
+    maxPharmacists: 5,
+    maxPatients: 300,
+    maxMonthlyMessages: 1000,
+  },
+  GROWTH: {
+    planName: 'Growth Plan',
+    isTrial: false,
+    isStarter: false,
+    isGrowth: true,
+    maxClinicians: 50,
+    maxDoctors: 35,
+    maxPharmacists: 15,
+    maxPatients: 1500,
+    maxMonthlyMessages: 8000,
+  },
+};
 import {
   Facility,
   FacilityStatus,
@@ -217,6 +265,7 @@ export class SubscriptionService {
     reference: string,
     plan: string,
     billingCycle: string = 'Monthly',
+    channel: string = 'Card',
   ) {
     const userRepo = this.dataSource.getRepository(User);
     const facilityRepo = this.dataSource.getRepository(Facility);
@@ -260,6 +309,13 @@ export class SubscriptionService {
     const renewalDate = new Date();
     renewalDate.setDate(renewalDate.getDate() + pricing.durationDays);
 
+    const paymentMethodLabel = channel.toLowerCase().includes('transfer')
+      ? 'Bank transfer (Paystack)'
+      : 'Card (Paystack)';
+    const txChannel = channel.toLowerCase().includes('transfer')
+      ? 'Bank Transfer'
+      : 'Card';
+
     if (!facility) {
       facility = facilityRepo.create({
         name: hospitalName,
@@ -272,12 +328,13 @@ export class SubscriptionService {
         monthlyFee: pricing.plan === 'Starter plan' ? 30000 : 70000,
         currency: 'NGN',
         paymentStatus: 'paid',
-        paymentMethod: 'Card (Paystack)',
+        paymentMethod: paymentMethodLabel,
         renewalDate,
         lastPaymentDate: new Date(),
         cliniciansCount: 1,
         patientsCount: 0,
         messagesCount: 0,
+        trialUsed: true,
       });
     } else {
       facility.status = FacilityStatus.ACTIVE;
@@ -285,9 +342,10 @@ export class SubscriptionService {
       facility.billingCycle = isAnnual ? BillingCycle.YEARLY : BillingCycle.MONTHLY;
       facility.monthlyFee = pricing.plan === 'Starter plan' ? 30000 : 70000;
       facility.paymentStatus = 'paid';
-      facility.paymentMethod = 'Card (Paystack)';
+      facility.paymentMethod = paymentMethodLabel;
       facility.renewalDate = renewalDate;
       facility.lastPaymentDate = new Date();
+      facility.trialUsed = true;
     }
 
     await facilityRepo.save(facility);
@@ -307,6 +365,7 @@ export class SubscriptionService {
         basePrice: pricing.basePrice,
         paystackFee: pricing.paystackFee,
         reference,
+        channel: txChannel,
         gateway: 'Paystack',
       },
     });
@@ -325,7 +384,7 @@ export class SubscriptionService {
           customerEmail: user.email,
           amount: pricing.totalAmount,
           currency: 'NGN',
-          channel: 'Card',
+          channel: txChannel,
           gateway: 'Paystack',
           status: PaymentTransactionStatus.SUCCESSFUL,
           statusReason: 'Payment verified and confirmed via Paystack',
@@ -336,6 +395,7 @@ export class SubscriptionService {
       } else {
         tx.facilityId = facility.id;
         tx.facilityName = facility.name;
+        tx.channel = txChannel;
         tx.status = PaymentTransactionStatus.SUCCESSFUL;
         tx.statusReason = 'Payment verified and confirmed via Paystack';
         tx.paidAt = new Date();
@@ -390,6 +450,12 @@ export class SubscriptionService {
       .orWhere('LOWER(fac.name) = LOWER(:name)', { name: hospitalName })
       .getOne();
 
+    if (facility && (facility.trialUsed || facility.paymentStatus === 'expired')) {
+      throw new BadRequestException(
+        'You have already completed your 7-day free trial. Please select a paid plan (Starter or Growth) to access MedTrail.',
+      );
+    }
+
     const renewalDate = new Date();
     renewalDate.setDate(renewalDate.getDate() + 7); // 7-day trial
 
@@ -411,6 +477,7 @@ export class SubscriptionService {
         cliniciansCount: 1,
         patientsCount: 0,
         messagesCount: 0,
+        trialUsed: true,
       });
     } else {
       facility.status = FacilityStatus.TRIAL;
@@ -419,6 +486,7 @@ export class SubscriptionService {
       facility.paymentStatus = 'trial';
       facility.paymentMethod = 'None (Trial)';
       facility.renewalDate = renewalDate;
+      facility.trialUsed = true;
     }
 
     await facilityRepo.save(facility);
@@ -448,5 +516,117 @@ export class SubscriptionService {
         renewalDate: facility.renewalDate,
       },
     };
+  }
+
+  /**
+   * Evaluates the current plan limits for a hospital facility
+   */
+  async getHospitalPlanLimits(hospitalName?: string | null, adminEmail?: string | null): Promise<FacilityQuotaLimits> {
+    const facilityRepo = this.dataSource.getRepository(Facility);
+    let facility: Facility | null = null;
+
+    if (adminEmail) {
+      facility = await facilityRepo
+        .createQueryBuilder('fac')
+        .where('LOWER(fac.adminEmail) = LOWER(:email)', { email: adminEmail.trim().toLowerCase() })
+        .getOne();
+    }
+
+    if (!facility && hospitalName) {
+      facility = await facilityRepo
+        .createQueryBuilder('fac')
+        .where('LOWER(fac.name) = LOWER(:name)', { name: hospitalName.trim().toLowerCase() })
+        .getOne();
+    }
+
+    if (!facility) {
+      return PLAN_QUOTAS.GROWTH;
+    }
+
+    if (facility.status === FacilityStatus.TRIAL || facility.paymentStatus === 'trial') {
+      return PLAN_QUOTAS.TRIAL;
+    }
+
+    const planStr = String(facility.plan || '').toLowerCase();
+    if (planStr.includes('starter')) {
+      return PLAN_QUOTAS.STARTER;
+    }
+
+    return PLAN_QUOTAS.GROWTH;
+  }
+
+  /**
+   * Asserts that adding a user of the specified role does not exceed the facility's tier quota
+   */
+  async assertCanAddUser(hospitalName: string, role: UserRole, adminEmail?: string): Promise<void> {
+    const limits = await this.getHospitalPlanLimits(hospitalName, adminEmail);
+    const userRepo = this.dataSource.getRepository(User);
+
+    const hospitalUsers = await userRepo
+      .createQueryBuilder('u')
+      .where('LOWER(u.hospitalName) = LOWER(:hospitalName)', { hospitalName: hospitalName.trim().toLowerCase() })
+      .getMany();
+
+    if (role === UserRole.DOCTOR || role === UserRole.PHARMACIST) {
+      const doctors = hospitalUsers.filter(u => u.role === UserRole.DOCTOR || u.invitedRole === UserRole.DOCTOR).length;
+      const pharmacists = hospitalUsers.filter(u => u.role === UserRole.PHARMACIST || u.invitedRole === UserRole.PHARMACIST).length;
+      const clinicians = doctors + pharmacists;
+
+      if (clinicians >= limits.maxClinicians) {
+        throw new BadRequestException(
+          `Clinician quota reached: Your facility has reached the maximum of ${limits.maxClinicians} clinicians allowed on the ${limits.planName}. Please upgrade your subscription plan in Payment Settings to add more doctors or pharmacists.`,
+        );
+      }
+    } else if (role === UserRole.PATIENT) {
+      const patients = hospitalUsers.filter(u => u.role === UserRole.PATIENT || u.invitedRole === UserRole.PATIENT).length;
+
+      if (patients >= limits.maxPatients) {
+        throw new BadRequestException(
+          `Patient quota reached: Your facility has reached the maximum of ${limits.maxPatients} patients allowed on the ${limits.planName}. Please upgrade your subscription plan in Payment Settings to add more patients.`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Keeps cliniciansCount and patientsCount on Facility entity synchronized
+   */
+  async syncFacilityCounts(hospitalName?: string | null, adminEmail?: string | null): Promise<void> {
+    try {
+      const facilityRepo = this.dataSource.getRepository(Facility);
+      const userRepo = this.dataSource.getRepository(User);
+      let facility: Facility | null = null;
+
+      if (adminEmail) {
+        facility = await facilityRepo
+          .createQueryBuilder('fac')
+          .where('LOWER(fac.adminEmail) = LOWER(:email)', { email: adminEmail.trim().toLowerCase() })
+          .getOne();
+      }
+
+      if (!facility && hospitalName) {
+        facility = await facilityRepo
+          .createQueryBuilder('fac')
+          .where('LOWER(fac.name) = LOWER(:name)', { name: hospitalName.trim().toLowerCase() })
+          .getOne();
+      }
+
+      if (facility && hospitalName) {
+        const hospitalUsers = await userRepo
+          .createQueryBuilder('u')
+          .where('LOWER(u.hospitalName) = LOWER(:hospitalName)', { hospitalName: hospitalName.trim().toLowerCase() })
+          .getMany();
+
+        const doctors = hospitalUsers.filter(u => u.role === UserRole.DOCTOR || u.invitedRole === UserRole.DOCTOR).length;
+        const pharmacists = hospitalUsers.filter(u => u.role === UserRole.PHARMACIST || u.invitedRole === UserRole.PHARMACIST).length;
+        const patients = hospitalUsers.filter(u => u.role === UserRole.PATIENT || u.invitedRole === UserRole.PATIENT).length;
+
+        facility.cliniciansCount = doctors + pharmacists;
+        facility.patientsCount = patients;
+        await facilityRepo.save(facility);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not sync facility counts: ${err.message}`);
+    }
   }
 }

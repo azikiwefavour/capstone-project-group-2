@@ -149,9 +149,11 @@ describe('Existing email workflow data handoff (no database or SMTP)', () => {
       create: vi.fn(async (data) => ({ ...data, id: 'test-user' })),
     };
     const admin = new AdminService(
+      {} as never,
       users as never,
       mail as never,
       config as never,
+      {} as never,
     );
     const result = await admin.inviteUser(
       {
@@ -199,9 +201,11 @@ describe('Existing email workflow data handoff (no database or SMTP)', () => {
       updateById: vi.fn(),
     };
     const admin = new AdminService(
+      {} as never,
       users as never,
       mail as never,
       config as never,
+      {} as never,
     );
     const result = await admin.resendInvitation(user.id, 'Administrator');
     const saved = users.updateById.mock.calls[0][1];

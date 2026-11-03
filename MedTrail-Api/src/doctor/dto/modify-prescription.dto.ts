@@ -46,4 +46,8 @@ export class ModifyPrescriptionDto {
   @IsString()
   @IsOptional()
   noteToPharmacist?: string;
+
+  @ApiProperty({ required: false, description: 'Optional medications list' })
+  @IsOptional()
+  medications?: any;
 }
