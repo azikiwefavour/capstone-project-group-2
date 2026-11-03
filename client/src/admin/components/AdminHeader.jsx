@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from 'react'
 import SettingsProfileContext from '../../auth/SettingsProfileContext'
 import SettingsModal from '../../components/SettingsModal'
+import NotificationBell from '../../components/notifications/NotificationBell'
 
 function IconButton({ label, onClick, disabled, children }) {
   return (
@@ -53,6 +54,7 @@ function AdminHeader({ adminName, onProfileUpdate }) {
         {currentName ? `Welcome, ${currentName}` : 'Welcome'}
       </p>
       <div className="flex items-center justify-end gap-2.5">
+        <NotificationBell />
         <IconButton label="Open settings" onClick={() => setSettingsOpen(true)}>
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
             <path

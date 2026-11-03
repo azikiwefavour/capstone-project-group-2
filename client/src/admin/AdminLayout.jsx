@@ -1,3 +1,4 @@
+import NotificationProvider from '../components/notifications/NotificationProvider'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Navigate, Outlet, useNavigate } from 'react-router-dom'
 import SettingsProfileContext from '../auth/SettingsProfileContext'
@@ -113,7 +114,7 @@ function AdminLayout() {
   }
 
   return (
-    <SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
+    <NotificationProvider role="admin" key={token}><SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
       <AdminSidebar adminName={adminName} onLogout={() => setLogoutOpen(true)} />
       {logoutOpen && <LogoutConfirmationModal onClose={() => setLogoutOpen(false)} onConfirm={handleLogout} />}
       <section
@@ -126,7 +127,7 @@ function AdminLayout() {
             <button type="button" onClick={() => setAttempt((current) => current + 1)} className="h-10 rounded-xl bg-[#475AA2] px-4 font-semibold text-white hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25">Try again</button>
           </div> : <Outlet context={{ adminName }} />}
       </section>
-    </main></SettingsProfileContext.Provider>
+    </main></SettingsProfileContext.Provider></NotificationProvider>
   )
 }
 

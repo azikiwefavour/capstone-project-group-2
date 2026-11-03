@@ -1,3 +1,4 @@
+import PharmacistNotificationScope from '../../components/notifications/PharmacistNotificationScope'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Navigate, Outlet, useNavigate } from 'react-router-dom'
 import SettingsProfileContext from '../../auth/SettingsProfileContext'
@@ -71,7 +72,7 @@ export default function PharmacistLayout() {
 
   if (!token) return <Navigate to="/pharmacist/login" replace />
 
-  return <SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
+  return <PharmacistNotificationScope key={token} verified={checked && verification.status === 'verified'}><SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className="min-h-screen bg-[#F6F7FB] text-[#111827] lg:flex lg:h-screen">
     <PharmacistSidebar pharmacistName={pharmacistName} onLogout={() => setLogoutOpen(true)} />
     {logoutOpen && <LogoutConfirmationModal onClose={() => setLogoutOpen(false)} onConfirm={handleLogout} />}
     <section className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-8 lg:py-5 xl:px-10">
@@ -85,5 +86,5 @@ export default function PharmacistLayout() {
         <div className="h-4 lg:hidden" />
       </div>
     </section>
-  </main></SettingsProfileContext.Provider>
+  </main></SettingsProfileContext.Provider></PharmacistNotificationScope>
 }
