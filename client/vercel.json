@@ -1,10 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    },
-    {
       "source": "/",
       "has": [
         {
@@ -13,6 +9,10 @@
         }
       ],
       "destination": "/super-admin/login"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
