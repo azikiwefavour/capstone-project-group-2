@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './admin/AdminLayout'
 import SuperAdminLogin from './super-admin/SuperAdminLogin'
@@ -107,6 +107,11 @@ const ResetPasswordEmailPreview = import.meta.env.DEV
   : null
 
 function App() {
+  useEffect(() => {
+    if (window.location.hostname === 'ops.medtrail.com.ng' && window.location.pathname === '/') {
+      window.location.replace('/super-admin/login');
+    }
+  }, []);
   return (
     <BrowserRouter>
       <Routes>
@@ -206,5 +211,4 @@ function App() {
     </BrowserRouter>
   )
 }
-
 export default App

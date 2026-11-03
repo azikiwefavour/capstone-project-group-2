@@ -1,16 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "ops.medtrail.com.ng"
-        }
-      ],
-      "destination": "/super-admin/login"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
