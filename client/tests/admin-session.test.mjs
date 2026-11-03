@@ -9,7 +9,7 @@ const key = 'medtrailAdminSession'
 const token = (exp = Math.floor(Date.now() / 1000) + 600) =>
   `test.${Buffer.from(JSON.stringify({ exp, role: 'admin' })).toString('base64url')}.test`
 const response = (data, status = 200) => new Response(JSON.stringify(data), { status })
-const profile = { id: 'admin-fixture', name: 'Admin fixture', role: 'admin', isEmailVerified: true }
+const profile = { id: 'admin-fixture', name: 'Admin fixture', role: 'admin', email: 'admin@example.test', isEmailVerified: true }
 
 function storage() {
   const entries = new Map()
@@ -86,7 +86,7 @@ test('profile verification sends a bearer token and waits for a backend-confirme
   assert.equal(request.headers.Authorization, `Bearer ${jwt}`)
   assert.equal(request.cache, 'no-store')
   finish(response(profile))
-  assert.equal((await pending).name, profile.name)
+  assert.deepEqual({ ...await pending }, { name: profile.name, email: profile.email })
 })
 
 test('401, 403, deleted accounts, non-Admin roles, and unverified accounts clear the session', async () => {

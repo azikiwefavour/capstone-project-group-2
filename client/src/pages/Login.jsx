@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { setAccessToken } from '../auth/session'
 import { isValidPreviewPassword, startDoctorPreviewSession } from '../doctor/previewAuth'
 import medicationImage from '../assets/medication-image.png'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '')
-const backendRoles = { Admin: 'admin', Doctor: 'doctor', Pharmacist: 'pharmacist', Patient: 'patient' }
+const backendRoles = { Admin: 'admin', Doctor: 'doctor', Pharmacist: 'pharmacist', Patient: 'patient', SuperAdmin: 'super_admin' }
 
 function FieldError({ id, message }) {
   return (
@@ -96,19 +96,27 @@ function PasswordEyeIcon({ isVisible }) {
   )
 }
 
-function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate }) {
+function LoginFields({ isPatient, children }) {
+  return isPatient ? <div className="contents patient-login-fields">{children}</div> : children
+}
+
+function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate, successPath = '/doctor/dashboard', invitationOnly = false, heading = 'Welcome back', accountNotice = null, unavailableMessage = '', authenticationUnavailable = false, recoveryUnavailable = false }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selectedRole = authenticationRole || location.state?.selectedRole || 'Admin'
+  const role = authenticationRole === 'Super Admin' && onAuthenticate ? 'super_admin'
+    : Object.hasOwn(backendRoles, selectedRole) ? backendRoles[selectedRole] : null
+
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => (typeof location.state?.email === 'string' ? location.state.email : ''))
   const [password, setPassword] = useState('')
   const [continueClicked, setContinueClicked] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loginError, setLoginError] = useState('')
-  const [loginNotice, setLoginNotice] = useState('')
+  const [loginNotice, setLoginNotice] = useState(() => (typeof location.state?.notice === 'string' ? location.state.notice : ''))
   const loginInFlight = useRef(false)
-  const location = useLocation()
-  const navigate = useNavigate()
-  const selectedRole = authenticationRole || location.state?.selectedRole
-  const role = Object.hasOwn(backendRoles, selectedRole) ? backendRoles[selectedRole] : null
+  const loginController = useRef(null)
+  useEffect(() => () => loginController.current?.abort(), [])
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
     continueClicked &&
@@ -134,6 +142,11 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
 
   async function handleContinue(event) {
     event.preventDefault()
+    if (authenticationUnavailable) return
+    if (unavailableMessage) {
+      setLoginError(unavailableMessage)
+      return
+    }
     if (loginInFlight.current) return
 
     setContinueClicked(true)
@@ -146,17 +159,20 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       return
     }
 
-    // Doctor-specific authentication is isolated from the existing Admin session.
+    // Role-specific authentication is isolated from the existing Admin session.
     if (onAuthenticate) {
       loginInFlight.current = true
+      const controller = new AbortController()
+      loginController.current = controller
       setIsLoggingIn(true)
       try {
-        await onAuthenticate({ email: email.trim().toLowerCase(), password })
+        await onAuthenticate({ email: email.trim().toLowerCase(), password, signal: controller.signal })
+        if (controller.signal.aborted) return
         setPassword('')
         setContinueClicked(false)
-        navigate('/doctor/dashboard', { replace: true })
+        navigate(successPath, { replace: true })
       } catch (error) {
-        setLoginError(error.message || 'Login could not be completed. Please try again.')
+        if (!controller.signal.aborted) setLoginError(error.message || 'Login could not be completed. Please try again.')
       } finally {
         loginInFlight.current = false
         setIsLoggingIn(false)
@@ -189,7 +205,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
           ? data.message.filter((value) => typeof value === 'string').join(' ')
           : typeof data?.message === 'string' ? data.message : ''
         if (response.status === 401) {
-          setLoginError(message || 'Invalid email or password. Please check your details and verify your email.')
+          setLoginError(message || 'Invalid email or password.')
         } else if (response.status === 400) {
           setLoginError(message || 'Please check your email, password, and selected role.')
         } else {
@@ -204,16 +220,29 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
         return
       }
 
-      if (authenticationRole && data.user.role !== role) {
-        setLoginError('This account cannot access the doctor workspace.')
+      if (authenticationRole && data.user.role !== role && !(role === 'admin' && data.user.role === 'super_admin')) {
+        setLoginError('Invalid email or password.')
         return
       }
 
       setAccessToken(data.accessToken, data.user.role)
       setPassword('')
       setContinueClicked(false)
-      if (data.user.role === 'admin') {
-        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : '')
+      if (data.user.role === 'admin' || data.user.role === 'super_admin') {
+        sessionStorage.setItem('medtrailDemoAdminName', typeof data.user.name === 'string' ? data.user.name : 'Super Admin')
+        sessionStorage.setItem('medtrailAdminEmail', data.user.email || email)
+        sessionStorage.setItem('medtrailAdminHospital', data.user.hospitalName || '')
+        if (data.user.role === 'admin' && data.user.hasPlan === false) {
+          navigate('/select-plan', {
+            replace: true,
+            state: {
+              email: data.user.email || email,
+              hospitalName: data.user.hospitalName || '',
+              name: data.user.name || '',
+            },
+          })
+          return
+        }
         navigate('/admin/dashboard', { replace: true })
       } else if (data.user.role === 'doctor') {
         navigate('/doctor/dashboard', { replace: true })
@@ -231,6 +260,12 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
 
   if (!frontendOnly && role === 'doctor' && !onAuthenticate) {
     return <Navigate to="/doctor/login" replace />
+  }
+  if (role === 'patient' && !onAuthenticate) {
+    return <Navigate to="/patient/login" replace />
+  }
+  if (role === 'pharmacist' && !onAuthenticate) {
+    return <Navigate to="/pharmacist/login" replace />
   }
 
   return (
@@ -254,10 +289,11 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
       </section>
 
       <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:rounded-l-[24px] lg:px-14 lg:py-6 [@media(min-height:850px)]:lg:py-10">
-        <form className="w-full max-w-[440px]" aria-label="Login form" onSubmit={handleContinue} noValidate aria-busy={isLoggingIn}>
+        <form className="w-full max-w-[440px]" data-patient-login={authenticationRole === 'Patient' ? '' : undefined} aria-label="Login form" onSubmit={handleContinue} noValidate aria-busy={isLoggingIn}>
+          <LoginFields isPatient={authenticationRole === 'Patient'}>
           <div className="mb-5 [@media(min-height:850px)]:lg:mb-9">
             <h2 className="text-3xl font-semibold tracking-normal text-[#111827] sm:text-[2.5rem] lg:text-4xl [@media(min-height:850px)]:lg:text-[2.5rem]">
-              Welcome back
+              {heading}
             </h2>
             <p className="mt-2 text-base text-[#7A8190] [@media(min-height:850px)]:lg:mt-3">
               Enter your email and password
@@ -330,9 +366,11 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
             </div>
           </div>
 
-          <div className="mt-3 text-left [@media(min-height:850px)]:lg:mt-4">
+          <div className={`mt-3 text-left [@media(min-height:850px)]:lg:mt-4${authenticationRole === 'Patient' ? ' patient-login-recovery' : ''}`}>
             <button
               type="button"
+              disabled={recoveryUnavailable || authenticationUnavailable || Boolean(unavailableMessage)}
+              aria-describedby={unavailableMessage ? 'login-unavailable' : undefined}
               onClick={() => navigate(`${recoveryBasePath}/forgot-password`)}
               className="text-sm font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
             >
@@ -340,10 +378,11 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
             </button>
           </div>
 
+          {unavailableMessage && <p id="login-unavailable" role="status" className="mt-3 text-sm text-[#7A8190]">{unavailableMessage}</p>}
           {loginError && (
             <div role="alert" className="mt-3">
               <FieldError id="login-error" message={loginError} />
-              {!role && (
+              {!role && !unavailableMessage && (
                 <button type="button" onClick={() => navigate('/select-role')} className="mt-2 text-sm font-semibold text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20">
                   Select role
                 </button>
@@ -356,22 +395,28 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
 
           <button
             type="submit"
-            disabled={isLoggingIn}
-            className="mt-5 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-60 [@media(min-height:850px)]:lg:mt-8 [@media(min-height:850px)]:lg:h-13"
+            disabled={isLoggingIn || authenticationUnavailable || Boolean(unavailableMessage)}
+            aria-describedby={unavailableMessage ? 'login-unavailable' : undefined}
+            className={`mt-5 h-11 w-full rounded-xl bg-[#475AA2] text-base font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed${authenticationUnavailable ? '' : ' disabled:opacity-60'} [@media(min-height:850px)]:lg:mt-8 [@media(min-height:850px)]:lg:h-13`}
           >
             {isLoggingIn ? 'Logging in...' : 'Continue'}
           </button>
+          </LoginFields>
 
-          <p className="mt-4 text-center text-sm text-[#7A8190] [@media(min-height:850px)]:lg:mt-6">
-            Don&rsquo;t have an account?{' '}
-            <button
-              type="button"
-              onClick={() => navigate(authenticationRole === 'Doctor' ? '/doctor/create-password' : '/create-account')}
-              className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
-            >
-              Create one
-            </button>
-          </p>
+          {accountNotice !== '' && <p className="mt-4 text-center text-sm text-[#7A8190] [@media(min-height:850px)]:lg:mt-6">
+            {accountNotice ?? (invitationOnly ? 'Invited to MedTrail? Use the invitation link in your email to create your account.' : (
+              <>
+                Don&rsquo;t have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate(authenticationRole === 'Doctor' ? '/doctor/create-password' : '/create-account')}
+                  className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
+                >
+                  Create one
+                </button>
+              </>
+            ))}
+          </p>}
         </form>
       </section>
     </main>

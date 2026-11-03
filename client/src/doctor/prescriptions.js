@@ -7,12 +7,9 @@ const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-
 const hasId = record => typeof record?.id === 'string' && Boolean(record.id.trim())
 
 export async function getDoctorPatientDetails(patientId, signal) {
-  if (!uuid(patientId)) throw new Error('Please select a valid patient from Patients.')
-  // The list is hospital-scoped. Do not expose arbitrary patients through a typed URL.
-  const patients = await getDoctorPatients(signal)
-  if (!patients.some(patient => patient.id === patientId)) throw new Error('This patient is not available in your Patients list.')
+  if (!patientId || typeof patientId !== 'string') throw new Error('Please select a valid patient from Patients.')
   const data = await doctorRequest(`patients/${encodeURIComponent(patientId)}`, { signal })
-  if (data?.patient?.id !== patientId || ![data.currentMedications, data.medicationHistory].every(records => Array.isArray(records) && records.every(hasId))) {
+  if (!data?.patient?.id || data.patient.id.toLowerCase() !== patientId.toLowerCase() || !Array.isArray(data.currentMedications) || !Array.isArray(data.medicationHistory)) {
     throw new Error('The server returned unexpected patient medication records. Please try again.')
   }
   const medication = record => ({
@@ -20,7 +17,7 @@ export async function getDoctorPatientDetails(patientId, signal) {
     frequency: text(record.frequency), duration: text(record.duration), reason: text(record.reason),
     prescribedBy: text(record.prescribedBy), rawStatus: text(record.status),
     // Pending pharmacy review corresponds to the existing Unverified display badge.
-    status: record.status === 'pending' ? 'unverified' : text(record.status),
+    status: record.status === 'pending' ? 'unverified' : text(record.status).toLowerCase(),
     date: record.createdAt,
   })
   const currentMedications = data.currentMedications.map(medication)
@@ -44,6 +41,27 @@ export async function createDoctorPrescription(patientId, values, signal) {
   if (duplicate.status !== 'none') throw new Error(duplicate.status === 'found'
     ? 'An exact duplicate exists. Prescription submission is disabled.'
     : 'Duplicate checking is unavailable. Refresh the medication records before submitting.')
+
+  if (Array.isArray(values.items) && values.items.length > 0) {
+    const body = {
+      patientId,
+      reason: values.reason.trim(),
+      medications: values.items.map(item => ({
+        medicationName: item.medication.trim(),
+        dosage: item.dose.trim(),
+        dose: item.dose.trim(),
+        frequency: item.frequency.trim(),
+        duration: item.duration.trim(),
+        reason: values.reason.trim(),
+      })),
+      medicationName: values.items[0].medication.trim(),
+      dosage: values.items[0].dose.trim(),
+      frequency: values.items[0].frequency.trim(),
+      duration: values.items[0].duration.trim(),
+    }
+    return saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
+  }
+
   const body = {
     patientId, medicationName: values.medication.trim(), dosage: values.dose.trim(),
     frequency: values.frequency.trim(), duration: values.duration.trim(), reason: values.reason.trim(),
@@ -54,8 +72,10 @@ export async function createDoctorPrescription(patientId, values, signal) {
 export async function saveDoctorPrescription(path, { method, body, patientId, prescriptionId, status, expectedStatus = 200 }, signal) {
   try {
     const data = await doctorRequest(path, { method, body, signal, expectedStatus })
-    if (!hasId(data?.prescription) || data.prescription.patientId !== patientId
-      || (prescriptionId && data.prescription.id !== prescriptionId) || (status && data.prescription.status !== status)) {
+    const mainRx = data?.prescription || (Array.isArray(data?.prescriptions) && data.prescriptions[0])
+    if (!hasId(mainRx) || mainRx.patientId?.toLowerCase() !== patientId?.toLowerCase()
+      || (prescriptionId && mainRx.id?.toLowerCase() !== prescriptionId?.toLowerCase())
+      || (status && mainRx.status?.toLowerCase() !== status?.toLowerCase())) {
       throw new Error('Unexpected prescription response.')
     }
     return { message: text(data.message) || 'Prescription saved successfully.' }

@@ -1,4 +1,6 @@
-// Only Admin sessions survive reloads, within this tab. Never use localStorage or navigation state.
+// This module owns only Admin persistence. Patient persistence and verification
+// belong to patientSession.js; never read, overwrite or clear its storage here.
+// Never use localStorage or navigation state.
 // Bearer-only backend: sessionStorage is JS-accessible; HttpOnly sessions need backend support.
 const adminSessionKey = 'medtrailAdminSession'
 let accessToken = null
@@ -26,9 +28,9 @@ export function getTokenExpiry(token = accessToken) {
 
 try {
   const saved = JSON.parse(sessionStorage.getItem(adminSessionKey))
-  if (saved?.role === 'admin' && typeof saved.token === 'string' && getTokenExpiry(saved.token) > Date.now()) {
+  if ((saved?.role === 'admin' || saved?.role === 'super_admin') && typeof saved.token === 'string' && getTokenExpiry(saved.token) > Date.now()) {
     accessToken = saved.token
-    authenticatedRole = 'admin'
+    authenticatedRole = saved.role
   } else {
     clearStoredAdminSession()
   }
@@ -44,9 +46,9 @@ export function subscribeToSession(listener) {
 export function setAccessToken(token, role = null) {
   accessToken = token
   authenticatedRole = token ? role : null
-  if (role === 'admin' && getTokenExpiry(token) > Date.now()) {
+  if ((role === 'admin' || role === 'super_admin') && getTokenExpiry(token) > Date.now()) {
     try {
-      sessionStorage.setItem(adminSessionKey, JSON.stringify({ token, role: 'admin' }))
+      sessionStorage.setItem(adminSessionKey, JSON.stringify({ token, role }))
     } catch {
       clearStoredAdminSession()
     }

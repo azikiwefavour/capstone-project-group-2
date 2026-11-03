@@ -27,10 +27,15 @@ export async function verifyAdminSession(token, signal) {
     || typeof profile.isEmailVerified !== 'boolean') {
     throw new Error('The server returned an unexpected session response. Please try again.')
   }
-  if (profile.role !== 'admin' || !profile.isEmailVerified || profile.invitationStatus === 'pending') {
+  if ((profile.role !== 'admin' && profile.role !== 'super_admin') || !profile.isEmailVerified || profile.invitationStatus === 'pending') {
     setAccessToken(null)
     return null
   }
-  // Retain only the display name, not the full profile returned by the API.
-  return { name: typeof profile.name === 'string' ? profile.name : '' }
+  // Retain display name, email, plan status, and hospital name
+  return {
+    name: typeof profile.name === 'string' ? profile.name : '',
+    email: typeof profile.email === 'string' ? profile.email : '',
+    hasPlan: profile.hasPlan,
+    hospitalName: typeof profile.hospitalName === 'string' ? profile.hospitalName : '',
+  }
 }

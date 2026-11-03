@@ -1,0 +1,26 @@
+/* Keep the lower sections together at their intrinsic size. Short screens use
+   the existing content scroll area; no viewport-filling spacers or row stretching. */
+@media (min-width: 1024px) {
+  [data-super-admin-layout] > [aria-label="System Health content"] { display: flex; flex-direction: column; }
+  [data-super-admin-layout] > [aria-label="System Health content"] > * { flex-shrink: 0; }
+  [aria-label="System Health content"] > [data-system-health-heading] { margin-top: 8px; }
+  [aria-label="System Health content"] > [data-system-health-heading] p { margin-top: 4px; }
+  /* Neutral status must retain the alert's sizing, not the preview notice sizing. */
+  [data-super-admin-layout] > [aria-label="System Health content"] > [data-system-health-status] { margin-top: 8px; padding-block: 8px; font-size: 12px; line-height: 20px; }
+  [aria-label="System Health content"] > [aria-label="System Health summary"] { margin-top: 8px; }
+  [aria-label="System Health content"] > [aria-label="System Health summary"] article { padding-block: 8px; }
+  [aria-label="System Health content"] > [data-system-health-details] {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  [data-system-health-details] > [data-system-health-platform],
+  [data-system-health-details] > [data-system-health-incidents] { margin-top: 0; }
+  /* Keep the approved six-row footprint without inventing service records. */
+  [data-system-health-platform] { display: flex; flex-direction: column; min-height: 296px; }
+  [data-system-health-platform] [aria-label="Platform table"] { display: flex; flex-direction: column; flex: 1 0 auto; }
+  [data-system-health-platform] table { flex: 1 0 auto; height: 100%; }
+  [data-system-health-platform] thead { height: 33px; }
+}

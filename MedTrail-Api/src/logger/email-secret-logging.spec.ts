@@ -13,7 +13,7 @@ describe('Invitation query tokens are not logged', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('omits query strings from both incoming and outgoing HTTP logs', () => {
-    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => { });
     const req = {
       method: 'GET',
       url: '/api/auth/accept-invite?token=private-test-token',
@@ -37,7 +37,7 @@ describe('Invitation query tokens are not logged', () => {
   it('omits query tokens from exception logs without changing the response body', () => {
     const warn = vi
       .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => {});
+      .mockImplementation(() => { });
     const req = {
       method: 'GET',
       url: '/api/auth/validate-invitation?token=private-test-token',

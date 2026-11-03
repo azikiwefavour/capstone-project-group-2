@@ -1,0 +1,12 @@
+/* Payments-only height distribution. Intrinsic row heights stay readable and
+   shorter screens retain the existing natural scroll fallback. */
+@media (min-width: 1280px) {
+  [data-super-admin-layout] > section[aria-label="Payments content"] { display: flex; flex-direction: column; }
+  [data-super-admin-layout] > section[aria-label="Payments content"] > * { flex-shrink: 0; }
+  [data-super-admin-transactions] { display: flex; flex-direction: column; flex-grow: 1; }
+  [data-super-admin-transactions] [data-transactions-card] { display: flex; flex-direction: column; flex-grow: 1; }
+  [data-super-admin-transactions] [aria-label="Transactions table"] { display: flex; flex-direction: column; flex: 1 0 auto; }
+  [data-super-admin-transactions] table { flex: 1 0 auto; height: 100%; }
+  [data-super-admin-transactions] thead { height: 33px; }
+  [data-super-admin-transactions] .subscriber-pagination { flex: none; }
+}

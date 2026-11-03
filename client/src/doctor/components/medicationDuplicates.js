@@ -14,6 +14,22 @@ function comparisonValues(record) {
 // { source: 'backend', patientId, records, complete }. Never pass preview arrays.
 // A partial dataset can prove a match, but cannot prove the absence of duplicates.
 export function checkMedicationDuplicate(values, patientId, dataset) {
+  if (Array.isArray(values?.items) && values.items.length > 0) {
+    let anyUnavailable = false
+    for (const item of values.items) {
+      const itemValues = {
+        medication: item.medication,
+        dose: item.dose,
+        frequency: item.frequency,
+        duration: item.duration,
+        reason: values.reason,
+      }
+      const res = checkMedicationDuplicate(itemValues, patientId, dataset)
+      if (res.status === 'found') return { status: 'found', existing: res.existing, duplicateItem: item }
+      if (res.status === 'unavailable') anyUnavailable = true
+    }
+    return { status: anyUnavailable ? 'unavailable' : 'none' }
+  }
   const entered = comparisonValues(values)
   if (!entered || patientId == null || !String(patientId).trim() || dataset?.source !== 'backend'
     || dataset.patientId == null || String(dataset.patientId) !== String(patientId)

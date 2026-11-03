@@ -8,7 +8,7 @@ const sharedSource = await readFile(new URL('../src/auth/session.js', import.met
 const key = 'medtrailDoctorSession'
 // Isolated unit-test fixtures only. Production access always requires backend JWT validation.
 const token = (payload = {}) => `test.${Buffer.from(JSON.stringify({ sub: 'doctor-fixture', role: 'doctor', exp: Math.floor(Date.now() / 1000) + 600, ...payload })).toString('base64url')}.test`
-const profile = { id: 'doctor-fixture', name: 'Doctor test fixture', role: 'doctor', isEmailVerified: true }
+const profile = { id: 'doctor-fixture', name: 'Doctor test fixture', role: 'doctor', email: 'doctor@example.test', isEmailVerified: true }
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status })
 function storage() {
   const entries = new Map()
@@ -73,7 +73,7 @@ test('profile verification waits for the backend and sends only its Bearer token
   assert.equal(request.headers.Authorization, `Bearer ${jwt}`)
   assert.equal(request.cache, 'no-store')
   finish(response(profile))
-  assert.equal((await pending).name, profile.name)
+  assert.deepEqual({ ...await pending }, { name: profile.name, email: profile.email })
 })
 
 test('rejected tokens, wrong roles/identities, and unverified/pending users clear Doctor authentication', async () => {

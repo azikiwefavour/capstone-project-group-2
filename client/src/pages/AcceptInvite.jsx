@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { completeInvitation } from '../auth/invitations'
 import useInvitation from '../auth/useInvitation'
 import medicationImage from '../assets/medication-image.png'
@@ -67,7 +67,8 @@ function InvitationForm() {
     if (!isSuccess) return
     const timer = window.setTimeout(() => {
       if (successRole === 'doctor') navigate('/doctor/dashboard', { replace: true })
-      else navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+      else if (successRole === 'pharmacist') navigate('/login', { replace: true, state: { selectedRole: 'Pharmacist' } })
+      else navigate('/patient/login', { replace: true })
     }, 1500)
     return () => window.clearTimeout(timer)
   }, [isSuccess, successRole, navigate])
@@ -119,11 +120,23 @@ function InvitationForm() {
   const prefix = roleLower === 'doctor' ? 'Dr.' : roleLower === 'pharmacist' ? 'Pharm.' : ''
   const displayName = prefix ? `${prefix} ${cleanName}` : cleanName
   const roleDisplay = roleLower.charAt(0).toUpperCase() + roleLower.slice(1)
+  // A URL role hint controls error-page navigation only, never invitation validation.
+  const loginRole = userData?.role || searchParams.get('role')
+  // A role hint scopes presentation only; authorization still uses the server.
+  const patientPresentation = loginRole === 'patient'
+  const loginOptions = ['doctor', 'pharmacist', 'patient'].includes(loginRole)
+    ? [{ to: `/${loginRole}/login`, label: 'Return to Login' }]
+    : [{ to: '/doctor/login', label: 'Doctor Login' }, { to: '/pharmacist/login', label: 'Pharmacist Login' }, { to: '/patient/login', label: 'Patient Login' }]
+
+  // Existing invitation emails keep their shared entry point. Doctor stays on this screen.
+  if (['pharmacist', 'patient'].includes(userData?.role) && !validationError) {
+    return <Navigate to={`/${userData.role}/create-password?${searchParams.toString()}`} replace />
+  }
 
   return (
     <main className="flex min-h-screen w-full flex-col overflow-x-hidden bg-white lg:h-screen lg:min-h-0 lg:flex-row">
       {/* Left side brand banner */}
-      <section className="relative flex min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16">
+      <section className={`relative ${patientPresentation ? 'hidden lg:flex' : 'flex'} min-h-[520px] w-full flex-col overflow-hidden bg-[#475AA2] px-8 pt-16 text-white sm:px-12 md:min-h-[660px] lg:h-full lg:min-h-0 lg:w-[48.35%] lg:px-16 lg:pt-10 [@media(min-height:850px)]:lg:pt-16`}>
         <h4 className="mt-10 max-w-[520px] text-2xl font-semibold leading-[1.13] tracking-normal text-[#111827] sm:text-2xl lg:text-3xl">
           One medication record,
           <br />
@@ -142,7 +155,7 @@ function InvitationForm() {
       </section>
 
       {/* Right side form */}
-      <section className="flex w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:px-14">
+      <section className={`flex ${patientPresentation ? 'min-h-screen overflow-y-auto' : ''} w-full items-center justify-center bg-white px-6 py-12 sm:px-10 lg:h-full lg:min-h-0 lg:w-[51.65%] lg:px-14`}>
         <div className="w-full max-w-[440px]">
           {isValidating ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -163,13 +176,13 @@ function InvitationForm() {
               <h2 className="mt-4 text-xl font-bold text-[#111827]">Invitation Link Issue</h2>
               <p className="mt-2 text-sm text-[#52556C]">{validationError}</p>
               <div className="mt-6 flex flex-col gap-3">
-                <Link
-                  to={userData?.role === 'pharmacist' ? '/login' : '/doctor/login'}
-                  state={userData?.role === 'pharmacist' ? { selectedRole: 'Pharmacist' } : undefined}
+                {loginOptions.map(option => <Link
+                  key={option.to}
+                  to={option.to}
                   className="inline-flex h-11 items-center justify-center rounded-xl bg-[#475AA2] px-6 text-sm font-semibold text-white transition hover:bg-[#3D4F91]"
                 >
-                  Return to Login
-                </Link>
+                  {option.label}
+                </Link>)}
               </div>
             </div>
           ) : isSuccess ? (

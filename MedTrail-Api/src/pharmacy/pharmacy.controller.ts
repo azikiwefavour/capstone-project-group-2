@@ -23,6 +23,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { RaiseClarificationDto } from './dto/raise-clarification.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 
 @ApiTags('Pharmacy')
 @ApiBearerAuth('JWT')
@@ -83,5 +84,44 @@ export class PharmacyController {
     @Body() dto: RaiseClarificationDto,
   ) {
     return this.pharmacyService.raiseClarification(user.sub, id, dto);
+  }
+
+  // ── GET /api/pharmacy/prescriptions/:id ──────────────────────────────────
+  @Get('prescriptions/:id')
+  @ApiOperation({ summary: 'Get single prescription details, patient profile, and current medications' })
+  @ApiResponse({ status: 200, description: 'Prescription details, patient profile, and current medications' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  getPrescriptionDetails(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.pharmacyService.getPrescriptionDetails(user.sub, id);
+  }
+
+  // ── POST /api/pharmacy/prescriptions/:id/verify ──────────────────────────
+  @Post('prescriptions/:id/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify and dispense prescription' })
+  @ApiResponse({ status: 200, description: 'Prescription verified and dispensed' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  verifyPrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.pharmacyService.verifyPrescription(user.sub, id);
+  }
+
+  // ── POST /api/pharmacy/patients ──────────────────────────────────────────
+  @Post('patients')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Pharmacist registers a walk-in patient (supports offline/phone-only patients)' })
+  @ApiResponse({ status: 201, description: 'Patient registered successfully and welcome SMS sent' })
+  @ApiResponse({ status: 400, description: 'Either phone or email required' })
+  @ApiResponse({ status: 409, description: 'Patient already exists' })
+  addPatient(
+    @CurrentUser() user: { sub: string },
+    @Body() dto: InvitePatientDto,
+  ) {
+    return this.pharmacyService.addPatient(user.sub, dto);
   }
 }

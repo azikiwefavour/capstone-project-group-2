@@ -1,8 +1,14 @@
-function IconButton({ label, children }) {
+import { useContext, useState } from 'react'
+import SettingsProfileContext from '../../auth/SettingsProfileContext'
+import SettingsModal from '../../components/SettingsModal'
+
+function IconButton({ label, onClick, disabled, children }) {
   return (
     <button
       type="button"
       aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
       className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#E2E5ED] bg-white text-[#52556C] transition hover:bg-[#F7F8FB] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
     >
       {children}
@@ -11,13 +17,15 @@ function IconButton({ label, children }) {
 }
 
 function AdminHeader({ adminName }) {
+  const profile = useContext(SettingsProfileContext)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-medium text-[#111827]">
         {adminName ? `Welcome, ${adminName}` : 'Welcome'}
       </p>
-      <div className="flex items-center gap-3">
-        <IconButton label="Open settings">
+      <div className="flex items-center justify-end">
+        <IconButton label="Open settings" onClick={() => setSettingsOpen(true)} disabled={!profile}>
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
             <path
               d="M12 15.5C13.93 15.5 15.5 13.93 15.5 12C15.5 10.07 13.93 8.5 12 8.5C10.07 8.5 8.5 10.07 8.5 12C8.5 13.93 10.07 15.5 12 15.5Z"
@@ -32,23 +40,8 @@ function AdminHeader({ adminName }) {
             />
           </svg>
         </IconButton>
-        <IconButton label="View notifications">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
-            <path
-              d="M18 10.5C18 7.19 15.31 4.5 12 4.5C8.69 4.5 6 7.19 6 10.5V14.2L4.5 17H19.5L18 14.2V10.5Z"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M10 19C10.45 19.6 11.17 20 12 20C12.83 20 13.55 19.6 14 19"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </IconButton>
       </div>
+      {settingsOpen && profile && <SettingsModal profile={profile} onClose={() => setSettingsOpen(false)} />}
     </header>
   )
 }

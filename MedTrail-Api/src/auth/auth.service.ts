@@ -19,6 +19,9 @@ import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { Facility, FacilityStatus } from '../super-admin/entities/facility.entity';
 
 @Injectable()
 export class AuthService {
@@ -29,7 +32,8 @@ export class AuthService {
     private jwtService: JwtService,
     private mailService: MailService,
     private configService: ConfigService,
-  ) {}
+    @InjectDataSource() private readonly dataSource: DataSource,
+  ) { }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -49,7 +53,8 @@ export class AuthService {
   // ─── Register ─────────────────────────────────────────────────────────────
 
   async register(dto: RegisterDto) {
-    const existing = await this.usersService.findByEmail(dto.email);
+    const cleanEmail = dto.email.trim().toLowerCase();
+    const existing = await this.usersService.findByEmail(cleanEmail);
     if (existing) {
       throw new ConflictException('An account with this email already exists');
     }
@@ -58,13 +63,15 @@ export class AuthService {
     const otp = this.generateOtp();
     const expiry = this.otpExpiry();
 
+    const assignedRole = dto.role ?? UserRole.ADMIN;
+
     const user = await this.usersService.create({
-      name: dto.name,
-      email: dto.email.toLowerCase(),
-      phone: dto.phone,
-      hospitalName: dto.hospitalName,
+      name: dto.name.trim(),
+      email: cleanEmail,
+      phone: dto.phone?.trim() ?? null,
+      hospitalName: dto.hospitalName?.trim() || 'General Hospital',
       password: hashedPassword,
-      role: UserRole.ADMIN,
+      role: assignedRole,
       emailOtp: otp,
       emailOtpExpiry: expiry,
       isEmailVerified: false,
@@ -72,7 +79,7 @@ export class AuthService {
     });
 
     await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp, expiry, user.role);
-    this.logger.log(`New account registered: ${user.email}`);
+    this.logger.log(`New account registered: ${user.email} (role: ${user.role || 'admin'})`);
 
     return {
       message: 'Account created. A 6-digit verification code has been sent to your email.',
@@ -83,65 +90,144 @@ export class AuthService {
   // ─── Verify Email OTP ─────────────────────────────────────────────────────
 
   async verifyEmail(dto: VerifyEmailDto) {
-    const user = await this.usersService.findByEmail(dto.email, true);
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    const cleanOtp = dto.otp?.trim();
+    const user = await this.usersService.findByEmail(cleanEmail, true);
     if (!user) throw new NotFoundException('No account found with this email');
 
     if (user.isEmailVerified) {
-      return { message: 'Email is already verified. Please log in.' };
+      const currentRole = user.role || user.invitedRole || (!user.isInvited ? UserRole.ADMIN : UserRole.PATIENT);
+      const token = this.signToken({
+        sub: String(user.id),
+        email: user.email,
+        role: currentRole,
+      });
+      return {
+        message: 'Email is already verified.',
+        accessToken: token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: currentRole,
+          hospitalName: user.hospitalName,
+          phone: user.phone,
+        },
+      };
     }
 
-    if (!user.emailOtp || user.emailOtp !== dto.otp) {
+    const matchesEmail = user.emailOtp && user.emailOtp === cleanOtp;
+    const matchesReset = user.resetPasswordOtp && user.resetPasswordOtp === cleanOtp;
+
+    if (!matchesEmail && !matchesReset) {
       throw new BadRequestException('Invalid verification code');
     }
 
-    if (!user.emailOtpExpiry || new Date() > user.emailOtpExpiry) {
+    const expiry = matchesEmail ? user.emailOtpExpiry : user.resetPasswordOtpExpiry;
+    if (!expiry || new Date() > expiry) {
       throw new BadRequestException('Verification code has expired. Please request a new one.');
     }
 
+    const resolvedRole = user.role || user.invitedRole || (!user.isInvited ? UserRole.ADMIN : UserRole.PATIENT);
+
     await this.usersService.updateById(String(user.id), {
       isEmailVerified: true,
+      invitationStatus: user.invitationStatus === 'pending' ? 'accepted' : user.invitationStatus,
+      role: resolvedRole,
       emailOtp: null,
       emailOtpExpiry: null,
+      resetPasswordOtp: null,
+      resetPasswordOtpExpiry: null,
     });
 
-    this.logger.log(`Email verified: ${user.email}`);
-    return { message: 'Email verified successfully. You can now log in.' };
+    user.role = resolvedRole;
+    user.isEmailVerified = true;
+
+    const token = this.signToken({
+      sub: String(user.id),
+      email: user.email,
+      role: resolvedRole,
+    });
+
+    this.logger.log(`Email verified and logged in: ${user.email} (role: ${resolvedRole})`);
+    return {
+      message: 'Email verified successfully.',
+      accessToken: token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: resolvedRole,
+        hospitalName: user.hospitalName,
+        phone: user.phone,
+      },
+    };
   }
 
-  // ─── Resend Email OTP ─────────────────────────────────────────────────────
+  // ─── Resend Email / Reset OTP ─────────────────────────────────────────────
 
-  async resendEmailOtp(email: string) {
+  async resendEmailOtp(rawEmail: string) {
+    if (!rawEmail || typeof rawEmail !== 'string') {
+      throw new BadRequestException('Email is required');
+    }
+    const email = rawEmail.trim().toLowerCase();
     const user = await this.usersService.findByEmail(email, true);
     if (!user) throw new NotFoundException('No account found with this email');
-    if (user.isEmailVerified) {
-      throw new BadRequestException('Email is already verified');
-    }
 
     const otp = this.generateOtp();
     const expiry = this.otpExpiry();
+
+    // If user is already verified, send a fresh password reset code so they are never blocked
+    if (user.isEmailVerified) {
+      await this.usersService.updateById(String(user.id), {
+        resetPasswordOtp: otp,
+        resetPasswordOtpExpiry: expiry,
+      });
+
+      await this.mailService.sendPasswordResetOtp(user.email, user.name, otp, expiry, user.role);
+      this.logger.log(`Fresh reset code resent to verified user: ${user.email}`);
+      return { message: 'A new verification code has been sent to your email.' };
+    }
+
+    // If user is not yet verified or pending invitation
     await this.usersService.updateById(String(user.id), {
       emailOtp: otp,
       emailOtpExpiry: expiry,
     });
 
     await this.mailService.sendEmailVerificationOtp(user.email, user.name, otp, expiry, user.role);
+    this.logger.log(`Fresh verification code sent to: ${user.email}`);
 
     return { message: 'A new verification code has been sent to your email.' };
+  }
+
+  async resendResetCode(rawEmail: string) {
+    if (!rawEmail || typeof rawEmail !== 'string') {
+      throw new BadRequestException('Email is required');
+    }
+    const email = rawEmail.trim().toLowerCase();
+    return this.forgotPassword({ email });
+  }
+
+  async resendAnyCode(rawEmail: string, type?: 'email' | 'reset') {
+    if (type === 'reset') {
+      return this.resendResetCode(rawEmail);
+    }
+    return this.resendEmailOtp(rawEmail);
   }
 
   // ─── Login ────────────────────────────────────────────────────────────────
 
   async login(dto: LoginDto) {
-    const user = await this.usersService.findByEmail(dto.email, true);
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(cleanEmail, true);
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Invited users who haven't completed registration have no password yet
-    if (!user.password || user.invitationStatus === 'pending') {
-      throw new UnauthorizedException(
-        'Please complete your registration first by clicking the invitation link sent to your email.',
-      );
+    // Users with no password yet must set one first
+    if (!user.password) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const passwordMatch = await bcrypt.compare(dto.password, user.password);
@@ -150,47 +236,72 @@ export class AuthService {
     }
 
     if (!user.isEmailVerified) {
-      throw new UnauthorizedException(
-        'Please verify your email before logging in. Check your inbox for the verification code.',
-      );
+      throw new UnauthorizedException('Please verify your email address before logging in.');
     }
 
-    // Strict Role Enforcement
-    if (user.role === UserRole.ADMIN && dto.role !== UserRole.ADMIN) {
-      throw new UnauthorizedException(
-        'Administrator accounts can only log in as Admin. You cannot log in as a doctor, pharmacist, or patient.',
-      );
+    // Strict Role Enforcement:
+    // A user can ONLY log into their assigned role.
+    let userRole = user.role || user.invitedRole;
+
+    // Self-registered hospital creator whose role was not yet explicitly populated
+    if (!userRole && !user.isInvited) {
+      userRole = UserRole.ADMIN;
+      await this.usersService.updateById(String(user.id), { role: UserRole.ADMIN });
+      user.role = UserRole.ADMIN;
     }
 
-    if (user.role && user.role !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
-      throw new UnauthorizedException(
-        `Access denied. Your account is registered as a ${user.role}, not an administrator.`,
-      );
-    }
-
-    if (user.role && user.role !== dto.role) {
-      throw new UnauthorizedException(
-        `Your account is registered as a ${user.role}. Please select the ${user.role} role to log in.`,
-      );
-    }
-
-    if (!user.role) {
-      if (dto.role === UserRole.ADMIN) {
-        throw new UnauthorizedException(
-          'Access denied. This account does not have administrator privileges.',
-        );
+    if (userRole) {
+      if (userRole === UserRole.SUPER_ADMIN) {
+        if (dto.role && dto.role !== UserRole.ADMIN && dto.role !== UserRole.SUPER_ADMIN) {
+          throw new UnauthorizedException('Invalid email or password');
+        }
+      } else if (userRole === UserRole.ADMIN && dto.role && dto.role !== UserRole.ADMIN) {
+        throw new UnauthorizedException('Invalid email or password');
+      } else if (userRole !== UserRole.ADMIN && dto.role === UserRole.ADMIN) {
+        throw new UnauthorizedException('Invalid email or password');
+      } else if (dto.role && userRole !== dto.role) {
+        throw new UnauthorizedException('Invalid email or password');
       }
-      await this.usersService.updateById(String(user.id), { role: dto.role });
-      user.role = dto.role;
+    } else {
+      if (dto.role === UserRole.ADMIN) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+      const initialRole = dto.role || UserRole.PATIENT;
+      await this.usersService.updateById(String(user.id), { role: initialRole });
+      user.role = initialRole;
+    }
+
+    const effectiveRole: UserRole = user.role || user.invitedRole || UserRole.PATIENT;
+
+    let hasPlan = true;
+    if (effectiveRole === UserRole.ADMIN) {
+      try {
+        const facilityRepo = this.dataSource.getRepository(Facility);
+        const hospitalName = user.hospitalName?.trim() || '';
+        const facility = await facilityRepo.findOne({
+          where: [
+            { adminEmail: user.email },
+            ...(hospitalName ? [{ name: hospitalName }] : []),
+          ],
+        });
+        hasPlan = Boolean(
+          facility &&
+          (facility.status === FacilityStatus.ACTIVE ||
+           facility.status === FacilityStatus.TRIAL)
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not check facility plan status: ${err.message}`);
+        hasPlan = true;
+      }
     }
 
     const token = this.signToken({
       sub: String(user.id),
       email: user.email,
-      role: dto.role,
+      role: effectiveRole,
     });
 
-    this.logger.log(`Login success: ${user.email} as ${dto.role}`);
+    this.logger.log(`Login success: ${user.email} as ${effectiveRole} (hasPlan: ${hasPlan})`);
 
     return {
       message: 'Login successful',
@@ -199,9 +310,10 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: dto.role,
+        role: effectiveRole,
         hospitalName: user.hospitalName,
         phone: user.phone,
+        hasPlan,
       },
     };
   }
@@ -209,7 +321,8 @@ export class AuthService {
   // ─── Forgot Password ──────────────────────────────────────────────────────
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(cleanEmail);
     // Always return same message to prevent email enumeration
     if (!user) {
       return { message: 'If an account exists with this email, a reset code has been sent.' };
@@ -222,7 +335,8 @@ export class AuthService {
       resetPasswordOtpExpiry: expiry,
     });
 
-    await this.mailService.sendPasswordResetOtp(user.email, user.name, otp, expiry, user.role);
+    const targetRole = user.role || user.invitedRole;
+    await this.mailService.sendPasswordResetOtp(user.email, user.name, otp, expiry, targetRole);
     this.logger.log(`Password reset OTP sent to: ${user.email}`);
 
     return { message: 'If an account exists with this email, a reset code has been sent.' };
@@ -231,14 +345,20 @@ export class AuthService {
   // ─── Verify Reset Code ────────────────────────────────────────────────────
 
   async verifyResetCode(dto: VerifyResetCodeDto) {
-    const user = await this.usersService.findByEmail(dto.email, true);
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    const cleanOtp = dto.otp?.trim();
+    const user = await this.usersService.findByEmail(cleanEmail, true);
     if (!user) throw new NotFoundException('No account found with this email');
 
-    if (!user.resetPasswordOtp || user.resetPasswordOtp !== dto.otp) {
+    const matchesReset = user.resetPasswordOtp && user.resetPasswordOtp === cleanOtp;
+    const matchesEmail = user.emailOtp && user.emailOtp === cleanOtp;
+
+    if (!matchesReset && !matchesEmail) {
       throw new BadRequestException('Invalid reset code');
     }
 
-    if (!user.resetPasswordOtpExpiry || new Date() > user.resetPasswordOtpExpiry) {
+    const expiry = matchesReset ? user.resetPasswordOtpExpiry : user.emailOtpExpiry;
+    if (!expiry || new Date() > expiry) {
       throw new BadRequestException('Reset code has expired. Please request a new one.');
     }
 
@@ -248,27 +368,39 @@ export class AuthService {
   // ─── Reset Password ───────────────────────────────────────────────────────
 
   async resetPassword(dto: ResetPasswordDto) {
-    const user = await this.usersService.findByEmail(dto.email, true);
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    const cleanOtp = dto.otp?.trim();
+    const user = await this.usersService.findByEmail(cleanEmail, true);
     if (!user) throw new NotFoundException('No account found with this email');
 
-    if (!user.resetPasswordOtp || user.resetPasswordOtp !== dto.otp) {
+    const matchesReset = user.resetPasswordOtp && user.resetPasswordOtp === cleanOtp;
+    const matchesEmail = user.emailOtp && user.emailOtp === cleanOtp;
+
+    if (!matchesReset && !matchesEmail) {
       throw new BadRequestException('Invalid or expired reset code');
     }
 
-    if (!user.resetPasswordOtpExpiry || new Date() > user.resetPasswordOtpExpiry) {
+    const expiry = matchesReset ? user.resetPasswordOtpExpiry : user.emailOtpExpiry;
+    if (!expiry || new Date() > expiry) {
       throw new BadRequestException('Reset code has expired. Please request a new one.');
     }
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
     await this.usersService.updateById(String(user.id), {
       password: hashedPassword,
+      isEmailVerified: true,
+      invitationStatus: user.invitationStatus === 'pending' ? 'accepted' : user.invitationStatus,
+      role: user.role || user.invitedRole,
       resetPasswordOtp: null,
       resetPasswordOtpExpiry: null,
+      emailOtp: null,
+      emailOtpExpiry: null,
     });
 
     this.logger.log(`Password reset successfully for: ${user.email}`);
     return { message: 'Password reset successfully. You can now log in with your new password.' };
   }
+
 
   // ─── Accept Invite – Validate Token ───────────────────────────────────────
 
@@ -278,9 +410,12 @@ export class AuthService {
    * so the frontend can display the personalised welcome screen.
    */
   async validateInvitationToken(token: string) {
-    const user = await this.usersService.findByInvitationToken(token);
+    this.logger.warn(`Validating invitation token: [${token}]`);
+    const cleanToken = (token || '').trim();
+    const user = await this.usersService.findByInvitationToken(cleanToken);
 
     if (!user) {
+      this.logger.warn(`No user found for invitation token: [${token}] (clean: [${cleanToken}])`);
       throw new BadRequestException('Invalid invitation link. Please contact your administrator.');
     }
 
@@ -376,7 +511,28 @@ export class AuthService {
   async getProfile(userId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) throw new NotFoundException('User not found');
-    return user;
+
+    let hasPlan = true;
+    if (user.role === UserRole.ADMIN) {
+      try {
+        const facilityRepo = this.dataSource.getRepository(Facility);
+        const hospitalName = user.hospitalName?.trim() || '';
+        const facility = await facilityRepo.findOne({
+          where: [
+            { adminEmail: user.email },
+            ...(hospitalName ? [{ name: hospitalName }] : []),
+          ],
+        });
+        hasPlan = Boolean(
+          facility &&
+          (facility.status === FacilityStatus.ACTIVE ||
+           facility.status === FacilityStatus.TRIAL)
+        );
+      } catch {
+        hasPlan = true;
+      }
+    }
+    return { ...user, hasPlan };
   }
 
   // ─── Dev Admin Token (for testing/development) ─────────────────────────────

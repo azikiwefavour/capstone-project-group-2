@@ -30,6 +30,7 @@ import { ModifyPrescriptionDto } from './dto/modify-prescription.dto';
 import { DiscontinuePrescriptionDto } from './dto/discontinue-prescription.dto';
 import { ConfirmPrescriptionDto } from './dto/confirm-prescription.dto';
 import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 
 @ApiTags('Doctor')
 @ApiBearerAuth('JWT')
@@ -76,6 +77,19 @@ export class DoctorController {
     @Param('id') id: string,
   ) {
     return this.doctorService.getPatientDetails(user.sub, id);
+  }
+
+  // ── POST /api/doctor/patients ────────────────────────────────────────────
+  @Post('patients')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Doctor adds / invites a patient to their hospital' })
+  @ApiResponse({ status: 201, description: 'Patient invited successfully' })
+  @ApiResponse({ status: 409, description: 'Patient already exists' })
+  invitePatient(
+    @CurrentUser() user: { sub: string },
+    @Body() dto: InvitePatientDto,
+  ) {
+    return this.doctorService.invitePatient(user.sub, dto);
   }
 
   // ── POST /api/doctor/prescriptions/check-duplicate ───────────────────────
@@ -146,6 +160,19 @@ export class DoctorController {
     @Body() dto: DiscontinuePrescriptionDto,
   ) {
     return this.doctorService.discontinuePrescription(user.sub, id, dto);
+  }
+
+  // ── POST /api/doctor/prescriptions/:id/complete ──────────────────────────
+  @Post('prescriptions/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark prescription treatment as completed' })
+  @ApiResponse({ status: 200, description: 'Prescription marked as completed and moved to medication history' })
+  @ApiResponse({ status: 404, description: 'Prescription not found' })
+  completePrescription(
+    @CurrentUser() user: { sub: string },
+    @Param('id') id: string,
+  ) {
+    return this.doctorService.completePrescription(user.sub, id);
   }
 
   // ── GET /api/doctor/clarifications ───────────────────────────────────────

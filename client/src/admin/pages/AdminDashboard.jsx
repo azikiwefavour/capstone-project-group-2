@@ -201,7 +201,29 @@ function AdminDashboard() {
           linkLabel="view all"
           icon={<ListIcon />}
           message="No activities"
-        />
+        >
+          {dashboard.loading ? (
+            <p role="status" className="my-auto py-8 text-center text-sm text-[#7A8190]">
+              Loading activities...
+            </p>
+          ) : dashboard.stats?.recentActivities?.length > 0 ? (
+            <ul className="mt-4 min-h-0 flex-1 overflow-y-auto divide-y divide-[#E2E5ED]">
+              {dashboard.stats.recentActivities.slice(0, 6).map((activity) => (
+                <li
+                  key={activity.id}
+                  className="flex items-center justify-between gap-4 py-3 text-sm"
+                >
+                  <span className="min-w-0 break-words font-medium text-[#111827]">
+                    {activity.description || activity.event}
+                  </span>
+                  <span className="shrink-0 text-xs text-[#7A8190]">
+                    {activity.date || activity.when}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </EmptyPanel>
       </section>
 
       <div className="h-4 lg:hidden" />

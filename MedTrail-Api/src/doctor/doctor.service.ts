@@ -2,13 +2,17 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Prescription, PrescriptionStatus } from './entities/prescription.entity';
 import { Activity } from './entities/activity.entity';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
+import { SmsService } from '../sms/sms.service';
 import { UserRole } from '../users/entities/user.entity';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { CheckDuplicateDto } from './dto/check-duplicate.dto';
@@ -16,6 +20,7 @@ import { ResolveClarificationDto } from './dto/resolve-clarification.dto';
 import { ModifyPrescriptionDto } from './dto/modify-prescription.dto';
 import { DiscontinuePrescriptionDto } from './dto/discontinue-prescription.dto';
 import { ConfirmPrescriptionDto } from './dto/confirm-prescription.dto';
+import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 
 function formatPrescriptionDate(date: Date): string {
   if (!date) return '';
@@ -59,7 +64,144 @@ export class DoctorService {
     private readonly activityRepo: Repository<Activity>,
 
     private readonly usersService: UsersService,
+    private readonly mailService: MailService,
+    private readonly smsService: SmsService,
   ) {}
+
+  // ─── Invite / Register Patient ──────────────────────────────────────────
+
+  async invitePatient(doctorId: string, dto: InvitePatientDto) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const hospitalName = doctor.hospitalName || 'General Hospital';
+
+    let effectiveEmail = dto.email ? dto.email.trim().toLowerCase() : '';
+    const cleanPhone = dto.phone ? dto.phone.trim() : null;
+    const isOffline = !effectiveEmail;
+
+    if (!effectiveEmail && !cleanPhone) {
+      throw new BadRequestException('Either an email or phone number is required to register a patient');
+    }
+
+    if (!effectiveEmail && cleanPhone) {
+      // Auto-generate placeholder email for offline/SMS-only patient so DB constraints are satisfied
+      const digits = cleanPhone.replace(/\D/g, '');
+      effectiveEmail = `${digits}@patient.medtrail.ng`;
+    }
+
+    const existing = await this.usersService.findByEmail(effectiveEmail);
+    if (existing) {
+      throw new ConflictException(
+        isOffline
+          ? 'A patient with this phone number is already registered'
+          : 'A user with this email already exists',
+      );
+    }
+
+    const token = randomUUID();
+    const expiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const patientCode = dto.patientCode?.trim() || `MT-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const patient = await this.usersService.create({
+      name: dto.name,
+      email: effectiveEmail,
+      phone: cleanPhone,
+      gender: dto.gender ?? null,
+      age: dto.age ?? null,
+      hospitalName,
+      password: null,
+      role: UserRole.PATIENT,
+      invitedRole: UserRole.PATIENT,
+      isInvited: true,
+      invitationStatus: isOffline ? 'accepted' : 'pending',
+      invitationToken: token,
+      invitationTokenExpiry: expiry,
+      emailOtp: otp,
+      emailOtpExpiry: expiry,
+      isEmailVerified: isOffline,
+      patientCode,
+      caregiverPhone: dto.caregiverPhone?.trim() ?? null,
+      caregiverName: dto.caregiverName?.trim() ?? null,
+      isOfflinePatient: isOffline,
+      invitedBy: `${cleanDoctorName} (${doctor.id})`,
+    });
+
+    // If patient has a real email, send invitation email
+    if (!isOffline) {
+      const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+      const frontendInviteUrl = `${frontendUrl}/accept-invite?token=${token}`;
+
+      try {
+        await this.mailService.sendInvitationEmail(
+          patient.email,
+          patient.name,
+          UserRole.PATIENT,
+          frontendInviteUrl,
+          hospitalName,
+          expiry,
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to send invitation email to patient ${patient.email}: ${err.message}`);
+      }
+    }
+
+    // If patient has a phone number, send Welcome SMS (to patient and caregiver)
+    if (cleanPhone) {
+      try {
+        await this.smsService.sendWelcomePatientSms({
+          name: patient.name,
+          phone: cleanPhone,
+          hospitalName,
+          patientCode,
+          caregiverPhone: dto.caregiverPhone?.trim(),
+          caregiverName: dto.caregiverName?.trim(),
+        });
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to send welcome SMS to patient ${cleanPhone}: ${smsErr.message}`);
+      }
+    }
+
+    // Record activity for audit log
+    try {
+      const activity = this.activityRepo.create({
+        hospitalName,
+        actorName: cleanDoctorName,
+        actorRole: 'doctor',
+        description: `${cleanDoctorName} registered patient ${patient.name}`,
+        actionType: 'registered',
+        targetPatientName: patient.name,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log doctor invite patient activity: ${err.message}`);
+    }
+
+    return {
+      message: isOffline
+        ? `Patient ${patient.name} registered successfully. Notification SMS sent to ${cleanPhone}`
+        : `Invitation sent to patient ${patient.name} (${patient.email})`,
+      patient: {
+        id: patient.id,
+        name: patient.name,
+        email: patient.email,
+        phone: patient.phone,
+        patientCode: patient.patientCode,
+        caregiverPhone: patient.caregiverPhone,
+        caregiverName: patient.caregiverName,
+        isOfflinePatient: patient.isOfflinePatient,
+        gender: patient.gender,
+        age: patient.age,
+        hospitalName: patient.hospitalName,
+      },
+    };
+  }
 
   // ─── Doctor Dashboard ─────────────────────────────────────────────────────
 
@@ -71,17 +213,19 @@ export class DoctorService {
 
     await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
+    const hospitalLower = hospitalName.trim().toLowerCase();
+
     // 1. Hospital patients
     const allUsers = await this.usersService.findAll();
     const hospitalPatients = allUsers.filter(
       (u) =>
         u.role === UserRole.PATIENT &&
-        u.hospitalName?.toLowerCase() === hospitalName.toLowerCase(),
+        u.hospitalName?.trim().toLowerCase() === hospitalLower,
     );
 
     // 2. Hospital prescriptions
     const allPrescriptions = await this.prescriptionRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
     });
 
@@ -91,7 +235,7 @@ export class DoctorService {
 
     // 3. Recent activities
     const recentActivities = await this.activityRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
       take: 10,
     });
@@ -156,15 +300,17 @@ export class DoctorService {
 
     await this.seedDemoDataIfEmpty(hospitalName, doctor);
 
+    const hospitalLower = hospitalName.trim().toLowerCase();
+
     const allUsers = await this.usersService.findAll();
     let patients = allUsers.filter(
       (u) =>
         u.role === UserRole.PATIENT &&
-        u.hospitalName?.toLowerCase() === hospitalName.toLowerCase(),
+        u.hospitalName?.trim().toLowerCase() === hospitalLower,
     );
 
     const allHospitalPrescriptions = await this.prescriptionRepo.find({
-      where: { hospitalName },
+      where: { hospitalName: ILike(hospitalName.trim()) },
       order: { createdAt: 'DESC' },
     });
 
@@ -176,7 +322,10 @@ export class DoctorService {
       const activeOrPending = patientPrescriptions.filter(
         (rx) =>
           rx.status === PrescriptionStatus.ACTIVE ||
-          rx.status === PrescriptionStatus.PENDING,
+          rx.status === PrescriptionStatus.DISPENSED ||
+          rx.status === PrescriptionStatus.PENDING ||
+          rx.status === PrescriptionStatus.CLARIFIED ||
+          rx.status === PrescriptionStatus.AWAITING_CLARIFICATION,
       );
 
       const lastPrescription = patientPrescriptions[0] ?? null;
@@ -240,6 +389,14 @@ export class DoctorService {
       throw new NotFoundException('Patient not found');
     }
 
+    if (
+      doctor.hospitalName &&
+      patient.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== patient.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Patient not found in your hospital');
+    }
+
     const prescriptions = await this.prescriptionRepo.find({
       where: { patientId },
       order: { createdAt: 'DESC' },
@@ -274,21 +431,36 @@ export class DoctorService {
       };
     };
 
-    // Current medications = active medications + pending prescriptions awaiting pharmacy approval
+    // Auto-complete any prescriptions whose duration has finished
+    for (const rx of prescriptions) {
+      if (
+        (rx.status === PrescriptionStatus.ACTIVE || rx.status === PrescriptionStatus.DISPENSED) &&
+        this.isPrescriptionDurationCompleted(rx)
+      ) {
+        rx.status = PrescriptionStatus.COMPLETED;
+        await this.prescriptionRepo.save(rx);
+      }
+    }
+
+    // Current medications = active + dispensed + pending + clarified + awaiting clarification
     const currentMedications = prescriptions
       .filter(
         (rx) =>
           rx.status === PrescriptionStatus.ACTIVE ||
-          rx.status === PrescriptionStatus.PENDING,
+          rx.status === PrescriptionStatus.DISPENSED ||
+          rx.status === PrescriptionStatus.PENDING ||
+          rx.status === PrescriptionStatus.CLARIFIED ||
+          rx.status === PrescriptionStatus.AWAITING_CLARIFICATION,
       )
       .map(formatRx);
 
-    // Medication history = discontinued, completed, dispensed, awaiting_clarification, clarified, cancelled
+    // Medication history = discontinued, completed, cancelled
     const medicationHistory = prescriptions
       .filter(
         (rx) =>
-          rx.status !== PrescriptionStatus.ACTIVE &&
-          rx.status !== PrescriptionStatus.PENDING,
+          rx.status === PrescriptionStatus.DISCONTINUED ||
+          rx.status === PrescriptionStatus.COMPLETED ||
+          rx.status === PrescriptionStatus.CANCELLED,
       )
       .map(formatRx);
 
@@ -325,6 +497,14 @@ export class DoctorService {
     const patient = await this.usersService.findById(dto.patientId);
     if (!patient || patient.role !== UserRole.PATIENT) {
       throw new NotFoundException('Selected patient does not exist');
+    }
+
+    if (
+      doctor.hospitalName &&
+      patient.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== patient.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Selected patient does not exist in your hospital');
     }
 
     const proposedMedName = dto.medicationName.trim().toLowerCase();
@@ -399,11 +579,99 @@ export class DoctorService {
       throw new NotFoundException('Selected patient does not exist');
     }
 
+    if (
+      doctor.hospitalName &&
+      patient.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== patient.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Selected patient does not exist in your hospital');
+    }
+
     const hospitalName = doctor.hospitalName || patient.hospitalName || 'General Hospital';
 
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
+
+    // Support multiple medications in a single prescription submission
+    if (dto.medications && Array.isArray(dto.medications) && dto.medications.length > 0) {
+      const createdPrescriptions: Prescription[] = [];
+
+      for (const item of dto.medications) {
+        const itemDosage = item.dosage || item.dose || '';
+        const itemFrequency = item.frequency || null;
+        const itemDoseAndFreq = itemFrequency && itemDosage ? `${itemDosage}, ${itemFrequency}` : itemDosage || itemFrequency || null;
+
+        const p = this.prescriptionRepo.create({
+          hospitalName,
+          patientId: patient.id,
+          patientName: patient.name,
+          patientEmail: patient.email,
+          patientPhone: patient.phone || null,
+          doctorId: doctor.id,
+          doctorName: cleanDoctorName,
+          medicationName: item.medicationName,
+          dosage: itemDosage,
+          frequency: itemFrequency,
+          doseAndFrequency: itemDoseAndFreq,
+          duration: item.duration ?? dto.duration ?? null,
+          reason: item.reason ?? dto.reason ?? null,
+          instructions: item.instructions ?? dto.instructions ?? null,
+          status: PrescriptionStatus.PENDING,
+        });
+        createdPrescriptions.push(p);
+      }
+
+      const savedList = await this.prescriptionRepo.save(createdPrescriptions);
+
+      if (patient.phone) {
+        try {
+          const medSummary = savedList.map(p => `${p.medicationName} (${p.doseAndFrequency || p.dosage})`).join(', ');
+          await this.smsService.sendPrescriptionSms({
+            patientName: patient.name,
+            phone: patient.phone,
+            medicationName: medSummary,
+            dosage: savedList.map(p => p.dosage).filter(Boolean).join(', '),
+            frequency: savedList[0].frequency ?? undefined,
+            duration: savedList[0].duration ?? undefined,
+            instructions: savedList[0].instructions ?? undefined,
+            prescriberName: cleanDoctorName,
+            hospitalName,
+            caregiverPhone: patient.caregiverPhone ?? undefined,
+          });
+        } catch (smsErr: any) {
+          this.logger.warn(`Failed to dispatch prescription SMS to patient ${patient.phone}: ${smsErr.message}`);
+        }
+      }
+
+      const activity = this.activityRepo.create({
+        hospitalName,
+        actorName: cleanDoctorName,
+        actorRole: 'doctor',
+        description: `${cleanDoctorName} prescribed ${savedList.length} medications for ${patient.name}`,
+        actionType: 'prescribed',
+        targetPatientName: patient.name,
+      });
+      await this.activityRepo.save(activity);
+
+      this.logger.log(`${savedList.length} prescriptions created by ${cleanDoctorName} for ${patient.name}`);
+
+      const firstSaved = {
+        ...savedList[0],
+        date: formatPrescriptionDate(savedList[0].createdAt),
+      };
+
+      return {
+        message: savedList.length > 1
+          ? `${savedList.length} prescriptions created successfully and sent to pharmacy for review`
+          : 'Prescription created successfully and sent to pharmacy for review',
+        prescription: firstSaved,
+        prescriptions: savedList.map(p => ({
+          ...p,
+          date: formatPrescriptionDate(p.createdAt),
+        })),
+      };
+    }
 
     const dosage = dto.dosage || dto.dose || '';
     const frequency = dto.frequency || null;
@@ -414,6 +682,7 @@ export class DoctorService {
       patientId: patient.id,
       patientName: patient.name,
       patientEmail: patient.email,
+      patientPhone: patient.phone || null,
       doctorId: doctor.id,
       doctorName: cleanDoctorName,
       medicationName: dto.medicationName,
@@ -427,6 +696,26 @@ export class DoctorService {
     });
 
     const saved = await this.prescriptionRepo.save(prescription);
+
+    // Send SMS notification with instructions to patient and caregiver
+    if (patient.phone) {
+      try {
+        await this.smsService.sendPrescriptionSms({
+          patientName: patient.name,
+          phone: patient.phone,
+          medicationName: saved.medicationName,
+          dosage: saved.dosage,
+          frequency: saved.frequency ?? undefined,
+          duration: saved.duration ?? undefined,
+          instructions: saved.instructions ?? undefined,
+          prescriberName: cleanDoctorName,
+          hospitalName,
+          caregiverPhone: patient.caregiverPhone ?? undefined,
+        });
+      } catch (smsErr: any) {
+        this.logger.warn(`Failed to dispatch prescription SMS to patient ${patient.phone}: ${smsErr.message}`);
+      }
+    }
 
     const activity = this.activityRepo.create({
       hospitalName,
@@ -463,6 +752,14 @@ export class DoctorService {
       where: { id: prescriptionId },
     });
     if (!rx) throw new NotFoundException('Prescription not found');
+
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
 
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
@@ -527,6 +824,14 @@ export class DoctorService {
     });
     if (!rx) throw new NotFoundException('Prescription not found');
 
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
@@ -557,6 +862,91 @@ export class DoctorService {
     };
   }
 
+  // ─── Complete Prescription (Mark medication as finished) ─────────────────
+
+  async completePrescription(doctorId: string, prescriptionId: string) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const rx = await this.prescriptionRepo.findOne({
+      where: { id: prescriptionId },
+    });
+    if (!rx) throw new NotFoundException('Prescription not found');
+
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
+    const cleanDoctorName = doctor.name.startsWith('Dr.')
+      ? doctor.name
+      : `Dr. ${doctor.name}`;
+
+    rx.status = PrescriptionStatus.COMPLETED;
+    const saved = await this.prescriptionRepo.save(rx);
+
+    const activity = this.activityRepo.create({
+      hospitalName: rx.hospitalName,
+      actorName: cleanDoctorName,
+      actorRole: 'doctor',
+      description: `${cleanDoctorName} completed medication treatment for ${rx.patientName}`,
+      actionType: 'completed',
+      targetPatientName: rx.patientName,
+    });
+    await this.activityRepo.save(activity);
+
+    this.logger.log(`Prescription [${rx.id}] completed by ${cleanDoctorName}`);
+
+    return {
+      message: 'Prescription completed successfully and moved to history',
+      prescription: {
+        ...saved,
+        date: formatPrescriptionDate(saved.updatedAt || saved.createdAt),
+      },
+    };
+  }
+
+  // ─── Helper: Check if prescription duration has elapsed ─────────────────
+
+  isPrescriptionDurationCompleted(rx: Prescription): boolean {
+    if (
+      rx.status !== PrescriptionStatus.ACTIVE &&
+      rx.status !== PrescriptionStatus.DISPENSED
+    ) {
+      return false;
+    }
+    if (!rx.duration) return false;
+    const dur = rx.duration.trim().toLowerCase();
+    if (dur === 'ongoing' || dur === 'as directed') return false;
+
+    let days = 0;
+    const dayMatch = dur.match(/^(\d+)\s*day/i);
+    if (dayMatch) {
+      days = parseInt(dayMatch[1], 10);
+    } else {
+      const weekMatch = dur.match(/^(\d+)\s*week/i);
+      if (weekMatch) {
+        days = parseInt(weekMatch[1], 10) * 7;
+      } else {
+        const monthMatch = dur.match(/^(\d+)\s*month/i);
+        if (monthMatch) {
+          days = parseInt(monthMatch[1], 10) * 30;
+        }
+      }
+    }
+
+    if (days <= 0) return false;
+
+    const start = rx.updatedAt || rx.createdAt;
+    if (!start) return false;
+    const startTime = new Date(start).getTime();
+    const elapsed = Date.now() - startTime;
+    return elapsed >= days * 24 * 60 * 60 * 1000;
+  }
+
   // ─── Get Clarifications List (Image 2 Left Frame) ─────────────────────────
 
   async getClarifications(doctorId: string) {
@@ -569,7 +959,7 @@ export class DoctorService {
 
     const items = await this.prescriptionRepo.find({
       where: {
-        hospitalName,
+        hospitalName: ILike(hospitalName.trim()),
         status: PrescriptionStatus.AWAITING_CLARIFICATION,
       },
       order: { updatedAt: 'DESC' },
@@ -606,6 +996,14 @@ export class DoctorService {
       where: { id: prescriptionId },
     });
     if (!rx) throw new NotFoundException('Clarification not found');
+
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Clarification request not found in your hospital');
+    }
 
     const patient = await this.usersService.findById(rx.patientId);
 
@@ -673,6 +1071,14 @@ export class DoctorService {
     });
     if (!rx) throw new NotFoundException('Prescription not found');
 
+    if (
+      doctor.hospitalName &&
+      rx.hospitalName &&
+      doctor.hospitalName.trim().toLowerCase() !== rx.hospitalName.trim().toLowerCase()
+    ) {
+      throw new NotFoundException('Prescription not found in your hospital');
+    }
+
     const cleanDoctorName = doctor.name.startsWith('Dr.')
       ? doctor.name
       : `Dr. ${doctor.name}`;
@@ -723,11 +1129,18 @@ export class DoctorService {
   // ─── Helper: Seed Demo Patients & Clarifications Matching Figma ───────────
 
   private async seedDemoDataIfEmpty(hospitalName: string, doctor: any) {
-    const jenniferEmail = `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-    const existingJennifer = await this.usersService.findByEmail(jenniferEmail);
+    if (!hospitalName || hospitalName.trim().toLowerCase() !== 'general hospital') {
+      return;
+    }
 
-    if (!existingJennifer) {
-      this.logger.log(`Seeding initial clinical data for hospital "${hospitalName}"...`);
+    const existingRx = await this.prescriptionRepo.findOne({
+      where: { hospitalName: ILike(hospitalName.trim()) },
+    });
+    if (existingRx) {
+      return;
+    }
+
+    this.logger.log(`Seeding initial clinical data for hospital "${hospitalName}"...`);
 
       const demoPatientsData = [
         { name: 'Miss. Jennifer', email: `jennifer@${hospitalName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`, gender: 'Female', age: 34, phone: '08123456789' },
@@ -891,6 +1304,5 @@ export class DoctorService {
       for (const act of sampleActivities) {
         await this.activityRepo.save(this.activityRepo.create({ ...act, hospitalName }));
       }
-    }
   }
 }

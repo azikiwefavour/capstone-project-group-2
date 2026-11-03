@@ -1,16 +1,19 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import SettingsProfileContext from '../../auth/SettingsProfileContext'
 import AdminHeader from '../../admin/components/AdminHeader'
 import { getDoctorAccessToken, setDoctorAccessToken, subscribeToDoctorSession, verifyDoctorSession } from '../../auth/doctorSession'
 import { getTokenExpiry } from '../../auth/session'
 import { endDoctorPreviewSession } from '../previewAuth'
 import DoctorSidebar from './DoctorSidebar'
+import LogoutConfirmationModal from '../../components/LogoutConfirmationModal'
 
 function DoctorLayout({ view = 'overview', background = 'default', children }) {
   const navigate = useNavigate()
   const token = useSyncExternalStore(subscribeToDoctorSession, getDoctorAccessToken)
   const [verification, setVerification] = useState(null)
   const [attempt, setAttempt] = useState(0)
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const checked = Boolean(token && verification?.token === token && verification?.attempt === attempt)
   const name = checked && verification.status === 'verified' ? verification.name.trim() : ''
   const doctorName = name ? `Dr ${name.replace(/^Dr\.?\s+/i, '')}` : ''
@@ -19,7 +22,7 @@ function DoctorLayout({ view = 'overview', background = 'default', children }) {
     if (!token) return
     const controller = new AbortController()
     verifyDoctorSession(token, controller.signal).then(profile => {
-      if (!controller.signal.aborted && profile && getDoctorAccessToken() === token) setVerification({ token, attempt, status: 'verified', name: profile.name })
+      if (!controller.signal.aborted && profile && getDoctorAccessToken() === token) setVerification({ token, attempt, status: 'verified', name: profile.name, email: profile.email })
     }).catch(error => {
       if (!controller.signal.aborted && getDoctorAccessToken() === token) setVerification({ token, attempt, status: 'error', error: error.message })
     })
@@ -51,8 +54,9 @@ function DoctorLayout({ view = 'overview', background = 'default', children }) {
   if (!token) return <Navigate to="/doctor/login" replace />
 
   return (
-    <main className={`min-h-screen ${background === 'white' ? 'bg-white' : 'bg-[#F6F7FB]'} text-[#111827] lg:flex lg:h-screen`}>
-      <DoctorSidebar doctorName={doctorName} view={view} onLogout={handleLogout} />
+    <SettingsProfileContext.Provider value={checked && verification.status === 'verified' ? { name: verification.name, email: verification.email } : null}><main className={`min-h-screen ${background === 'white' ? 'bg-white' : 'bg-[#F6F7FB]'} text-[#111827] lg:flex lg:h-screen`}>
+      <DoctorSidebar doctorName={doctorName} view={view} onLogout={() => setLogoutOpen(true)} />
+      {logoutOpen && <LogoutConfirmationModal onClose={() => setLogoutOpen(false)} onConfirm={handleLogout} />}
       <section className="min-w-0 flex-1 px-5 py-6 sm:px-8 lg:min-h-0 lg:overflow-y-auto lg:px-8 lg:py-5 xl:px-10">
         <div className="mx-auto max-w-7xl">
           <AdminHeader adminName={doctorName} />
@@ -64,7 +68,7 @@ function DoctorLayout({ view = 'overview', background = 'default', children }) {
           <div className="h-4 lg:hidden" />
         </div>
       </section>
-    </main>
+    </main></SettingsProfileContext.Provider>
   )
 }
 
