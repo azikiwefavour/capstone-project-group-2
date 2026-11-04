@@ -138,6 +138,64 @@ export class PharmacyService {
     };
   }
 
+  // ─── Get Notifications (Pharmacist Notification Bell) ─────────────────────
+
+  async getNotifications(pharmacistId: string) {
+    const pharmacist = await this.usersService.findById(pharmacistId);
+    if (!pharmacist) throw new NotFoundException('Pharmacist not found');
+
+    const hospitalName = pharmacist.hospitalName || 'General Hospital';
+
+    const prescriptions = await this.prescriptionRepo.find({
+      where: {
+        hospitalName: ILike(hospitalName.trim()),
+      },
+      order: { updatedAt: 'DESC' },
+      take: 50,
+    });
+
+    const notifications = [];
+
+    for (const rx of prescriptions) {
+      if (
+        rx.status === PrescriptionStatus.PENDING ||
+        rx.status === PrescriptionStatus.CLARIFIED
+      ) {
+        const sender = rx.doctorName
+          ? (rx.doctorName.startsWith('Dr.') || rx.doctorName.startsWith('Dr ') ? rx.doctorName : 'Dr. ' + rx.doctorName)
+          : 'Dr. Adewale';
+        notifications.push({
+          id: 'notif-pharm-pending-' + rx.id,
+          prescriptionId: rx.id,
+          role: 'pharmacist',
+          type: 'new-prescription',
+          title: 'Verification',
+          description: 'From ' + sender + '.',
+          patientName: rx.patientName,
+          createdAt: (rx.updatedAt || rx.createdAt || new Date()).toISOString(),
+          read: false,
+        });
+      } else if (rx.status === PrescriptionStatus.DISPENSED) {
+        const sender = rx.doctorName
+          ? (rx.doctorName.startsWith('Dr.') || rx.doctorName.startsWith('Dr ') ? rx.doctorName : 'Dr. ' + rx.doctorName)
+          : 'Dr. Adewale';
+        notifications.push({
+          id: 'notif-pharm-dispensed-' + rx.id,
+          prescriptionId: rx.id,
+          role: 'pharmacist',
+          type: 'new-prescription',
+          title: 'Verification',
+          description: 'From ' + sender + '.',
+          patientName: rx.patientName,
+          createdAt: (rx.dispensedAt || rx.updatedAt || rx.createdAt || new Date()).toISOString(),
+          read: true,
+        });
+      }
+    }
+
+    return notifications;
+  }
+
   // ─── Get Prescriptions Queue ──────────────────────────────────────────────
 
   async getPrescriptions(pharmacistId: string, status?: string, search?: string) {

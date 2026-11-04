@@ -1021,6 +1021,62 @@ export class DoctorService {
     }));
   }
 
+  // ─── Get Notifications (Doctor Notification Bell) ─────────────────────────
+
+  async getNotifications(doctorId: string) {
+    const doctor = await this.usersService.findById(doctorId);
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    const hospitalName = doctor.hospitalName || 'General Hospital';
+
+    const prescriptions = await this.prescriptionRepo.find({
+      where: {
+        hospitalName: ILike(hospitalName.trim()),
+      },
+      order: { updatedAt: 'DESC' },
+      take: 50,
+    });
+
+    const notifications = [];
+
+    for (const rx of prescriptions) {
+      if (rx.status === PrescriptionStatus.AWAITING_CLARIFICATION) {
+        const sender = rx.pharmacistName
+          ? (rx.pharmacistName.startsWith('Pharm.') ? rx.pharmacistName : 'Pharm. ' + rx.pharmacistName)
+          : 'Pharm. Elizabeth';
+        notifications.push({
+          id: 'notif-doc-pending-' + rx.id,
+          prescriptionId: rx.id,
+          role: 'doctor',
+          type: 'pharmacist-query',
+          title: 'Clarification Request',
+          description: 'From ' + sender + '.',
+          patientName: rx.patientName,
+          createdAt: (rx.updatedAt || rx.createdAt || new Date()).toISOString(),
+          read: false,
+        });
+      } else if (
+        (rx.status === PrescriptionStatus.CLARIFIED || rx.status === PrescriptionStatus.DISPENSED) &&
+        rx.pharmacistName
+      ) {
+        const sender = rx.pharmacistName.startsWith('Pharm.') ? rx.pharmacistName : 'Pharm. ' + rx.pharmacistName;
+        notifications.push({
+          id: 'notif-doc-sorted-' + rx.id,
+          prescriptionId: rx.id,
+          role: 'doctor',
+          type: 'pharmacist-query',
+          title: 'Clarification Request',
+          description: 'From ' + sender + '.',
+          patientName: rx.patientName,
+          createdAt: (rx.updatedAt || rx.createdAt || new Date()).toISOString(),
+          read: true,
+        });
+      }
+    }
+
+    return notifications;
+  }
+
   // ─── Get Clarification Details (Image 2 Right Frame) ──────────────────────
 
   async getClarificationDetails(doctorId: string, prescriptionId: string) {

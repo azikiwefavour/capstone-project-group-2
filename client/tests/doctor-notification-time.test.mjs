@@ -27,3 +27,15 @@ test('design examples have exactly one unread record and are restricted to the D
     '10 minutes ago', '30 minutes ago', '8 hours ago', '17 hours ago', '31 October 2026, 01:12 PM',
   ])
 })
+
+test('notificationsForRole preserves prescriptionId and patientName fields', () => {
+  const record = {
+    id: 'notif-1', role: 'doctor', type: 'pharmacist-query',
+    title: 'Clarification Request', description: 'From Pharm. Elizabeth.',
+    createdAt: new Date(now).toISOString(), read: false,
+    prescriptionId: 'rx-1234', patientName: 'Miss Jennifer',
+  }
+  const [normalized] = notificationsForRole([record], 'doctor')
+  assert.equal(normalized.prescriptionId, 'rx-1234')
+  assert.equal(normalized.patientName, 'Miss Jennifer')
+})

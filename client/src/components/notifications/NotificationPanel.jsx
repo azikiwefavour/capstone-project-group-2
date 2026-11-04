@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { Bell, X } from 'lucide-react'
 import DoctorNotificationList from './DoctorNotificationList'
 import PharmacistNotificationList from './PharmacistNotificationList'
@@ -14,15 +15,35 @@ export default function NotificationPanel({ role, previewLabel, id, triggerRef, 
   const NotificationList = role === 'pharmacist' ? PharmacistNotificationList : DoctorNotificationList
   const cardRecords = hasCardLayout ? [...notifications.filter(record => !record.read), ...notifications.filter(record => record.read)] : []
   const hasMore = visibleCount < cardRecords.length
+  const navigate = useNavigate()
 
   function readCardNotification(notificationId) {
     onRead(notificationId)
-    closeRef.current.focus({ preventScroll: true })
+    closeRef.current?.focus({ preventScroll: true })
   }
 
   function readAllCardNotifications() {
     onReadAll()
-    closeRef.current.focus({ preventScroll: true })
+    closeRef.current?.focus({ preventScroll: true })
+  }
+
+  function handleSelectCard(notification) {
+    readCardNotification(notification.id)
+    onClose(false)
+    if (notification.prescriptionId && navigate) {
+      if (role === 'doctor') {
+        const openDialogs = Array.from(document.querySelectorAll('dialog[open]'))
+        if (openDialogs.length > 0) {
+          const proceed = window.confirm(
+            'You currently have an active prescription form open. Would you like to leave this page to review the clarification?'
+          )
+          if (!proceed) return
+        }
+        navigate(`/doctor/clarifications/${encodeURIComponent(notification.prescriptionId)}`)
+      } else if (role === 'pharmacist') {
+        navigate(`/pharmacist/prescriptions/${encodeURIComponent(notification.prescriptionId)}`)
+      }
+    }
   }
 
   useLayoutEffect(() => {
@@ -56,7 +77,7 @@ export default function NotificationPanel({ role, previewLabel, id, triggerRef, 
       panel.style.top = `${Math.max(16, Math.min(preferred, window.innerHeight - height - 16))}px`
     }
     position()
-    closeRef.current.focus({ preventScroll: true })
+    closeRef.current?.focus({ preventScroll: true })
     const observer = new ResizeObserver(position)
     observer.observe(panel)
     window.addEventListener('resize', position)
@@ -136,7 +157,7 @@ export default function NotificationPanel({ role, previewLabel, id, triggerRef, 
             <div><p className="text-sm font-semibold">You're all caught up</p><p className={hasCardLayout ? 'mt-1 text-xs text-[#707584]' : 'mt-1 text-xs text-[#7A8190] dark:text-[#94A3B8]'}>No notifications to show.</p></div>
           </div>
         ) : hasCardLayout ? (
-          <NotificationList id={`${id}-list`} notifications={cardRecords.slice(0, visibleCount)} onRead={readCardNotification} />
+          <NotificationList id={`${id}-list`} notifications={cardRecords.slice(0, visibleCount)} onRead={readCardNotification} onSelect={handleSelectCard} />
         ) : (
           <ul aria-label="Notification list" className="divide-y divide-[#E2E5ED] dark:divide-[#2C3852]">
             {notifications.map(notification => (
@@ -147,7 +168,7 @@ export default function NotificationPanel({ role, previewLabel, id, triggerRef, 
                   <time dateTime={notification.createdAt} className="mt-2 block text-xs text-[#7A8190] dark:text-[#94A3B8]">{new Date(notification.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time>
                   <div className="mt-3 flex items-center justify-between gap-3 text-xs">
                     <span className={notification.read ? 'text-[#7A8190] dark:text-[#94A3B8]' : 'font-semibold text-[#475AA2] dark:text-[#A5B4FC]'}>{notification.read ? 'Read' : 'Unread'}</span>
-                    {!notification.read && <button type="button" aria-label={`Mark ${notification.title} as read`} onClick={() => { onRead(notification.id); closeRef.current.focus({ preventScroll: true }) }} className={`rounded-md px-2 py-1 font-semibold text-[#475AA2] hover:bg-[#E8ECF8] dark:text-[#A5B4FC] dark:hover:bg-[#2C3852] ${focusStyle}`}>Mark as read</button>}
+                    {!notification.read && <button type="button" aria-label={`Mark ${notification.title} as read`} onClick={() => { onRead(notification.id); closeRef.current?.focus({ preventScroll: true }) }} className={`rounded-md px-2 py-1 font-semibold text-[#475AA2] hover:bg-[#E8ECF8] dark:text-[#A5B4FC] dark:hover:bg-[#2C3852] ${focusStyle}`}>Mark as read</button>}
                   </div>
                 </article>
               </li>
@@ -158,10 +179,10 @@ export default function NotificationPanel({ role, previewLabel, id, triggerRef, 
       {hasCardLayout ? notifications.length > 0 && <div className="flex shrink-0 justify-center px-6 pb-5 pt-2">
         <button type="button" disabled={!hasMore} aria-controls={`${id}-list`} onClick={() => {
           setVisibleCount(count => count + 5)
-          if (visibleCount + 5 >= cardRecords.length) closeRef.current.focus({ preventScroll: true })
+          if (visibleCount + 5 >= cardRecords.length) closeRef.current?.focus({ preventScroll: true })
         }} className={`rounded-xl border border-[#E2E5ED] bg-white px-6 py-2.5 text-sm font-semibold text-[#475AA2] transition hover:bg-[#F0F1FF] disabled:cursor-default disabled:text-[#8B90A0] disabled:hover:bg-white ${focusStyle}`}>Load more</button>
       </div> : <div className="shrink-0 border-t border-[#E2E5ED] px-5 py-3 dark:border-[#2C3852]">
-        <button type="button" disabled={unreadCount === 0} onClick={() => { onReadAll(); closeRef.current.focus({ preventScroll: true }) }} className={`rounded-lg px-2 py-2 text-sm font-semibold text-[#475AA2] hover:bg-[#F7F8FB] disabled:cursor-default disabled:opacity-50 dark:text-[#A5B4FC] dark:hover:bg-[#1E293B] ${focusStyle}`}>Mark all as read</button>
+        <button type="button" disabled={unreadCount === 0} onClick={() => { onReadAll(); closeRef.current?.focus({ preventScroll: true }) }} className={`rounded-lg px-2 py-2 text-sm font-semibold text-[#475AA2] hover:bg-[#F7F8FB] disabled:cursor-default disabled:opacity-50 dark:text-[#A5B4FC] dark:hover:bg-[#1E293B] ${focusStyle}`}>Mark all as read</button>
       </div>}
     </section>, document.body,
   )

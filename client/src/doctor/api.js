@@ -80,3 +80,7 @@ export async function getDoctorClarifications(signal) {
     },
   }))
 }
+
+export async function getDoctorNotifications(signal) {
+  return doctorListRequest('notifications', signal)
+}

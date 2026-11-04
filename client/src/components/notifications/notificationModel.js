@@ -22,5 +22,7 @@ export function notificationsForRole(records, role) {
   }).map(record => ({
     id: record.id, role, type: record.type, title: record.title,
     description: record.description, createdAt: record.createdAt, read: record.read === true,
+    prescriptionId: typeof record.prescriptionId === 'string' ? record.prescriptionId : null,
+    patientName: typeof record.patientName === 'string' ? record.patientName : '',
   }))
 }

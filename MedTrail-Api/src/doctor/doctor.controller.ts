@@ -223,6 +223,14 @@ export class DoctorController {
     return this.doctorService.modifyPrescription(user.sub, id, dto);
   }
 
+  // ── GET /api/doctor/notifications ────────────────────────────────────────
+  @Get('notifications')
+  @ApiOperation({ summary: 'Get doctor in-app notifications' })
+  @ApiResponse({ status: 200, description: 'List of doctor notifications' })
+  getNotifications(@CurrentUser() user: { sub: string }) {
+    return this.doctorService.getNotifications(user.sub);
+  }
+
   // ── POST /api/doctor/clarifications/:id/resolve ──────────────────────────
   @Post('clarifications/:id/resolve')
   @HttpCode(HttpStatus.OK)

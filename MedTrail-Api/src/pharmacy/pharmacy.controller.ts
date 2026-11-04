@@ -33,6 +33,14 @@ import { InvitePatientDto } from '../patient/dto/invite-patient.dto';
 export class PharmacyController {
   constructor(private readonly pharmacyService: PharmacyService) {}
 
+  // ── GET /api/pharmacy/notifications ──────────────────────────────────────
+  @Get('notifications')
+  @ApiOperation({ summary: 'Get pharmacist in-app notifications' })
+  @ApiResponse({ status: 200, description: 'List of pharmacist notifications' })
+  getNotifications(@CurrentUser() user: { sub: string }) {
+    return this.pharmacyService.getNotifications(user.sub);
+  }
+
   // ── GET /api/pharmacy/dashboard ──────────────────────────────────────────
   @Get('dashboard')
   @ApiOperation({ summary: 'Get pharmacy dashboard metrics' })

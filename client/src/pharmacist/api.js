@@ -51,3 +51,7 @@ export function pharmacistGet(path, signal, resource = 'prescriptions') {
 export function pharmacistPost(path, body, signal, resource = 'clarification request') {
   return pharmacistRequest(path, signal, resource, 'POST', body)
 }
+
+export function getPharmacistNotifications(signal) {
+  return pharmacistGet('notifications', signal, 'notifications')
+}

@@ -1,6 +1,6 @@
 import { formatDoctorNotificationTime as formatNotificationTime } from './doctorNotificationTime'
 
-export default function NotificationCardList({ id, notifications, onRead, icon: Icon, unreadIconClassName, unreadIndicatorTestId }) {
+export default function NotificationCardList({ id, notifications, onRead, onSelect, icon: Icon, unreadIconClassName, unreadIndicatorTestId }) {
   return <ul id={id} aria-label="Notification list" className="space-y-2 px-4 py-4">
     {notifications.map(notification => {
       const content = <>
@@ -15,9 +15,34 @@ export default function NotificationCardList({ id, notifications, onRead, icon: 
         </span>
         {!notification.read && <span aria-hidden="true" data-testid={unreadIndicatorTestId} className="absolute right-4 top-4 h-2 w-2 rounded-full bg-[#E35977]" />}
       </>
-      const className = `relative flex w-full items-start gap-4 rounded-[20px] p-4 text-left [overflow-wrap:anywhere] ${notification.read ? 'bg-white' : 'bg-[#F0F1FF] transition hover:bg-[#E8EAFF] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/25'}`
+      const className = `relative flex w-full items-start gap-4 rounded-[20px] p-4 text-left [overflow-wrap:anywhere] ${notification.read ? 'bg-white cursor-pointer hover:bg-[#F9FAFB]' : 'bg-[#F0F1FF] transition hover:bg-[#E8EAFF] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/25 cursor-pointer'}`
       return <li key={notification.id}>
-        {notification.read ? <div className={className}>{content}</div> : <button type="button" className={className} aria-label={`Mark ${notification.title} as read`} onClick={() => onRead(notification.id)}>{content}</button>}
+        {notification.read ? (
+          onSelect ? (
+            <button
+              type="button"
+              className={className}
+              aria-label={`View ${notification.title}`}
+              onClick={() => onSelect(notification)}
+            >
+              {content}
+            </button>
+          ) : (
+            <div className={className}>{content}</div>
+          )
+        ) : (
+          <button
+            type="button"
+            className={className}
+            aria-label={`Mark ${notification.title} as read`}
+            onClick={() => {
+              if (onSelect) onSelect(notification)
+              else onRead(notification.id)
+            }}
+          >
+            {content}
+          </button>
+        )}
       </li>
     })}
   </ul>
