@@ -22,6 +22,8 @@ export async function getDoctorPatientDetails(patientId, signal) {
     // Pending pharmacy review corresponds to the existing Unverified display badge.
     status: record.status === 'pending' ? 'unverified' : text(record.status).toLowerCase(),
     date: record.createdAt,
+    illness: text(record.illness),
+    symptoms: text(record.symptoms),
   })
   const currentMedications = data.currentMedications.map(medication)
   return {
@@ -45,30 +47,47 @@ export async function createDoctorPrescription(patientId, values, signal) {
     ? 'An exact duplicate exists. Prescription submission is disabled.'
     : 'Duplicate checking is unavailable. Refresh the medication records before submitting.')
 
+  const resolvedReason = text(values.reason || values.illness).trim()
+  const resolvedIllness = text(values.illness).trim()
+  const resolvedSymptoms = text(values.symptoms).trim()
+
   if (Array.isArray(values.items) && values.items.length > 0) {
     const body = {
       patientId,
-      reason: values.reason.trim(),
-      medications: values.items.map(item => ({
-        medicationName: item.medication.trim(),
-        dosage: item.dose.trim(),
-        dose: item.dose.trim(),
-        frequency: item.frequency.trim(),
-        duration: item.duration.trim(),
-        reason: values.reason.trim(),
-      })),
+      reason: resolvedReason,
+      medications: values.items.map(item => {
+        const itemObj = {
+          medicationName: item.medication.trim(),
+          dosage: item.dose.trim(),
+          dose: item.dose.trim(),
+          frequency: item.frequency.trim(),
+          duration: item.duration.trim(),
+          reason: resolvedReason,
+        }
+        if (resolvedIllness) itemObj.illness = resolvedIllness
+        if (resolvedSymptoms) itemObj.symptoms = resolvedSymptoms
+        return itemObj
+      }),
       medicationName: values.items[0].medication.trim(),
       dosage: values.items[0].dose.trim(),
       frequency: values.items[0].frequency.trim(),
       duration: values.items[0].duration.trim(),
     }
+    if (resolvedIllness) body.illness = resolvedIllness
+    if (resolvedSymptoms) body.symptoms = resolvedSymptoms
     return saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
   }
 
   const body = {
-    patientId, medicationName: values.medication.trim(), dosage: values.dose.trim(),
-    frequency: values.frequency.trim(), duration: values.duration.trim(), reason: values.reason.trim(),
+    patientId,
+    medicationName: values.medication.trim(),
+    dosage: values.dose.trim(),
+    frequency: values.frequency.trim(),
+    duration: values.duration.trim(),
+    reason: resolvedReason,
   }
+  if (resolvedIllness) body.illness = resolvedIllness
+  if (resolvedSymptoms) body.symptoms = resolvedSymptoms
   return saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
 }
 
@@ -101,9 +120,17 @@ export async function modifyDoctorPrescription(patientId, prescriptionId, values
   if (!values || Object.keys(validateModificationDetails(values, getModificationValues(prescription))).length) throw new Error('Complete all prescription fields.')
   const others = { ...latest.duplicateRecords, records: latest.duplicateRecords.records.filter(record => record.id !== prescriptionId) }
   if (checkMedicationDuplicate(values, patientId, others).status !== 'none') throw new Error('Modification is unavailable until the duplicate check can be completed without a match.')
+  const body = {
+    medicationName: values.medication.trim(),
+    dosage: values.dose.trim(),
+    frequency: values.frequency.trim(),
+    duration: values.duration.trim(),
+    reason: (values.illness || values.reason || '').trim(),
+  }
+  if (values.illness?.trim()) body.illness = values.illness.trim()
+  if (values.symptoms?.trim()) body.symptoms = values.symptoms.trim()
   return saveDoctorPrescription(`prescriptions/${encodeURIComponent(prescriptionId)}`, {
-    method: 'PATCH', patientId, prescriptionId,
-    body: { medicationName: values.medication.trim(), dosage: values.dose.trim(), frequency: values.frequency.trim(), duration: values.duration.trim(), reason: values.reason.trim() },
+    method: 'PATCH', patientId, prescriptionId, body,
   }, signal)
 }
 

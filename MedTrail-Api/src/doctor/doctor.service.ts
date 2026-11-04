@@ -1,3 +1,4 @@
+import { encryptClinicalText, decryptClinicalText } from '../common/encryption.util';
 import {
   Injectable,
   NotFoundException,
@@ -456,6 +457,8 @@ export class DoctorService {
         date: formatPrescriptionDate(rx.updatedAt || rx.createdAt),
         createdAt: rx.createdAt,
         updatedAt: rx.updatedAt,
+        illness: decryptClinicalText(rx.illness),
+        symptoms: decryptClinicalText(rx.symptoms),
       };
     };
 
@@ -652,6 +655,8 @@ export class DoctorService {
           duration: item.duration ?? dto.duration ?? null,
           reason: item.reason ?? dto.reason ?? null,
           instructions: item.instructions ?? dto.instructions ?? null,
+          illness: encryptClinicalText(item.illness ?? dto.illness ?? null),
+          symptoms: encryptClinicalText(item.symptoms ?? dto.symptoms ?? null),
           status: PrescriptionStatus.PENDING,
         });
         createdPrescriptions.push(p);
@@ -727,6 +732,8 @@ export class DoctorService {
       duration: dto.duration ?? null,
       reason: dto.reason ?? null,
       instructions: dto.instructions ?? null,
+      illness: encryptClinicalText(dto.illness ?? null),
+      symptoms: encryptClinicalText(dto.symptoms ?? null),
       status: PrescriptionStatus.PENDING,
     });
 
@@ -1143,6 +1150,8 @@ export class DoctorService {
         status: rx.status,
         noteToPharmacist: rx.noteToPharmacist,
         date: formatPrescriptionDate(rx.createdAt),
+        illness: decryptClinicalText(rx.illness),
+        symptoms: decryptClinicalText(rx.symptoms),
       },
     };
   }

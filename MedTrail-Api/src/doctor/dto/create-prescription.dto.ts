@@ -37,6 +37,16 @@ export class PrescriptionItemDto {
   @IsString()
   @IsOptional()
   instructions?: string;
+
+  @ApiProperty({ example: 'Bacterial infection', description: 'Diagnosis or illness (encrypted doctor-only)', required: false })
+  @IsString()
+  @IsOptional()
+  illness?: string;
+
+  @ApiProperty({ example: 'Vomiting, dizziness', description: 'Observed patient symptoms (encrypted doctor-only)', required: false })
+  @IsString()
+  @IsOptional()
+  symptoms?: string;
 }
 
 export class CreatePrescriptionDto {
@@ -80,6 +90,16 @@ export class CreatePrescriptionDto {
   @IsString()
   @IsOptional()
   instructions?: string;
+
+  @ApiProperty({ example: 'Bacterial infection', description: 'Diagnosis or illness (encrypted doctor-only)', required: false })
+  @IsString()
+  @IsOptional()
+  illness?: string;
+
+  @ApiProperty({ example: 'Vomiting, dizziness', description: 'Observed patient symptoms (encrypted doctor-only)', required: false })
+  @IsString()
+  @IsOptional()
+  symptoms?: string;
 
   @ApiProperty({ example: false, description: 'Bypass duplicate check if doctor confirms submission', required: false })
   @IsBoolean()

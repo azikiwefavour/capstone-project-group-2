@@ -25,14 +25,23 @@ export function validateMedicationDetails(values) {
         }
       }
     }
-    if (typeof values.reason !== 'string' || !values.reason.trim()) {
+    const clinicalReason = (typeof values.illness === 'string' && values.illness.trim())
+      ? values.illness.trim()
+      : (typeof values.reason === 'string' ? values.reason.trim() : '')
+    if (!clinicalReason) {
       errors.reason = 'This field is required.'
     }
     return errors
   }
   const errors = {}
-  for (const field of ['medication', 'dose', 'frequency', 'duration', 'reason']) {
+  for (const field of ['medication', 'dose', 'frequency', 'duration']) {
     if (typeof values?.[field] !== 'string' || !values[field].trim()) errors[field] = 'This field is required.'
+  }
+  const clinicalReason = (typeof values?.illness === 'string' && values.illness.trim())
+    ? values.illness.trim()
+    : (typeof values?.reason === 'string' ? values.reason.trim() : '')
+  if (!clinicalReason) {
+    errors.reason = 'This field is required.'
   }
   if (!errors.frequency && !frequencyOptions.includes(values?.frequency)) errors.frequency = 'Select a valid frequency.'
   if (!errors.duration && !durationOptions.includes(values?.duration)) errors.duration = 'Select a valid duration.'

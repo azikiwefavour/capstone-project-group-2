@@ -17,7 +17,8 @@ const fields = [
   { key: 'dose', label: 'Dose', placeholder: 'e.g. 500mg' },
   { key: 'frequency', label: 'Frequency', placeholder: 'Select frequency', options: frequencyOptions },
   { key: 'duration', label: 'Duration', placeholder: 'Select duration', options: durationOptions, fullWidth: true },
-  { key: 'reason', label: 'Reason', placeholder: 'e.g. Bacterial infection', fullWidth: true },
+  { key: 'illness', label: 'Illness', placeholder: 'e.g. Bacterial Infection', fullWidth: true },
+  { key: 'symptoms', label: 'Symptoms', placeholder: 'e.g. vomiting, dizziness', fullWidth: true },
 ]
 const primaryButtonClassName = 'inline-flex h-9 items-center justify-center rounded-xl bg-[#475AA2] px-4 text-[13px] font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-45'
 
@@ -45,7 +46,7 @@ function PrescriptionModal({
       ? { ...originalValues }
       : previewValues
         ? { ...previewValues }
-        : { medication: '', dose: '', frequency: '', duration: '', reason: '' }
+        : { medication: '', dose: '', frequency: '', duration: '', illness: '', symptoms: '', reason: '' }
   )
   const [touched, setTouched] = useState({})
 
@@ -70,8 +71,10 @@ function PrescriptionModal({
   })
   const [currentTouched, setCurrentTouched] = useState({})
   const [itemErrors, setItemErrors] = useState({})
-  const [reason, setReason] = useState(() => previewValues?.reason || '')
-  const [reasonTouched, setReasonTouched] = useState(false)
+  const [illness, setIllness] = useState(() => previewValues?.illness || previewValues?.reason || '')
+  const [illnessTouched, setIllnessTouched] = useState(false)
+  const [symptoms, setSymptoms] = useState(() => previewValues?.symptoms || '')
+  const [reason, setReason] = useState(() => previewValues?.reason || previewValues?.illness || '')
   const [generalError, setGeneralError] = useState('')
 
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -85,16 +88,21 @@ function PrescriptionModal({
   const modifyValid = modifying && Object.keys(modifyErrors).length === 0
 
   // Multi-item validation
-  const multiValues = useMemo(() => ({
-    items,
-    reason,
-    medication: items[0]?.medication || '',
-    dose: items[0]?.dose || '',
-    frequency: items[0]?.frequency || '',
-    duration: items[0]?.duration || '',
-  }), [items, reason])
+  const multiValues = useMemo(() => {
+    const effectiveIllness = illness.trim() || reason.trim()
+    return {
+      items,
+      reason: effectiveIllness,
+      illness: effectiveIllness,
+      symptoms: symptoms.trim(),
+      medication: items[0]?.medication || '',
+      dose: items[0]?.dose || '',
+      frequency: items[0]?.frequency || '',
+      duration: items[0]?.duration || '',
+    }
+  }, [items, illness, symptoms, reason])
 
-  const multiValid = !modifying && items.length > 0 && Boolean(reason.trim())
+  const multiValid = !modifying && items.length > 0 && Boolean(illness.trim() || reason.trim())
   const isValid = modifying ? modifyValid : multiValid
 
   const activeValues = modifying ? values : multiValues
@@ -153,7 +161,13 @@ function PrescriptionModal({
   }
 
   function handleRemoveItem(id) {
-    setItems((prev) => prev.filter((item) => item.id !== id))
+    setItems((prev) => {
+      const updated = prev.filter((item) => item.id !== id)
+      if (updated.length === 0 && step === 'review') {
+        setStep('details')
+      }
+      return updated
+    })
     setGeneralError('')
   }
 
@@ -195,8 +209,8 @@ function PrescriptionModal({
       return
     }
 
-    setReasonTouched(true)
-    if (!reason.trim()) {
+    setIllnessTouched(true)
+    if (!illness.trim() && !reason.trim()) {
       return
     }
 
@@ -213,7 +227,14 @@ function PrescriptionModal({
     try {
       const isDuplicate = reviewResult.status === 'found'
       const payload = modifying
-        ? { ...values, confirmDuplicate: isDuplicate, overrideDuplicate: isDuplicate }
+        ? {
+            ...values,
+            reason: values.illness || values.reason,
+            illness: values.illness || values.reason,
+            symptoms: values.symptoms || null,
+            confirmDuplicate: isDuplicate,
+            overrideDuplicate: isDuplicate,
+          }
         : {
             ...multiValues,
             confirmDuplicate: isDuplicate,
@@ -289,11 +310,12 @@ function PrescriptionModal({
                 const options = field.options && originalOption.trim() && !field.options.includes(originalOption)
                   ? [...field.options, originalOption]
                   : field.options
+                const isRequired = field.key !== 'symptoms'
                 const inputProps = {
                   id: `medication-${field.key}`,
                   name: field.key,
-                  value: values[field.key],
-                  required: true,
+                  value: values[field.key] || '',
+                  required: isRequired,
                   onChange: (event) => setValues((current) => ({ ...current, [field.key]: event.target.value })),
                   onBlur: () => setTouched((current) => ({ ...current, [field.key]: true })),
                   'aria-invalid': Boolean(error),
@@ -329,7 +351,7 @@ function PrescriptionModal({
             </button>
           </form>
         ) : (
-          /* Multi-Drug Add Form matching design */
+          /* Multi-Drug Add Form matching Frames 36 & 37 */
           <form onSubmit={reviewMedication} noValidate aria-label="Add medications">
             {/* Medication Entry Card */}
             <div className="rounded-2xl border border-[#E2E5ED] bg-[#F7F8FB] p-3.5">
@@ -459,7 +481,7 @@ function PrescriptionModal({
                 </button>
               </div>
 
-              {/* List of Added Drugs Chips */}
+              {/* List of Added Drugs Chips (Frame 37) */}
               {items.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-[#E2E5ED]">
                   {items.map((item) => (
@@ -494,7 +516,8 @@ function PrescriptionModal({
                         onClick={() => handleRemoveItem(item.id)}
                         aria-label={`Remove ${item.medication}`}
                         title="Remove drug"
-                        className="text-[#7A8190] hover:text-[#E5484D] focus:outline-none cursor-pointer">
+                        className="text-[#7A8190] hover:text-[#E5484D] focus:outline-none cursor-pointer"
+                      >
                         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
                           <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                         </svg>
@@ -505,30 +528,49 @@ function PrescriptionModal({
               )}
             </div>
 
-            {/* Reason Field */}
+            {/* Illness Field (Frames 36 & 37) */}
             <div className="mt-3">
-              <label htmlFor="prescription-reason-input" className="mb-1 block text-[13px] leading-5 font-medium text-[#111827]">
-                Reason
+              <label htmlFor="prescription-illness-input" className="mb-1 block text-[13px] leading-5 font-medium text-[#111827]">
+                Illness
               </label>
               <input
-                id="prescription-reason-input"
+                id="prescription-illness-input"
                 type="text"
                 placeholder="e.g Bacterial Infection"
-                value={reason}
+                value={illness}
                 onChange={(e) => {
+                  setIllness(e.target.value)
                   setReason(e.target.value)
                   setGeneralError('')
                 }}
-                onBlur={() => setReasonTouched(true)}
+                onBlur={() => setIllnessTouched(true)}
                 className={`h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none transition placeholder:text-[#A6ADBA] focus:ring-4 ${
-                  reasonTouched && !reason.trim()
+                  illnessTouched && !illness.trim() && !reason.trim()
                     ? 'border-[#E5484D] focus:ring-[#E5484D]/15'
                     : 'border-[#D8DCE5] focus:border-[#475AA2] focus:ring-[#475AA2]/15'
                 }`}
               />
-              {reasonTouched && !reason.trim() && (
-                <p className="mt-1 text-xs text-[#E5484D]">A reason for the prescription is required.</p>
+              {illnessTouched && !illness.trim() && !reason.trim() && (
+                <p className="mt-1 text-xs text-[#E5484D]">An illness or diagnosis is required.</p>
               )}
+            </div>
+
+            {/* Symptoms Field (Frames 36 & 37) */}
+            <div className="mt-3">
+              <label htmlFor="prescription-symptoms-input" className="mb-1 block text-[13px] leading-5 font-medium text-[#111827]">
+                Symptoms
+              </label>
+              <input
+                id="prescription-symptoms-input"
+                type="text"
+                placeholder="e.g vomiting, dizziness"
+                value={symptoms}
+                onChange={(e) => {
+                  setSymptoms(e.target.value)
+                  setGeneralError('')
+                }}
+                className="h-10 w-full rounded-xl border border-[#D8DCE5] bg-white px-3 text-sm outline-none transition placeholder:text-[#A6ADBA] focus:border-[#475AA2] focus:ring-4 focus:ring-[#475AA2]/15"
+              />
             </div>
 
             {generalError && (
@@ -537,7 +579,7 @@ function PrescriptionModal({
               </p>
             )}
 
-            {/* Review Button */}
+            {/* Review Button (Frames 36 & 37) */}
             <div className="mt-3.5">
               <button
                 type="submit"
@@ -550,12 +592,18 @@ function PrescriptionModal({
           </form>
         )
       ) : (
-        /* Review Step */
+        /* Review Step (Frame 38) */
         <section aria-label="Review medication" aria-busy={isSubmitting}>
           {modifying ? (
             <ReviewCard title="Review prescriptions" fields={fields} values={values} />
           ) : (
-            <MedicationReview fields={fields} values={activeValues} result={reviewResult} preview={showingPreview} />
+            <MedicationReview
+              fields={fields}
+              values={activeValues}
+              result={reviewResult}
+              preview={showingPreview}
+              onRemoveItem={handleRemoveItem}
+            />
           )}
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2">

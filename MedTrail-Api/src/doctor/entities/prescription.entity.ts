@@ -120,6 +120,14 @@ export class Prescription {
   @Column({ type: 'timestamp with time zone', nullable: true, default: null })
   dispensedAt: Date | null;
 
+  @ApiProperty({ example: 'Bacterial infection (encrypted at rest)', nullable: true })
+  @Column({ type: 'text', nullable: true })
+  illness: string | null;
+
+  @ApiProperty({ example: 'Vomiting, dizziness (encrypted at rest)', nullable: true })
+  @Column({ type: 'text', nullable: true })
+  symptoms: string | null;
+
   @ApiProperty()
   @CreateDateColumn()
   createdAt: Date;

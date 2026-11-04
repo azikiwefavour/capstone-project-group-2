@@ -427,7 +427,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
                 Don&rsquo;t have an account?{' '}
                 <button
                   type="button"
-                  onClick={() => navigate(authenticationRole === 'Doctor' ? '/doctor/create-password' : '/create-account')}
+                  onClick={() => navigate('/create-account')}
                   className="font-semibold text-[#475AA2] transition hover:text-[#364782] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/20"
                 >
                   Create one
