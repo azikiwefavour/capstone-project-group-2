@@ -50,3 +50,4 @@ export function decryptClinicalText(cipherText: string | null | undefined): stri
     return null;
   }
 }
+

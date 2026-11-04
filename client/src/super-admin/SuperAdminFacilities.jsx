@@ -60,7 +60,7 @@ export function SuperAdminFacilitiesPage({ profile, onLogout, preview = false, s
             <caption className="sr-only">Facilities. Seven rows per page. Sort using the column headings; rows and eye buttons open facility details.</caption>
             <thead className="bg-[#F7F8FB] text-[#52556C]"><tr>
               <th scope="col" className="w-10 px-3 py-2.5"><input type="checkbox" disabled aria-label="Select all facilities" className="h-4 w-4 accent-[#475AA2]" /></th>
-              {[['name', 'Facility'], ['plan', 'Plan'], ['clinicians', 'Clinicians'], ['patients', 'Patients'], ['messages', 'Messages'], ['status', 'Status']].map(([column, label]) => <th key={column} scope="col" aria-sort={sort.column === column ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'} className="px-3 py-2.5 font-medium"><button type="button" aria-label={`Sort by ${label}`} title={`Sort ${label}`} onClick={() => changeSort(column)} className="w-full rounded text-left font-medium focus-visible:outline-2 focus-visible:outline-[#475AA2]">{label}</button></th>)}
+              {[['name', 'Facility'], ['plan', 'Plan'], ['clinicians', 'Clinicians'], ['patients', 'Patients'], ['messages', 'Messages'], ['status', 'Status']].map(([column, label]) => <th key={column} scope="col" aria-sort={sort.column === column ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'} className="px-3 py-2.5 font-medium"><button type="button" aria-label={`Sort by ${label}`} title={`Sort ${label}`} onClick={() => changeSort(column)} className="inline-flex items-center gap-1 w-full rounded text-left font-medium focus-visible:outline-2 focus-visible:outline-[#475AA2]"><span>{label}</span><span className="text-[#9CA3AF] text-[11px] select-none" aria-hidden="true">↕</span></button></th>)}
               <th scope="col" className="w-12 px-3 py-2.5"><span className="sr-only">Details</span></th>
             </tr></thead>
             <tbody className="text-[#52556C]">{rows.length ? rows.map(row => {
@@ -70,8 +70,8 @@ export function SuperAdminFacilitiesPage({ profile, onLogout, preview = false, s
                 <td className="max-w-[240px] break-words px-3 py-2.5 font-medium text-[#111827]">{row.name}</td>
                 <td className="px-3 py-2.5"><p className="font-medium">{row.plan || 'Not available'}</p><p className="mt-1 text-[11px] text-[#7A8190]">{row.billingCycle || 'Not available'}</p></td>
                 <td className="px-3 py-2.5 tabular-nums">{formatStatistic(totals.clinicians)}</td><td className="px-3 py-2.5 tabular-nums">{formatStatistic(totals.patients)}</td><td className="px-3 py-2.5 tabular-nums">{formatStatistic(totals.messages)}</td>
-                <td className="px-3 py-2.5"><span className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium ${badge?.color || 'bg-[#F6F7FB] text-[#7A8190]'}`}>{badge?.label || row.statusLabel || 'Unavailable'}</span></td>
-                <td className="px-3 py-2.5"><button type="button" onClick={event => { event.stopPropagation(); event.currentTarget.focus({ preventScroll: true }); setSelectedFacility(row) }} aria-label={`View ${row.name}`} title="View facility details" className="flex h-7 w-7 items-center justify-center rounded-lg text-[#7A8190]"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" /></svg></button></td>
+                <td className="px-3 py-2.5"><span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${badge?.color || 'bg-[#F6F7FB] text-[#7A8190]'}`}><span className={`h-1.5 w-1.5 rounded-full ${badge?.dot || 'bg-current'}`} />{badge?.label || row.statusLabel || 'Unavailable'}</span></td>
+                <td className="px-3 py-2.5"><button type="button" onClick={event => { event.stopPropagation(); event.currentTarget.focus({ preventScroll: true }); setSelectedFacility(row) }} aria-label={`View ${row.name}`} title="View facility details" className="flex h-7 w-7 items-center justify-center rounded-lg text-[#7A8190] hover:text-[#475AA2] hover:bg-[#EEF0FF] transition-colors"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" /></svg></button></td>
               </tr>
             }) : <tr><td colSpan={8} className="px-4 py-8 text-sm text-[#7A8190]">{viewStatus === 'loading' ? <span role="status">Loading facilities...</span> : viewStatus === 'error' ? <span role="alert">{source.error || 'Unable to load facilities.'}{live && <button type="button" onClick={() => setAttempt(value => value + 1)} className="ml-2 text-[#475AA2] underline">Try again</button>}</span> : filtered ? 'No matching facilities found.' : 'No facilities available yet.'}</td></tr>}</tbody>
           </table>
@@ -110,6 +110,19 @@ function ConnectedFacilityDetails({ facility, onClose }) {
     return () => controller.abort()
   }, [facility.id, attempt])
   const current = response?.attempt === attempt ? response : null
-  const record = current?.record ? { ...current.record, nextRenewalDate: facility.nextRenewalDate, trialEndDate: facility.trialEndDate, subscriptionExpiryDate: facility.subscriptionExpiryDate } : { id: facility.id, name: facility.name, messagesLabel: 'Messages', progress: {} }
+  const record = current?.record ? {
+    ...current.record,
+    nextRenewalDate: current.record.nextRenewalDate || facility.nextRenewalDate,
+    trialEndDate: current.record.trialEndDate || facility.trialEndDate,
+    subscriptionExpiryDate: current.record.subscriptionExpiryDate || facility.subscriptionExpiryDate,
+  } : {
+    ...facility,
+    messagesLabel: facility.messagesLabel || 'Messages',
+    progress: facility.progress || {
+      clinicians: facility.clinicians ? Math.min(100, Math.round((facility.clinicians / 20) * 100)) : 50,
+      patients: facility.patientsCount ? Math.min(100, Math.round((facility.patientsCount / 500) * 100)) : 30,
+      messages: facility.messages ? Math.min(100, Math.round((facility.messages / 1000) * 100)) : 20,
+    },
+  }
   return <FacilityDetailsModal facility={record} onClose={onClose} loading={!current} error={current?.error} onRetry={() => setAttempt(value => value + 1)} />
 }

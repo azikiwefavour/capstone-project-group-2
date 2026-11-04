@@ -51,6 +51,7 @@ export function mapFacilitiesResponse(value) {
     const f = mapFacilityResponse(row)
     return {
       ...f,
+      patientsCount: count(f.patients) ?? count(row.patients) ?? count(row.patientsCount),
       doctors: null, pharmacists: null, patients: null, smsSent: null, whatsappSent: null,
       admin: null, paymentMethod: null, subscriptionDate: null,
     }

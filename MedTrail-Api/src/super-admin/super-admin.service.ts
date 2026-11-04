@@ -671,27 +671,28 @@ export class SuperAdminService implements OnModuleInit {
 
     // Query real users, prescriptions, and message logs for facilities in current page
     const facilityNames = facilities.map((f) => f.name).filter(Boolean);
+    const facilityNamesLower = facilityNames.map((n) => n.trim().toLowerCase());
     const msgRepo = this.dataSource.getRepository(MessageLog);
 
     const [allUsers, allPrescriptions, messageCountsRaw] = await Promise.all([
-      facilityNames.length > 0
+      facilityNamesLower.length > 0
         ? userRepo
             .createQueryBuilder('u')
-            .where('u.hospitalName IN (:...facilityNames)', { facilityNames })
+            .where('LOWER(TRIM(u.hospitalName)) IN (:...facilityNamesLower)', { facilityNamesLower })
             .getMany()
         : [],
-      facilityNames.length > 0
+      facilityNamesLower.length > 0
         ? prescriptionRepo
             .createQueryBuilder('p')
-            .where('p.hospitalName IN (:...facilityNames)', { facilityNames })
+            .where('LOWER(TRIM(p.hospitalName)) IN (:...facilityNamesLower)', { facilityNamesLower })
             .getMany()
         : [],
-      facilityNames.length > 0
+      facilityNamesLower.length > 0
         ? msgRepo
             .createQueryBuilder('m')
             .select('LOWER(TRIM(m.facilityName))', 'name')
             .addSelect('COUNT(*)', 'cnt')
-            .where('m.facilityName IN (:...facilityNames)', { facilityNames })
+            .where('LOWER(TRIM(m.facilityName)) IN (:...facilityNamesLower)', { facilityNamesLower })
             .groupBy('LOWER(TRIM(m.facilityName))')
             .getRawMany()
         : [],
@@ -713,31 +714,33 @@ export class SuperAdminService implements OnModuleInit {
       const billingCycle = f.billingCycle || 'Monthly';
       const planDisplay = `${planTier}\n${billingCycle}`;
 
+      const fNameLower = f.name.trim().toLowerCase();
       const hUsers = allUsers.filter(
         (u) =>
           u.hospitalName &&
-          u.hospitalName.trim().toLowerCase() === f.name.trim().toLowerCase(),
+          u.hospitalName.trim().toLowerCase() === fNameLower,
       );
       const hPrescriptions = allPrescriptions.filter(
         (p) =>
           p.hospitalName &&
-          p.hospitalName.trim().toLowerCase() === f.name.trim().toLowerCase(),
+          p.hospitalName.trim().toLowerCase() === fNameLower,
       );
 
       const docCount = hUsers.filter((u) => u.role === UserRole.DOCTOR).length;
       const pharmCount = hUsers.filter((u) => u.role === UserRole.PHARMACIST).length;
       const realClinicians = docCount + pharmCount;
       const realPatients = hUsers.filter((u) => u.role === UserRole.PATIENT).length;
-      const realMessages = facilityMsgMap[f.name.trim().toLowerCase()] || Number(f.messagesCount) || 0;
+      const realMessages = facilityMsgMap[fNameLower] || 0;
 
-      const cliniciansCount = realClinicians;
-      const doctorsCount = docCount;
-      const pharmacistsCount = pharmCount;
-      const patientsCount = realPatients;
-      const messagesCount = realMessages;
+      const cliniciansCount = realClinicians > 0 ? realClinicians : (Number(f.cliniciansCount) || 0);
+      const doctorsCount = docCount > 0 ? docCount : Math.ceil(cliniciansCount / 2);
+      const pharmacistsCount = pharmCount > 0 ? pharmCount : Math.floor(cliniciansCount / 2);
+      const patientsCount = realPatients > 0 ? realPatients : (Number(f.patientsCount) || 0);
+      const messagesCount = realMessages > 0 ? realMessages : (Number(f.messagesCount) || 0);
 
-      const adminName = f.adminName || 'Hospital Admin';
-      const adminEmail = f.adminEmail || f.email || '';
+      const hAdmin = hUsers.find((u) => u.role === UserRole.ADMIN);
+      const adminName = hAdmin?.name || f.adminName || 'Hospital Admin';
+      const adminEmail = hAdmin?.email || f.adminEmail || f.email || '';
       const paymentMethod = f.paymentMethod || 'Paystack';
 
       const renewalDate = f.renewalDate
@@ -821,39 +824,44 @@ export class SuperAdminService implements OnModuleInit {
     const planTier = planName.includes('Growth') ? 'Growth' : 'Starter';
     const billingCycle = facility.billingCycle || 'Monthly';
 
+    const fNameLower = facility.name.trim().toLowerCase();
     const msgRepo = this.dataSource.getRepository(MessageLog);
     const [hUsers, hPrescriptions, msgCount] = await Promise.all([
       userRepo
         .createQueryBuilder('u')
         .where('LOWER(TRIM(u.hospitalName)) = :name', {
-          name: facility.name.trim().toLowerCase(),
+          name: fNameLower,
         })
         .getMany(),
       prescriptionRepo
         .createQueryBuilder('p')
         .where('LOWER(TRIM(p.hospitalName)) = :name', {
-          name: facility.name.trim().toLowerCase(),
+          name: fNameLower,
         })
         .getMany(),
-      msgRepo.count({
-        where: { facilityName: facility.name },
-      }),
+      msgRepo
+        .createQueryBuilder('m')
+        .where('LOWER(TRIM(m.facilityName)) = :name', {
+          name: fNameLower,
+        })
+        .getCount(),
     ]);
 
     const docCount = hUsers.filter((u) => u.role === UserRole.DOCTOR).length;
     const pharmCount = hUsers.filter((u) => u.role === UserRole.PHARMACIST).length;
     const realClinicians = docCount + pharmCount;
     const realPatients = hUsers.filter((u) => u.role === UserRole.PATIENT).length;
-    const realMessages = msgCount || Number(facility.messagesCount) || 0;
+    const realMessages = msgCount || 0;
 
-    const cliniciansCount = realClinicians;
-    const doctorsCount = docCount;
-    const pharmacistsCount = pharmCount;
-    const patientsCount = realPatients;
-    const messagesCount = realMessages;
+    const cliniciansCount = realClinicians > 0 ? realClinicians : (Number(facility.cliniciansCount) || 0);
+    const doctorsCount = docCount > 0 ? docCount : Math.ceil(cliniciansCount / 2);
+    const pharmacistsCount = pharmCount > 0 ? pharmCount : Math.floor(cliniciansCount / 2);
+    const patientsCount = realPatients > 0 ? realPatients : (Number(facility.patientsCount) || 0);
+    const messagesCount = realMessages > 0 ? realMessages : (Number(facility.messagesCount) || 0);
 
-    const adminName = facility.adminName || 'Hospital Admin';
-    const adminEmail = facility.adminEmail || facility.email || '';
+    const hAdmin = hUsers.find((u) => u.role === UserRole.ADMIN);
+    const adminName = hAdmin?.name || facility.adminName || 'Hospital Admin';
+    const adminEmail = hAdmin?.email || facility.adminEmail || facility.email || '';
     const paymentMethod = facility.paymentMethod || 'Paystack';
 
     const renewalDate = facility.renewalDate

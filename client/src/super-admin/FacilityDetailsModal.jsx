@@ -61,7 +61,7 @@ function FacilityDetailsDialog({ facility, onClose, loading, error, onRetry }) {
         <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-3"><dt className="text-[#7A8190]">{billing.dateLabel}</dt><dd>{formatRenewalDate(billing.date)}</dd></div>
         <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-3"><dt className="text-[#7A8190]">Payment method</dt><dd>{billing.paymentMethod}</dd></div>
         <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-3"><dt className="text-[#7A8190]">Subscription Value</dt><dd className="font-medium">{billing.freeTrial ? '₦0 (Free trial)' : billing.amount !== null ? formatNaira(billing.amount) : 'Not available'}{!billing.freeTrial && <span className="ml-2 text-xs font-normal text-[#7A8190]">{facility.billingCycle} billing</span>}</dd></div>
-        <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-3"><dt className="text-[#7A8190]">Status</dt><dd><span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${badge?.color || 'bg-[#F6F7FB] text-[#7A8190]'}`}>{badge?.label || facility.statusLabel || 'Unavailable'}</span></dd></div>
+        <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-x-3"><dt className="text-[#7A8190]">Status</dt><dd><span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium ${badge?.color || 'bg-[#F6F7FB] text-[#7A8190]'}`}><span className={`h-1.5 w-1.5 rounded-full ${badge?.dot || 'bg-current'}`} />{badge?.label || facility.statusLabel || 'Unavailable'}</span></dd></div>
       </dl>
     </dialog>, document.body,
   )
