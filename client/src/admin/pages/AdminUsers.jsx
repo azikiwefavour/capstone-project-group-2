@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import AddUserModal from '../components/AddUserModal'
 import DeleteUserModal from '../components/DeleteUserModal'
+import EditUserModal from '../components/EditUserModal'
 import AdminHeader from '../components/AdminHeader'
 import AdminPagination from '../components/AdminPagination'
 import { adminRequest, getAdminUsers } from '../api'
@@ -560,8 +561,8 @@ function AdminUsers() {
                         <button
                           type="button"
                           aria-label={`Edit ${user.name}`}
-                          disabled
-                          title="Editing users is not supported by the current admin API"
+                          disabled={busyUserId !== null}
+                          onClick={() => setEditingUser({ ...user })}
                           className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
                         >
                           <EditIcon />
@@ -598,12 +599,12 @@ function AdminUsers() {
 
       {deletingUser && <DeleteUserModal key={deletingUser.id} user={deletingUser} onClose={() => setDeletingUser(null)} onRemove={handleRemoveUser} focusFallbackRef={headingRef} />}
 
+      {editingUser && <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={handleUserSaved} />}
+
       <AddUserModal
-        key={editingUser?.id || 'new-user'}
         isOpen={isAddUserModalOpen}
         onClose={handleCloseModal}
         onSuccess={handleUserSaved}
-        initialUser={editingUser}
       />
     </section>
   )
