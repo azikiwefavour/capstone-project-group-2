@@ -75,3 +75,11 @@ export async function getAdminAuditLog(signal) {
 }
 
 
+
+export async function updateAdminUser(userId, changes, signal) {
+  return adminRequest(`users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    body: changes,
+    signal,
+  })
+}

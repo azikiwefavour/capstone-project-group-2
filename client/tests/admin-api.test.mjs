@@ -125,3 +125,20 @@ test('expired and malformed tokens are not sent; logout notifies subscribers', a
   session.setAccessToken(token(), 'admin')
   assert.equal(notifications, 1)
 })
+
+test('updating a selected user encodes its ID, attaches authorization and sends changes in JSON body', async () => {
+  const calls = []
+  const { api, session } = await loadModules(async (url, options) => {
+    calls.push({ url, ...options })
+    return response({ message: 'User details updated successfully' })
+  })
+  const id = 'selected/user?fixture'
+  const changes = { name: 'Dr. Adewale', phone: '+2348000000000' }
+  const result = await api.updateAdminUser(id, changes)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, 'http://localhost:3000/api/admin/users/selected%2Fuser%3Ffixture')
+  assert.equal(calls[0].method, 'PATCH')
+  assert.equal(calls[0].headers.Authorization, `Bearer ${session.getAccessToken()}`)
+  assert.deepEqual(JSON.parse(calls[0].body), changes)
+  assert.equal(result.message, 'User details updated successfully')
+})

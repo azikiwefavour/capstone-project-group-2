@@ -11,6 +11,7 @@ import { Repository, ILike } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { Activity } from '../doctor/entities/activity.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -415,6 +416,73 @@ export class AdminService {
       invitationLink: browserDirectUrl,
       browserInviteUrl: browserDirectUrl,
       frontendInviteUrl: frontendInviteUrl,
+    };
+  }
+
+  // ─── Update User ──────────────────────────────────────────────────────────
+
+  async updateUser(id: string, dto: UpdateUserDto, adminId?: string) {
+    const user = await this.usersService.findById(id);
+    if (!user) throw new NotFoundException('User not found');
+
+    let adminName = 'Admin';
+    if (adminId) {
+      const admin = await this.usersService.findById(adminId);
+      if (admin) adminName = admin.name || admin.email;
+      const adminHospital = admin?.hospitalName?.trim().toLowerCase();
+      const userHospital = user.hospitalName?.trim().toLowerCase();
+      if (adminHospital && userHospital && adminHospital !== userHospital) {
+        throw new NotFoundException('User not found in your hospital');
+      }
+    }
+
+    if (dto.email && dto.email.trim().toLowerCase() !== user.email?.trim().toLowerCase()) {
+      const cleanEmail = dto.email.trim().toLowerCase();
+      const existing = await this.usersService.findByEmail(cleanEmail);
+      if (existing && existing.id !== user.id) {
+        throw new ConflictException('A user with this email address already exists');
+      }
+      user.email = cleanEmail;
+    }
+
+    if (dto.name && dto.name.trim()) {
+      user.name = dto.name.trim();
+    }
+
+    if (dto.phone !== undefined) {
+      user.phone = dto.phone ? dto.phone.trim() : null;
+    }
+
+    await this.usersService.updateById(id, {
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+    });
+
+    try {
+      const cleanRole = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'User';
+      const activity = this.activityRepo.create({
+        hospitalName: user.hospitalName || 'General Hospital',
+        actorName: adminName,
+        actorRole: 'admin',
+        description: `${adminName} updated account details for ${user.name} (${cleanRole})`,
+        actionType: 'updated',
+        targetPatientName: user.role === UserRole.PATIENT ? user.name : null,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err: any) {
+      this.logger.warn(`Failed to log admin update user activity: ${err.message}`);
+    }
+
+    return {
+      message: 'User details updated successfully',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
     };
   }
 

@@ -37,27 +37,20 @@ function getActiveAuthToken() {
   )
 }
 
-export default function SettingsModal({ profile, onClose, onProfileUpdate }) {
+export default function SettingsModal({ profile, onClose }) {
   const dialogRef = useRef(null)
   const id = useId()
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [touched, setTouched] = useState({})
   const [currentTheme, setCurrentTheme] = useState(() => getTheme())
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const errors = getSettingsPasswordErrors(passwords)
 
-  const initialName = typeof profile?.name === 'string' ? profile.name.trim() : ''
+  const displayName = typeof profile?.name === 'string' ? profile.name.trim() : ''
   const email = typeof profile?.email === 'string' ? profile.email.trim() : ''
-  const [displayName, setDisplayName] = useState(initialName)
-  const [editedName, setEditedName] = useState(initialName)
-  const [isSavingName, setIsSavingName] = useState(false)
-  const [nameSuccess, setNameSuccess] = useState('')
-  const [nameError, setNameError] = useState('')
-
-  useEffect(() => {
-    const updated = typeof profile?.name === 'string' ? profile.name.trim() : ''
-    setDisplayName(updated)
-    setEditedName(updated)
-  }, [profile?.name])
+  const role = typeof profile?.role === 'string' ? (profile.role[0].toUpperCase() + profile.role.slice(1).toLowerCase()) : ''
 
   const initials = displayName.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
 
@@ -66,42 +59,40 @@ export default function SettingsModal({ profile, onClose, onProfileUpdate }) {
     setTheme(newTheme)
   }
 
-  async function handleSaveName() {
-    const trimmed = editedName.trim()
-    if (!trimmed || trimmed.length < 2) {
-      setNameError('Name must be at least 2 characters.')
-      return
-    }
-    setIsSavingName(true)
-    setNameError('')
-    setNameSuccess('')
+  async function handleUpdatePassword(event) {
+    event.preventDefault()
+    setTouched({ currentPassword: true, newPassword: true, confirmPassword: true })
+    const passwordErrors = getSettingsPasswordErrors(passwords)
+    if (Object.values(passwordErrors).some(Boolean)) return
+
+    setIsUpdatingPassword(true)
+    setPasswordError('')
+    setPasswordSuccess('')
     try {
       const token = getActiveAuthToken()
-      if (!token) {
-        throw new Error('You must be logged in to update your name.')
-      }
-      const response = await fetch(`${apiBaseUrl}/api/auth/profile`, {
-        method: 'PATCH',
+      if (!token) throw new Error('You must be logged in to change your password.')
+      const response = await fetch(`${apiBaseUrl}/api/auth/change-password`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify(passwords),
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(data?.message || 'Failed to update name. Please try again.')
+        const message = Array.isArray(data?.message)
+          ? data.message.join(' ')
+          : data?.message || 'Failed to update password.'
+        throw new Error(message)
       }
-      setDisplayName(trimmed)
-      setNameSuccess('Name updated successfully!')
-      if (typeof onProfileUpdate === 'function') {
-        onProfileUpdate(trimmed)
-      }
-      window.dispatchEvent(new CustomEvent('medtrail:profile-updated', { detail: { name: trimmed } }))
+      setPasswordSuccess('Password changed successfully!')
+      setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setTouched({})
     } catch (err) {
-      setNameError(err.message || 'Failed to update name.')
+      setPasswordError(err.message || 'Failed to change password. Please try again.')
     } finally {
-      setIsSavingName(false)
+      setIsUpdatingPassword(false)
     }
   }
 
@@ -135,6 +126,12 @@ export default function SettingsModal({ profile, onClose, onProfileUpdate }) {
       first.focus()
     }
   }
+
+  const isPasswordFormValid =
+    Boolean(passwords.currentPassword) &&
+    Boolean(passwords.newPassword) &&
+    Boolean(passwords.confirmPassword) &&
+    Object.values(errors).every(e => !e)
 
   return createPortal(
     <dialog ref={dialogRef} aria-modal="true" aria-labelledby={`${id}-title`} onKeyDown={handleKeyDown}
@@ -196,67 +193,100 @@ export default function SettingsModal({ profile, onClose, onProfileUpdate }) {
         </div>
       </section>
 
+      {/* Profile Section (Read-only permanent name and details) */}
       <section aria-labelledby={`${id}-profile`} className="mt-4">
         <h3 id={`${id}-profile`} className="text-sm font-semibold">Profile</h3>
-        <div className="mt-2 flex items-center gap-2 rounded-xl bg-[#F7F8FB] px-3 py-2 dark:bg-[#1A2438]">
-          <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#DEE2F4] text-sm font-semibold text-[#475AA2] dark:bg-[#34446E] dark:text-[#A5B4FC]">{initials || '—'}</span>
-          <div className="min-w-0 text-sm">
-            <p className="break-words font-semibold">{displayName || 'Name unavailable'}</p>
-            <p className="mt-0.5 break-words text-xs text-[#7A8190] dark:text-[#94A3B8]">{email || 'Email unavailable'}</p>
+        <div className="mt-2 flex items-center gap-3 rounded-xl bg-[#F7F8FB] p-3.5 dark:bg-[#1A2438]">
+          <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DEE2F4] text-sm font-semibold text-[#475AA2] dark:bg-[#34446E] dark:text-[#A5B4FC]">
+            {initials || '—'}
+          </span>
+          <div className="min-w-0 flex-1 text-sm">
+            <div className="flex items-center gap-2">
+              <p className="break-words font-semibold text-[#111827] dark:text-[#F8FAFC]">
+                {displayName || 'Name unavailable'}
+              </p>
+              {role && (
+                <span className="rounded-full bg-[#DEE2F4] px-2 py-0.5 text-[11px] font-medium text-[#475AA2] dark:bg-[#34446E] dark:text-[#A5B4FC]">
+                  {role}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 break-words text-xs text-[#7A8190] dark:text-[#94A3B8]">
+              {email || 'Email unavailable'}
+            </p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-[#7A8190] dark:text-[#94A3B8]">
+              To edit your name or contact details, please contact your hospital administrator.
+            </p>
           </div>
-        </div>
-        <div className="mt-2 rounded-xl bg-[#F7F8FB] p-2.5 dark:bg-[#1A2438]">
-          <label htmlFor={`${id}-name`} className="block text-sm font-medium text-[#52556C] dark:text-[#94A3B8]">Full Name</label>
-          <div className="mt-1 flex items-center gap-2">
-            <input
-              id={`${id}-name`}
-              value={editedName}
-              onChange={event => {
-                setEditedName(event.target.value)
-                setNameError('')
-                setNameSuccess('')
-              }}
-              placeholder="Enter your name"
-              disabled={isSavingName}
-              className="h-9 w-full rounded-lg border border-[#D8DCE5] bg-white px-3 text-sm text-[#111827] outline-none focus:border-[#475AA2] focus:ring-4 focus:ring-[#475AA2]/15 dark:border-[#334155] dark:bg-[#161F30] dark:text-[#F8FAFC]"
-            />
-            <button
-              type="button"
-              disabled={isSavingName || !editedName.trim() || editedName.trim() === displayName}
-              onClick={handleSaveName}
-              className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-[#475AA2] px-3.5 text-xs font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSavingName ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-          {nameSuccess && <p className="mt-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">{nameSuccess}</p>}
-          {nameError && <p role="alert" className="mt-1.5 text-xs font-medium text-[#E5484D]">{nameError}</p>}
         </div>
       </section>
-      <form aria-labelledby={`${id}-password`} className="mt-3" noValidate onSubmit={event => {
-        event.preventDefault()
-        setTouched({ currentPassword: true, newPassword: true, confirmPassword: true })
-      }}>
+
+      {/* Change Password Section */}
+      <form aria-labelledby={`${id}-password`} className="mt-4" noValidate onSubmit={handleUpdatePassword}>
         <h3 id={`${id}-password`} className="text-sm font-semibold">Change Password</h3>
-        <p id={`${id}-password-help`} className="mt-1 text-xs leading-4 text-[#7A8190] dark:text-[#94A3B8]">Use at least 8 characters, an uppercase letter, a number, and a special character.</p>
-        <div className="mt-2 space-y-1.5">
+        <p id={`${id}-password-help`} className="mt-1 text-xs leading-4 text-[#7A8190] dark:text-[#94A3B8]">
+          Use at least 8 characters, an uppercase letter, a number, and a special character.
+        </p>
+        <div className="mt-2 space-y-2">
           {[['currentPassword', 'Current Password'], ['newPassword', 'New Password'], ['confirmPassword', 'Confirm New Password']].map(([field, label]) => {
             const error = touched[field] && errors[field]
-            return <div key={field}>
-              <label htmlFor={`${id}-${field}`} className="block text-sm font-medium text-[#52556C] dark:text-[#94A3B8]">{label}</label>
-              <input id={`${id}-${field}`} name={field} type="password" required autoComplete={field === 'currentPassword' ? 'current-password' : 'new-password'} value={passwords[field]}
-                onChange={event => setPasswords(current => ({ ...current, [field]: event.target.value }))}
-                onBlur={() => setTouched(current => ({ ...current, [field]: true }))}
-                aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-${field}-error` : `${id}-password-help`}
-                className={`mt-1 h-[38px] w-full rounded-lg border bg-white px-3 text-sm outline-none focus:ring-4 focus:ring-[#475AA2]/15 dark:border-[#334155] dark:bg-[#161F30] dark:text-[#F8FAFC] ${error ? 'border-[#E5484D]' : 'border-[#D8DCE5]'}`} />
-              {error && <p id={`${id}-${field}-error`} role="alert" className="mt-1 text-xs leading-4 text-[#E5484D]">{error}</p>}
-            </div>
+            return (
+              <div key={field}>
+                <label htmlFor={`${id}-${field}`} className="block text-sm font-medium text-[#52556C] dark:text-[#94A3B8]">
+                  {label}
+                </label>
+                <input
+                  id={`${id}-${field}`}
+                  name={field}
+                  type="password"
+                  required
+                  autoComplete={field === 'currentPassword' ? 'current-password' : 'new-password'}
+                  value={passwords[field]}
+                  disabled={isUpdatingPassword}
+                  onChange={event => {
+                    setPasswords(current => ({ ...current, [field]: event.target.value }))
+                    setPasswordError('')
+                    setPasswordSuccess('')
+                  }}
+                  onBlur={() => setTouched(current => ({ ...current, [field]: true }))}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? `${id}-${field}-error` : `${id}-password-help`}
+                  className={`mt-1 h-[38px] w-full rounded-lg border bg-white px-3 text-sm outline-none transition focus:ring-4 focus:ring-[#475AA2]/15 dark:border-[#334155] dark:bg-[#161F30] dark:text-[#F8FAFC] ${
+                    error ? 'border-[#E5484D]' : 'border-[#D8DCE5] focus:border-[#475AA2]'
+                  }`}
+                />
+                {error && <p id={`${id}-${field}-error`} role="alert" className="mt-1 text-xs leading-4 text-[#E5484D]">{error}</p>}
+              </div>
+            )
           })}
         </div>
-        <p id={`${id}-password-unavailable`} role="status" className="mt-2 text-xs leading-4 text-[#7A8190] dark:text-[#94A3B8]">Password changes from Settings are not available yet.</p>
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="min-h-8 rounded-xl bg-[#EEF0FF] px-3 py-1 text-xs font-semibold text-[#475AA2] hover:bg-[#DEE2F4] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/15 dark:bg-[#28354E] dark:text-[#A5B4FC]">Cancel</button>
-          <button type="submit" disabled aria-describedby={`${id}-password-unavailable`} className="min-h-8 rounded-xl bg-[#5C72C9] px-3 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">Update Password</button>
+
+        {passwordSuccess && (
+          <p role="status" className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            {passwordSuccess}
+          </p>
+        )}
+        {passwordError && (
+          <p role="alert" className="mt-2 text-xs font-medium text-[#E5484D]">
+            {passwordError}
+          </p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-8 rounded-xl bg-[#EEF0FF] px-3.5 py-1.5 text-xs font-semibold text-[#475AA2] hover:bg-[#DEE2F4] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/15 dark:bg-[#28354E] dark:text-[#A5B4FC] cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isUpdatingPassword || !isPasswordFormValid}
+            className="min-h-8 rounded-xl bg-[#475AA2] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3D4F91] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/25 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+          >
+            {isUpdatingPassword ? 'Updating…' : 'Update Password'}
+          </button>
         </div>
       </form>
     </dialog>, document.body,

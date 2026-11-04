@@ -5,7 +5,7 @@ import DeleteUserModal from '../components/DeleteUserModal'
 import EditUserModal from '../components/EditUserModal'
 import AdminHeader from '../components/AdminHeader'
 import AdminPagination from '../components/AdminPagination'
-import { adminRequest, getAdminUsers } from '../api'
+import { adminRequest, getAdminUsers, updateAdminUser } from '../api'
 
 const roleStyles = {
   Doctor: {
@@ -360,6 +360,23 @@ function AdminUsers() {
     }
   }
 
+  async function handleUpdateUser(userId, changes) {
+    if (actionInFlight.current) throw new Error('Another user action is still pending. Please try again.')
+    if (!userId || editingUser?.id !== userId || !users.some(user => user.id === userId)) {
+      throw new Error('This user is no longer available. Close this dialog and refresh the user list.')
+    }
+    actionInFlight.current = true
+    setBusyUserId(userId)
+    try {
+      const data = await updateAdminUser(userId, changes)
+      setUsers(currentUsers => currentUsers.map(user => user.id === userId ? { ...user, ...changes } : user))
+      return data
+    } finally {
+      actionInFlight.current = false
+      setBusyUserId(null)
+    }
+  }
+
   async function handleRemoveUser(userId) {
     if (actionInFlight.current) throw new Error('Another user action is still pending. Please try again.')
     if (!userId || deletingUser?.id !== userId || !users.some(user => user.id === userId)) {
@@ -599,7 +616,7 @@ function AdminUsers() {
 
       {deletingUser && <DeleteUserModal key={deletingUser.id} user={deletingUser} onClose={() => setDeletingUser(null)} onRemove={handleRemoveUser} focusFallbackRef={headingRef} />}
 
-      {editingUser && <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSaved={handleUserSaved} />}
+      {editingUser && <EditUserModal key={editingUser.id} user={editingUser} onClose={() => setEditingUser(null)} onSave={handleUpdateUser} onSaved={handleUserSaved} />}
 
       <AddUserModal
         isOpen={isAddUserModalOpen}

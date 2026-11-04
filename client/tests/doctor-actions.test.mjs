@@ -44,7 +44,7 @@ async function load(overrides = {}) {
 }
 
 test('clarification details load by ID and retain actual patient, prescription and backend date', async () => {
-  const { clarifications, requests } = await load()
+    const { clarifications, requests, doctor } = await load()
   const record = await clarifications.getDoctorClarificationDetails(rxId)
   assert.equal(record.id, rxId)
   assert.equal(record.patient.id, patientId)
@@ -71,14 +71,14 @@ test('unknown, resolved and mismatched clarifications cannot load or authorize a
 
 test('confirmation sends only the optional note and requires a backend-confirmed clarified result', async () => {
   for (const note of ['', '  Contract response  ']) {
-    const { clarifications, requests } = await load()
+    const { clarifications, requests, doctor } = await load()
     const result = await clarifications.confirmDoctorClarification(rxId, note)
     const request = requests.at(-1)
     assert.equal(request.url, `http://localhost:3000/api/doctor/clarifications/${rxId}/confirm`)
     assert.equal(request.method, 'POST')
     assert.deepEqual(JSON.parse(request.body), note ? { noteToPharmacist: note.trim() } : {})
     assert.equal(result.message, 'Confirmed backend action')
-    assert.equal(request.headers.Authorization, `Bearer ${jwt('doctor')}`)
+    assert.equal(request.headers.Authorization, 'Bearer ' + doctor.getDoctorAccessToken())
   }
 })
 

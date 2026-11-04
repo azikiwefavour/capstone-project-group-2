@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Delete,
+  Patch,
+  Put,
   Param,
   Body,
   Query,
@@ -20,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -145,6 +148,32 @@ export class AdminController {
     @CurrentUser() admin: { sub: string; email: string; name?: string },
   ) {
     return this.adminService.removeUser(id, admin?.sub);
+  }
+
+  // ── PATCH /api/admin/users/:id ───────────────────────────────────────────
+  @Patch('users/:id')
+  @ApiOperation({ summary: 'Update user details (admin only)' })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 409, description: 'Email already in use' })
+  updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.updateUser(id, dto, admin?.sub);
+  }
+
+  // ── PUT /api/admin/users/:id (Alias) ─────────────────────────────────────
+  @Put('users/:id')
+  @ApiOperation({ summary: 'Update user details alias (admin only)' })
+  updateUserPut(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.updateUser(id, dto, admin?.sub);
   }
 
   // ── GET /api/admin/subscription/pricing ──────────────────────────────────

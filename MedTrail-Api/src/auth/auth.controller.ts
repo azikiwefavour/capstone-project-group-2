@@ -28,6 +28,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { renderAcceptInviteHtml, renderInvalidInviteHtml } from './templates/accept-invite.template';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -303,6 +304,24 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@CurrentUser() user: { sub: string }) {
     return this.authService.getProfile(user.sub);
+  }
+
+  // ── POST /api/auth/change-password ───────────────────────────────────────
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'Change password (authenticated user)',
+    description: 'Allows authenticated users (doctor, pharmacist, admin) to update their password.',
+  })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Current password incorrect or validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  changePassword(
+    @CurrentUser() user: { sub: string },
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.sub, dto);
   }
 
   // ── POST /api/auth/dev-admin-token ─────────────────────────────────────────

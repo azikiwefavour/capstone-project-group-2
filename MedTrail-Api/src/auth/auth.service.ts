@@ -19,6 +19,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CompleteRegistrationDto } from './dto/complete-registration.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 import { InjectDataSource } from '@nestjs/typeorm';
@@ -571,6 +572,43 @@ export class AuthService implements OnModuleInit {
     return { message: 'Password reset successfully. You can now log in with your new password.' };
   }
 
+
+  // ─── Change Password (Authenticated Settings) ─────────────────────────────
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    if (
+      dto.newPassword.length < 8 ||
+      !/[A-Z]/.test(dto.newPassword) ||
+      !/\d/.test(dto.newPassword) ||
+      !/[^A-Za-z0-9]/.test(dto.newPassword)
+    ) {
+      throw new BadRequestException('Use at least 8 characters, an uppercase letter, a number, and a special character.');
+    }
+
+    const user = await this.usersService.findById(userId, true);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.password) {
+      const match = await bcrypt.compare(dto.currentPassword, user.password);
+      if (!match) {
+        throw new BadRequestException('Current password is incorrect');
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+    await this.usersService.updateById(userId, {
+      password: hashedPassword,
+    });
+
+    this.logger.log(`Password updated successfully for: ${user.email}`);
+    return { message: 'Password changed successfully.' };
+  }
 
   // ─── Accept Invite – Validate Token ───────────────────────────────────────
 
