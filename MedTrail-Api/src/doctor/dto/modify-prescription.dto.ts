@@ -47,6 +47,16 @@ export class ModifyPrescriptionDto {
   @IsOptional()
   noteToPharmacist?: string;
 
+  @ApiProperty({ example: 'Bacterial infection', description: 'Updated diagnosis or illness (encrypted doctor-only)', required: false })
+  @IsString()
+  @IsOptional()
+  illness?: string;
+
+  @ApiProperty({ example: 'Vomiting, dizziness', description: 'Updated patient symptoms (encrypted doctor-only)', required: false })
+  @IsString()
+  @IsOptional()
+  symptoms?: string;
+
   @ApiProperty({ required: false, description: 'Optional medications list' })
   @IsOptional()
   medications?: any;

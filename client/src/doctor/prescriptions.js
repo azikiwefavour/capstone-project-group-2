@@ -51,44 +51,61 @@ export async function createDoctorPrescription(patientId, values, signal) {
   const resolvedIllness = text(values.illness).trim()
   const resolvedSymptoms = text(values.symptoms).trim()
 
-  if (Array.isArray(values.items) && values.items.length > 0) {
-    const body = {
-      patientId,
-      reason: resolvedReason,
-      medications: values.items.map(item => {
-        const itemObj = {
-          medicationName: item.medication.trim(),
-          dosage: item.dose.trim(),
-          dose: item.dose.trim(),
-          frequency: item.frequency.trim(),
-          duration: item.duration.trim(),
-          reason: resolvedReason,
-        }
-        if (resolvedIllness) itemObj.illness = resolvedIllness
-        if (resolvedSymptoms) itemObj.symptoms = resolvedSymptoms
-        return itemObj
-      }),
-      medicationName: values.items[0].medication.trim(),
-      dosage: values.items[0].dose.trim(),
-      frequency: values.items[0].frequency.trim(),
-      duration: values.items[0].duration.trim(),
-    }
-    if (resolvedIllness) body.illness = resolvedIllness
-    if (resolvedSymptoms) body.symptoms = resolvedSymptoms
-    return saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
-  }
+  const isMulti = Array.isArray(values.items) && values.items.length > 0
+  const body = isMulti
+    ? {
+        patientId,
+        reason: resolvedReason,
+        medications: values.items.map(item => {
+          const itemObj = {
+            medicationName: item.medication.trim(),
+            dosage: item.dose.trim(),
+            dose: item.dose.trim(),
+            frequency: item.frequency.trim(),
+            duration: item.duration.trim(),
+            reason: resolvedReason,
+          }
+          if (resolvedIllness) itemObj.illness = resolvedIllness
+          if (resolvedSymptoms) itemObj.symptoms = resolvedSymptoms
+          return itemObj
+        }),
+        medicationName: values.items[0].medication.trim(),
+        dosage: values.items[0].dose.trim(),
+        frequency: values.items[0].frequency.trim(),
+        duration: values.items[0].duration.trim(),
+      }
+    : {
+        patientId,
+        medicationName: values.medication.trim(),
+        dosage: values.dose.trim(),
+        frequency: values.frequency.trim(),
+        duration: values.duration.trim(),
+        reason: resolvedReason,
+      }
 
-  const body = {
-    patientId,
-    medicationName: values.medication.trim(),
-    dosage: values.dose.trim(),
-    frequency: values.frequency.trim(),
-    duration: values.duration.trim(),
-    reason: resolvedReason,
-  }
   if (resolvedIllness) body.illness = resolvedIllness
   if (resolvedSymptoms) body.symptoms = resolvedSymptoms
-  return saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
+
+  try {
+    return await saveDoctorPrescription('prescriptions', { method: 'POST', body, patientId, expectedStatus: 201 }, signal)
+  } catch (error) {
+    // Graceful fallback if backend instance hasn't reloaded the updated DTO yet
+    if (typeof error?.message === 'string' && (error.message.includes('property illness should not exist') || error.message.includes('property symptoms should not exist'))) {
+      const fallbackBody = { ...body }
+      delete fallbackBody.illness
+      delete fallbackBody.symptoms
+      if (Array.isArray(fallbackBody.medications)) {
+        fallbackBody.medications = fallbackBody.medications.map(m => {
+          const clean = { ...m }
+          delete clean.illness
+          delete clean.symptoms
+          return clean
+        })
+      }
+      return await saveDoctorPrescription('prescriptions', { method: 'POST', body: fallbackBody, patientId, expectedStatus: 201 }, signal)
+    }
+    throw error
+  }
 }
 
 export async function saveDoctorPrescription(path, { method, body, patientId, prescriptionId, status, expectedStatus = 200 }, signal) {
@@ -129,9 +146,22 @@ export async function modifyDoctorPrescription(patientId, prescriptionId, values
   }
   if (values.illness?.trim()) body.illness = values.illness.trim()
   if (values.symptoms?.trim()) body.symptoms = values.symptoms.trim()
-  return saveDoctorPrescription(`prescriptions/${encodeURIComponent(prescriptionId)}`, {
-    method: 'PATCH', patientId, prescriptionId, body,
-  }, signal)
+
+  try {
+    return await saveDoctorPrescription(`prescriptions/${encodeURIComponent(prescriptionId)}`, {
+      method: 'PATCH', patientId, prescriptionId, body,
+    }, signal)
+  } catch (error) {
+    if (typeof error?.message === 'string' && (error.message.includes('property illness should not exist') || error.message.includes('property symptoms should not exist'))) {
+      const fallbackBody = { ...body }
+      delete fallbackBody.illness
+      delete fallbackBody.symptoms
+      return await saveDoctorPrescription(`prescriptions/${encodeURIComponent(prescriptionId)}`, {
+        method: 'PATCH', patientId, prescriptionId, body: fallbackBody,
+      }, signal)
+    }
+    throw error
+  }
 }
 
 export async function discontinueDoctorPrescription(patientId, prescriptionId, reason, signal) {
