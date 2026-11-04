@@ -42,6 +42,22 @@ test('protected requests attach the token and serialize only the supplied JSON b
   assert.deepEqual(JSON.parse(request.body), { name: 'Test fixture', role: 'doctor' })
 })
 
+test('deleting a selected user encodes its ID, attaches authorization and sends no body', async () => {
+  const calls = []
+  const { api, session } = await loadModules(async (url, options) => {
+    calls.push({ url, ...options })
+    return response({ message: 'User deleted successfully' })
+  })
+  const id = 'selected/user?fixture'
+  const result = await api.adminRequest(`users/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, 'http://localhost:3000/api/admin/users/selected%2Fuser%3Ffixture')
+  assert.equal(calls[0].method, 'DELETE')
+  assert.equal(calls[0].headers.Authorization, `Bearer ${session.getAccessToken()}`)
+  assert.equal(calls[0].body, undefined)
+  assert.equal(result.message, 'User deleted successfully')
+})
+
 test('merges invited users by ID without duplicates and never invents Active status', async () => {
   const { api } = await loadModules(async (url) => response(url.endsWith('/invited-users')
     ? [

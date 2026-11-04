@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import AddUserModal from '../components/AddUserModal'
+import DeleteUserModal from '../components/DeleteUserModal'
 import AdminHeader from '../components/AdminHeader'
 import AdminPagination from '../components/AdminPagination'
 import { adminRequest, getAdminUsers } from '../api'
@@ -240,6 +241,8 @@ function AdminUsers() {
   const [busyUserId, setBusyUserId] = useState(null)
   const actionInFlight = useRef(false)
   const [editingUser, setEditingUser] = useState(null)
+  const [deletingUser, setDeletingUser] = useState(null)
+  const headingRef = useRef(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('All')
   const [sortBy, setSortBy] = useState('Newest')
@@ -339,21 +342,34 @@ function AdminUsers() {
     restoreScrollPosition()
   }
 
-  async function handleUserAction(userId, resend = false) {
+  async function handleResendInvitation(userId) {
     if (actionInFlight.current) return
-    if (!resend && !window.confirm('Delete this user? This action cannot be undone.')) return
     actionInFlight.current = true
     setBusyUserId(userId)
     setActionError('')
     try {
       const id = encodeURIComponent(userId)
-      const data = await adminRequest(resend ? `resend-invitation/${id}` : `users/${id}`, {
-        method: resend ? 'POST' : 'DELETE',
-      })
-      if (!resend) setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
-      handleUserSaved(resend ? 'Invitation resend requested.' : data?.message || 'User deleted successfully.')
+      await adminRequest(`resend-invitation/${id}`, { method: 'POST' })
+      handleUserSaved('Invitation resend requested.')
     } catch (error) {
       setActionError(error.message)
+    } finally {
+      actionInFlight.current = false
+      setBusyUserId(null)
+    }
+  }
+
+  async function handleRemoveUser(userId) {
+    if (actionInFlight.current) throw new Error('Another user action is still pending. Please try again.')
+    if (!userId || deletingUser?.id !== userId || !users.some(user => user.id === userId)) {
+      throw new Error('This user is no longer available. Close this dialog and refresh the user list.')
+    }
+    actionInFlight.current = true
+    setBusyUserId(userId)
+    try {
+      const data = await adminRequest(`users/${encodeURIComponent(userId)}`, { method: 'DELETE' })
+      setUsers(currentUsers => currentUsers.filter(user => user.id !== userId))
+      handleUserSaved(data?.message || 'User deleted successfully.')
     } finally {
       actionInFlight.current = false
       setBusyUserId(null)
@@ -388,7 +404,7 @@ function AdminUsers() {
 
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-normal text-[#111827]">
+          <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold tracking-normal text-[#111827]">
             Users
           </h1>
           <p className="mt-2 text-base leading-relaxed text-[#7A8190]">
@@ -528,14 +544,14 @@ function AdminUsers() {
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2 text-[#52556C]">
                         {user.invitationStatus === 'pending' && (
-                          <button type="button" aria-label={`Resend invitation to ${user.name}`} title="Resend invitation" disabled={busyUserId !== null} onClick={() => handleUserAction(user.id, true)} className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:opacity-45">
+                          <button type="button" aria-label={`Resend invitation to ${user.name}`} title="Resend invitation" disabled={busyUserId !== null} onClick={() => handleResendInvitation(user.id)} className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#475AA2] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15 disabled:opacity-45">
                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4"><path d="M20 8V4L16 8H20ZM20 8A8 8 0 1 0 20 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                           </button>
                         )}
                         <button
                           type="button"
                           aria-label={`Delete ${user.name}`}
-                          onClick={() => handleUserAction(user.id)}
+                          onClick={() => setDeletingUser({ ...user })}
                           disabled={busyUserId !== null}
                           className="flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-[#F7F8FB] hover:text-[#E5484D] focus:outline-none focus:ring-4 focus:ring-[#475AA2]/15"
                         >
@@ -579,6 +595,8 @@ function AdminUsers() {
           onPageChange={setCurrentPage}
         />
       </div>
+
+      {deletingUser && <DeleteUserModal key={deletingUser.id} user={deletingUser} onClose={() => setDeletingUser(null)} onRemove={handleRemoveUser} focusFallbackRef={headingRef} />}
 
       <AddUserModal
         key={editingUser?.id || 'new-user'}
