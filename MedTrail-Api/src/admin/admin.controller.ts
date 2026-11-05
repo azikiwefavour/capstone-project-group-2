@@ -176,6 +176,27 @@ export class AdminController {
     return this.adminService.updateUser(id, dto, admin?.sub);
   }
 
+  // ── POST /api/admin/users/:id (Alias for proxies blocking PATCH/PUT) ───────
+  @Post('users/:id')
+  @ApiOperation({ summary: 'Update user details POST alias (admin only)' })
+  updateUserPost(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.updateUser(id, dto, admin?.sub);
+  }
+
+  @Post('users/:id/update')
+  @ApiOperation({ summary: 'Update user details POST endpoint alias' })
+  updateUserExplicitPost(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() admin: { sub: string; email: string; name?: string },
+  ) {
+    return this.adminService.updateUser(id, dto, admin?.sub);
+  }
+
   // ── GET /api/admin/subscription/pricing ──────────────────────────────────
   @Public()
   @Get('subscription/pricing')

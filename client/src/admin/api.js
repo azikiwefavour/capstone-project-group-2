@@ -77,9 +77,36 @@ export async function getAdminAuditLog(signal) {
 
 
 export async function updateAdminUser(userId, changes, signal) {
-  return adminRequest(`users/${encodeURIComponent(userId)}`, {
-    method: 'PATCH',
-    body: changes,
-    signal,
-  })
+  try {
+    return await adminRequest(`users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body: changes,
+      signal,
+    })
+  } catch (patchError) {
+    if (signal?.aborted) throw patchError
+    // If the server/proxy does not accept PATCH or returns route not found, retry with PUT
+    const errMsg = String(patchError?.message || '')
+    if (errMsg.includes('Cannot PATCH') || errMsg.includes('404') || errMsg.includes('Method Not Allowed')) {
+      try {
+        return await adminRequest(`users/${encodeURIComponent(userId)}`, {
+          method: 'PUT',
+          body: changes,
+          signal,
+        })
+      } catch (putError) {
+        if (signal?.aborted) throw putError
+        const putErrMsg = String(putError?.message || '')
+        if (putErrMsg.includes('Cannot PUT') || putErrMsg.includes('404') || putErrMsg.includes('Method Not Allowed')) {
+          return await adminRequest(`users/${encodeURIComponent(userId)}`, {
+            method: 'POST',
+            body: changes,
+            signal,
+          })
+        }
+        throw putError
+      }
+    }
+    throw patchError
+  }
 }

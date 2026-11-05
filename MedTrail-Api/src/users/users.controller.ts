@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Delete, Patch, Put, Post, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -14,7 +14,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'List all users (admin only)' })
   @ApiResponse({ status: 200, description: 'Array of users' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -24,7 +24,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Get a single user by ID (admin only)' })
   @ApiResponse({ status: 200, description: 'User object' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -32,8 +32,39 @@ export class UsersController {
     return this.usersService.findOne(id);
   }
 
+  @Patch(':id')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update a user by ID' })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  updateUserPatch(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.usersService.updateById(id, body);
+  }
+
+  @Put(':id')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update a user by ID (PUT alias)' })
+  updateUserPut(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.usersService.updateById(id, body);
+  }
+
+  @Post(':id')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Update a user by ID (POST alias)' })
+  updateUserPost(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.usersService.updateById(id, body);
+  }
+
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Delete a user (admin only)' })
   @ApiResponse({ status: 200, description: 'User deleted' })
   @ApiResponse({ status: 404, description: 'User not found' })
