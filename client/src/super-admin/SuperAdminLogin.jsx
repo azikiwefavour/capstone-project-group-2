@@ -10,6 +10,10 @@ export default function SuperAdminLogin() {
       successPath="/super-admin/overview"
       recoveryUnavailable
       accountNotice=""
+      developerCredentials={{
+        email: 'superadmin@medtrail.ng',
+        password: 'Password123!',
+      }}
     />
   )
 }

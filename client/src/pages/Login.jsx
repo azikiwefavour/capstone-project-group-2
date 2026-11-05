@@ -104,7 +104,7 @@ function LoginFields({ isPatient, children }) {
   return isPatient ? <div className="contents patient-login-fields">{children}</div> : children
 }
 
-function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate, successPath = '/doctor/dashboard', invitationOnly = false, heading = 'Welcome back', accountNotice = null, unavailableMessage = '', authenticationUnavailable = false, recoveryUnavailable = false }) {
+function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false, onAuthenticate, successPath = '/doctor/dashboard', invitationOnly = false, heading = 'Welcome back', accountNotice = null, unavailableMessage = '', authenticationUnavailable = false, recoveryUnavailable = false, developerCredentials = null }) {
   const location = useLocation()
   const navigate = useNavigate()
   const selectedRole = authenticationRole || location.state?.selectedRole || 'Admin'
@@ -114,6 +114,7 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState(() => (typeof location.state?.email === 'string' ? location.state.email : ''))
   const [password, setPassword] = useState('')
+  const [copiedPassword, setCopiedPassword] = useState(false)
   const [continueClicked, setContinueClicked] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [loginError, setLoginError] = useState('')
@@ -122,6 +123,21 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
   const loginInFlight = useRef(false)
   const loginController = useRef(null)
   useEffect(() => () => loginController.current?.abort(), [])
+
+  function handleFillDeveloperCredentials() {
+    if (!developerCredentials) return
+    if (developerCredentials.email) setEmail(developerCredentials.email)
+    if (developerCredentials.password) setPassword(developerCredentials.password)
+    setLoginError('')
+  }
+
+  function handleCopyPassword() {
+    if (!developerCredentials?.password) return
+    navigator.clipboard?.writeText(developerCredentials.password).then(() => {
+      setCopiedPassword(true)
+      setTimeout(() => setCopiedPassword(false), 2000)
+    }).catch(() => {})
+  }
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const emailError =
     continueClicked &&
@@ -435,6 +451,74 @@ function Login({ authenticationRole, recoveryBasePath = '', frontendOnly = false
               </>
             ))}
           </p>}
+
+          {developerCredentials && (
+            <div className="mt-6 rounded-xl border border-[#D8DCE5] bg-[#F8F9FC] p-4 text-left transition-all">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#EEF1F8] text-[#475AA2]">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4" />
+                      <path d="m21 2-9.6 9.6" />
+                      <circle cx="7.5" cy="15.5" r="5.5" />
+                    </svg>
+                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#475AA2]">
+                    Developer Access
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFillDeveloperCredentials}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#475AA2] px-2.5 py-1 text-xs font-semibold text-white shadow-xs transition hover:bg-[#3D4F91] focus:outline-none focus:ring-2 focus:ring-[#475AA2]/30 active:scale-95 cursor-pointer"
+                >
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Fill credentials
+                </button>
+              </div>
+
+              <div className="mt-3 divide-y divide-[#E5E7EB] border-t border-[#E5E7EB] pt-2.5 text-xs">
+                {developerCredentials.email && (
+                  <div className="flex items-center justify-between py-1 text-[#6B7280]">
+                    <span className="font-medium">Default Email:</span>
+                    <span className="font-mono text-[#111827]">{developerCredentials.email}</span>
+                  </div>
+                )}
+                {developerCredentials.password && (
+                  <div className="flex items-center justify-between py-1.5 text-[#6B7280]">
+                    <span className="font-medium">Default Password:</span>
+                    <div className="flex items-center gap-1.5">
+                      <code
+                        onClick={handleCopyPassword}
+                        className="cursor-pointer rounded border border-[#D8DCE5] bg-white px-2 py-0.5 font-mono font-semibold text-[#111827] shadow-2xs transition hover:border-[#475AA2]"
+                        title="Click to copy password"
+                      >
+                        {developerCredentials.password}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={handleCopyPassword}
+                        title={copiedPassword ? 'Copied' : 'Copy password'}
+                        className="rounded p-1 text-[#475AA2] transition hover:bg-[#EEF1F8] focus:outline-none cursor-pointer"
+                        aria-label="Copy default password"
+                      >
+                        {copiedPassword ? (
+                          <span className="text-[10px] font-semibold text-[#2F7D59]">Copied!</span>
+                        ) : (
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </form>
       </section>
 
