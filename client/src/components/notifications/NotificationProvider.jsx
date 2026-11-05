@@ -5,17 +5,32 @@ import NotificationContext from './NotificationContext'
 import { notificationsForRole } from './notificationModel'
 import { getDoctorNotifications } from '../../doctor/api'
 import { getPharmacistNotifications } from '../../pharmacist/api'
+import { createDoctorNotificationExamples } from '../../doctor/previews/doctorNotificationExamples'
+import { createPharmacistNotificationExamples } from '../../pharmacist/previews/pharmacistNotificationExamples'
 
 // State lasts only for this mounted role/account. Layouts key the provider by
 // the existing session token so another account cannot inherit its notifications.
 // initialNotifications is an injection point for fixtures or future integration.
-export default function NotificationProvider({ role, initialNotifications = [], previewLabel = '', children }) {
-  const [notifications, setNotifications] = useState(() => notificationsForRole(initialNotifications, role))
+export default function NotificationProvider({ role, initialNotifications, previewLabel = '', verified = false, children }) {
+  const getDefaultNotifications = () => {
+    if (Array.isArray(initialNotifications)) {
+      return notificationsForRole(initialNotifications, role)
+    }
+    if (role === 'doctor') {
+      return notificationsForRole(createDoctorNotificationExamples(), role)
+    }
+    if (role === 'pharmacist') {
+      return notificationsForRole(createPharmacistNotificationExamples(), role)
+    }
+    return []
+  }
+
+  const [notifications, setNotifications] = useState(getDefaultNotifications)
   const [readIds, setReadIds] = useState(() => new Set())
   const [toastNotification, setToastNotification] = useState(null)
   const isInitialMount = useRef(true)
   const previousUnreadIds = useRef(new Set())
-  const isPreview = Boolean(previewLabel || (initialNotifications && initialNotifications.length > 0))
+  const isPreview = Boolean(previewLabel)
 
   const markAsRead = useCallback(id => {
     setReadIds(prev => new Set(prev).add(id))
@@ -53,20 +68,25 @@ export default function NotificationProvider({ role, initialNotifications = [], 
           ...record,
           read: record.read || readIds.has(record.id),
         }))
-        const unreadList = normalized.filter(record => !record.read)
-        const unreadIds = new Set(unreadList.map(r => r.id))
-        if (!isInitialMount.current) {
-          const newlyArrived = unreadList.find(r => !previousUnreadIds.current.has(r.id))
-          if (newlyArrived) {
-            setToastNotification(newlyArrived)
+        if (normalized.length > 0) {
+          const unreadList = normalized.filter(record => !record.read)
+          const unreadIds = new Set(unreadList.map(r => r.id))
+          if (!isInitialMount.current) {
+            const newlyArrived = unreadList.find(r => !previousUnreadIds.current.has(r.id))
+            if (newlyArrived) {
+              setToastNotification(newlyArrived)
+            }
+          } else {
+            isInitialMount.current = false
           }
-        } else {
-          isInitialMount.current = false
+          previousUnreadIds.current = unreadIds
+          setNotifications(normalized)
+        } else if (Array.isArray(initialNotifications) && initialNotifications.length === 0) {
+          setNotifications([])
         }
-        previousUnreadIds.current = unreadIds
-        setNotifications(normalized)
-      } catch {
-        // Safe fail: unauthenticated or offline
+      } catch (err) {
+        // Safe fail: unauthenticated, offline, or transient network error
+        console.error('Notification fetch error:', err)
       }
     }
 
@@ -105,6 +125,12 @@ export default function NotificationProvider({ role, initialNotifications = [], 
       } catch {}
     }
   }, [role, isPreview, readIds])
+
+  useEffect(() => {
+    if (verified && !isPreview && (role === 'doctor' || role === 'pharmacist')) {
+      window.dispatchEvent(new CustomEvent('medtrail:notification-refresh'))
+    }
+  }, [verified, isPreview, role])
 
   const value = useMemo(() => ({
     role, notifications, previewLabel, unreadCount: notifications.filter(record => !record.read).length,

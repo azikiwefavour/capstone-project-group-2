@@ -11,7 +11,7 @@ export default function PharmacistNotificationScope({ verified, children }) {
   const { search } = useLocation()
   const previewRequested = import.meta.env.DEV && verified
     && new URLSearchParams(search).get('notificationPreview') === '1'
-  const normal = <NotificationProvider role="pharmacist">{children}</NotificationProvider>
+  const normal = <NotificationProvider role="pharmacist" verified={verified}>{children}</NotificationProvider>
 
   return previewRequested
     ? <Suspense fallback={normal}><DevelopmentPreview>{children}</DevelopmentPreview></Suspense>
