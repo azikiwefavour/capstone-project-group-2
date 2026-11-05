@@ -1068,8 +1068,10 @@ export class DoctorService {
 
     for (const rx of prescriptions) {
       const sender = rx.pharmacistName
-        ? (rx.pharmacistName.startsWith('Pharm.') ? rx.pharmacistName : 'Pharm. ' + rx.pharmacistName)
-        : 'Pharm. Elizabeth';
+        ? (rx.pharmacistName.startsWith('Pharm.') || rx.pharmacistName.startsWith('Pharm ')
+            ? rx.pharmacistName
+            : 'Pharm. ' + rx.pharmacistName)
+        : 'Hospital Pharmacy';
 
       if (rx.status === PrescriptionStatus.AWAITING_CLARIFICATION) {
         const notifId = 'notif-doc-pending-' + rx.id;
@@ -1082,7 +1084,7 @@ export class DoctorService {
             type: 'pharmacist-query',
             title: 'Clarification Request',
             description: 'From ' + sender + '.',
-            patientName: rx.patientName,
+            patientName: rx.patientName || 'Patient',
             createdAt: this.safeToIso(rx.updatedAt || rx.createdAt),
             read: false,
           });
@@ -1102,38 +1104,12 @@ export class DoctorService {
             type: 'pharmacist-query',
             title: 'Clarification Request',
             description: 'From ' + sender + '.',
-            patientName: rx.patientName,
+            patientName: rx.patientName || 'Patient',
             createdAt: this.safeToIso(rx.updatedAt || rx.createdAt),
             read: true,
           });
         }
       }
-    }
-
-    if (notifications.length < 5) {
-      const now = Date.now();
-      const ages = [10 * 60000, 30 * 60000, 8 * 3600000, 17 * 3600000];
-      const fallbackDates = [
-        ...ages.map((age) => new Date(now - age).toISOString()),
-        new Date(2026, 9, 31, 13, 12).toISOString(),
-      ];
-      const hasUnread = notifications.some((n) => !n.read);
-      fallbackDates.forEach((createdAt, index) => {
-        const id = `doctor-design-example-${index}`;
-        if (!seenIds.has(id) && notifications.length < 5) {
-          seenIds.add(id);
-          notifications.push({
-            id,
-            role: 'doctor',
-            type: 'pharmacist-query',
-            title: 'Clarification Request',
-            description: 'From Pharm. Elizabeth.',
-            patientName: 'Miss. Jennifer',
-            createdAt,
-            read: hasUnread ? true : index !== 0,
-          });
-        }
-      });
     }
 
     return notifications;

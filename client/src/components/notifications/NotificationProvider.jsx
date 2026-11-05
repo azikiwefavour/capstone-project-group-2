@@ -5,8 +5,6 @@ import NotificationContext from './NotificationContext'
 import { notificationsForRole } from './notificationModel'
 import { getDoctorNotifications } from '../../doctor/api'
 import { getPharmacistNotifications } from '../../pharmacist/api'
-import { createDoctorNotificationExamples } from '../../doctor/previews/doctorNotificationExamples'
-import { createPharmacistNotificationExamples } from '../../pharmacist/previews/pharmacistNotificationExamples'
 
 // State lasts only for this mounted role/account. Layouts key the provider by
 // the existing session token so another account cannot inherit its notifications.
@@ -15,12 +13,6 @@ export default function NotificationProvider({ role, initialNotifications, previ
   const getDefaultNotifications = () => {
     if (Array.isArray(initialNotifications)) {
       return notificationsForRole(initialNotifications, role)
-    }
-    if (role === 'doctor') {
-      return notificationsForRole(createDoctorNotificationExamples(), role)
-    }
-    if (role === 'pharmacist') {
-      return notificationsForRole(createPharmacistNotificationExamples(), role)
     }
     return []
   }
@@ -68,22 +60,18 @@ export default function NotificationProvider({ role, initialNotifications, previ
           ...record,
           read: record.read || readIds.has(record.id),
         }))
-        if (normalized.length > 0) {
-          const unreadList = normalized.filter(record => !record.read)
-          const unreadIds = new Set(unreadList.map(r => r.id))
-          if (!isInitialMount.current) {
-            const newlyArrived = unreadList.find(r => !previousUnreadIds.current.has(r.id))
-            if (newlyArrived) {
-              setToastNotification(newlyArrived)
-            }
-          } else {
-            isInitialMount.current = false
+        const unreadList = normalized.filter(record => !record.read)
+        const unreadIds = new Set(unreadList.map(r => r.id))
+        if (!isInitialMount.current) {
+          const newlyArrived = unreadList.find(r => !previousUnreadIds.current.has(r.id))
+          if (newlyArrived) {
+            setToastNotification(newlyArrived)
           }
-          previousUnreadIds.current = unreadIds
-          setNotifications(normalized)
-        } else if (Array.isArray(initialNotifications) && initialNotifications.length === 0) {
-          setNotifications([])
+        } else {
+          isInitialMount.current = false
         }
+        previousUnreadIds.current = unreadIds
+        setNotifications(normalized)
       } catch (err) {
         // Safe fail: unauthenticated, offline, or transient network error
         console.error('Notification fetch error:', err)

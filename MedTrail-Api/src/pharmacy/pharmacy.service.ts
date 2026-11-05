@@ -178,8 +178,10 @@ export class PharmacyService {
 
     for (const rx of prescriptions) {
       const sender = rx.doctorName
-        ? (rx.doctorName.startsWith('Dr.') || rx.doctorName.startsWith('Dr ') ? rx.doctorName : 'Dr. ' + rx.doctorName)
-        : 'Dr. Adewale';
+        ? (rx.doctorName.startsWith('Dr.') || rx.doctorName.startsWith('Dr ')
+            ? rx.doctorName
+            : 'Dr. ' + rx.doctorName)
+        : 'Attending Doctor';
 
       if (
         rx.status === PrescriptionStatus.PENDING ||
@@ -195,9 +197,25 @@ export class PharmacyService {
             type: 'new-prescription',
             title: 'Verification',
             description: 'From ' + sender + '.',
-            patientName: rx.patientName,
+            patientName: rx.patientName || 'Patient',
             createdAt: this.safeToIso(rx.updatedAt || rx.createdAt),
             read: false,
+          });
+        }
+      } else if (rx.status === PrescriptionStatus.AWAITING_CLARIFICATION) {
+        const notifId = 'notif-pharm-clarifying-' + rx.id;
+        if (!seenIds.has(notifId)) {
+          seenIds.add(notifId);
+          notifications.push({
+            id: notifId,
+            prescriptionId: rx.id,
+            role: 'pharmacist',
+            type: 'new-prescription',
+            title: 'Verification',
+            description: 'Awaiting doctor response.',
+            patientName: rx.patientName || 'Patient',
+            createdAt: this.safeToIso(rx.updatedAt || rx.createdAt),
+            read: true,
           });
         }
       } else if (
@@ -214,38 +232,12 @@ export class PharmacyService {
             type: 'new-prescription',
             title: 'Verification',
             description: 'From ' + sender + '.',
-            patientName: rx.patientName,
+            patientName: rx.patientName || 'Patient',
             createdAt: this.safeToIso(rx.dispensedAt || rx.updatedAt || rx.createdAt),
             read: true,
           });
         }
       }
-    }
-
-    if (notifications.length < 5) {
-      const now = Date.now();
-      const ages = [10 * 60000, 30 * 60000, 8 * 3600000, 17 * 3600000];
-      const fallbackDates = [
-        ...ages.map((age) => new Date(now - age).toISOString()),
-        new Date(2026, 9, 31, 13, 12).toISOString(),
-      ];
-      const hasUnread = notifications.some((n) => !n.read);
-      fallbackDates.forEach((createdAt, index) => {
-        const id = `pharmacist-design-example-${index}`;
-        if (!seenIds.has(id) && notifications.length < 5) {
-          seenIds.add(id);
-          notifications.push({
-            id,
-            role: 'pharmacist',
-            type: 'new-prescription',
-            title: 'Verification',
-            description: 'From Dr. Adewale.',
-            patientName: 'Miss. Jennifer',
-            createdAt,
-            read: hasUnread ? true : index !== 0,
-          });
-        }
-      });
     }
 
     return notifications;
