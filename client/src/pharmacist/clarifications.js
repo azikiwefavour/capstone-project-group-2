@@ -28,6 +28,16 @@ export async function requestPharmacistClarification(prescriptionId, patientId, 
       || saved.concern !== body.concern || saved.clarificationReason !== body.reason) {
       throw new Error('The server returned unexpected clarification information.')
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('medtrail:notification-refresh'))
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('medtrail_notifications')
+          channel.postMessage({ type: 'refresh' })
+          channel.close()
+        }
+      } catch {}
+    }
     return { message: typeof result.message === 'string' && result.message.trim() ? result.message : 'Clarification request submitted successfully.' }
   } catch (error) {
     if (error.name === 'AbortError') throw error

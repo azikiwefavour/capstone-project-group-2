@@ -114,5 +114,16 @@ export async function verifyAndDispensePrescription(prescriptionId, signal) {
   if (typeof prescriptionId !== 'string' || !prescriptionId.trim()) {
     throw new Error('Please select a prescription to verify.')
   }
-  return pharmacistPost(`prescriptions/${encodeURIComponent(prescriptionId.trim())}/verify`, undefined, signal, 'prescription verification')
+  const result = await pharmacistPost(`prescriptions/${encodeURIComponent(prescriptionId.trim())}/verify`, undefined, signal, 'prescription verification')
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('medtrail:notification-refresh'))
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const channel = new BroadcastChannel('medtrail_notifications')
+        channel.postMessage({ type: 'refresh' })
+        channel.close()
+      }
+    } catch {}
+  }
+  return result
 }

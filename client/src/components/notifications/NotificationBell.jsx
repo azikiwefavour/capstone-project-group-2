@@ -24,7 +24,15 @@ function NotificationControl({ role, notifications, unreadCount, markAsRead, mar
       className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E5ED] bg-white text-[#52556C] transition hover:bg-[#F7F8FB] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#475AA2]/15 dark:border-[#2C3852] dark:bg-[#161F30] dark:text-[#94A3B8] dark:hover:bg-[#1E293B]"
     >
       <Bell size={20} strokeWidth={1.8} aria-hidden="true" />
-      {unreadCount > 0 && <span data-testid="notification-unread-indicator" aria-hidden="true" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#E35977] ring-2 ring-white dark:ring-[#161F30]" />}
+      {unreadCount > 0 && (
+        <span
+          data-testid="notification-unread-indicator"
+          aria-hidden="true"
+          className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#E35977] px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white dark:ring-[#161F30]"
+        >
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
     </button>
     {open && <NotificationPanel role={role} previewLabel={previewLabel} id={panelId} triggerRef={triggerRef} notifications={notifications} unreadCount={unreadCount} onRead={markAsRead} onReadAll={markAllAsRead} onClose={close} />}
   </>

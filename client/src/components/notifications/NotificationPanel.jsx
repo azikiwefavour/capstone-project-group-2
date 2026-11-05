@@ -41,7 +41,7 @@ export default function NotificationPanel({ role, previewLabel, id, triggerRef, 
         }
         navigate(`/doctor/clarifications/${encodeURIComponent(notification.prescriptionId)}`)
       } else if (role === 'pharmacist') {
-        navigate(`/pharmacist/prescriptions/${encodeURIComponent(notification.prescriptionId)}`)
+        navigate(`/pharmacist/verification-queue/${encodeURIComponent(notification.prescriptionId)}`)
       }
     }
   }

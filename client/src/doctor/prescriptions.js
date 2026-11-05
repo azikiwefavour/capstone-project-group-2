@@ -117,6 +117,16 @@ export async function saveDoctorPrescription(path, { method, body, patientId, pr
       || (status && mainRx.status?.toLowerCase() !== status?.toLowerCase())) {
       throw new Error('Unexpected prescription response.')
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('medtrail:notification-refresh'))
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('medtrail_notifications')
+          channel.postMessage({ type: 'refresh' })
+          channel.close()
+        }
+      } catch {}
+    }
     return { message: text(data.message) || 'Prescription saved successfully.' }
   } catch (error) {
     if (error.name === 'AbortError') throw error

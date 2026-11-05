@@ -49,12 +49,38 @@ export default function NotificationProvider({ role, initialNotifications = [], 
     }
 
     fetchLiveNotifications()
-    const timer = setInterval(fetchLiveNotifications, 8000)
+    const timer = setInterval(fetchLiveNotifications, 3000)
+
+    const onRefresh = () => {
+      fetchLiveNotifications()
+    }
+    window.addEventListener('medtrail:notification-refresh', onRefresh)
+    window.addEventListener('focus', onRefresh)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchLiveNotifications()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    let channel
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('medtrail_notifications')
+        channel.onmessage = () => {
+          fetchLiveNotifications()
+        }
+      }
+    } catch {}
 
     return () => {
       active = false
       controller.abort()
       clearInterval(timer)
+      window.removeEventListener('medtrail:notification-refresh', onRefresh)
+      window.removeEventListener('focus', onRefresh)
+      document.removeEventListener('visibilitychange', onVisibility)
+      try {
+        channel?.close()
+      } catch {}
     }
   }, [role, isPreview, readIds])
 

@@ -177,6 +177,7 @@ function App() {
           <Route path="dashboard" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading dashboard...</p>}><PharmacistDashboard /></Suspense>} />
           <Route path="verification-queue" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading prescriptions...</p>}><PharmacistVerificationQueue /></Suspense>} />
           <Route path="verification-queue/:prescriptionId" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading prescription...</p>}><PharmacistPrescriptionDetails /></Suspense>} />
+          <Route path="prescriptions/:prescriptionId" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading prescription...</p>}><PharmacistPrescriptionDetails /></Suspense>} />
           <Route path="clarifications" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading clarifications...</p>}><PharmacistClarifications /></Suspense>} />
           <Route path="clarifications/:prescriptionId" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading clarification...</p>}><PharmacistPrescriptionDetails view="clarification" /></Suspense>} />
           <Route path="dispensed-medication" element={<Suspense fallback={<p role="status" className="p-5 text-sm text-[#7A8190]">Loading dispensed medications...</p>}><PharmacistDispensationHistory /></Suspense>} />
